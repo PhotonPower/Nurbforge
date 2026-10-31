@@ -175,12 +175,7 @@ Columns reduce_degree(std::size_t p, const Columns& net_in, double tolerance) {
   const std::size_t q = p - 1;
 
   // clamped originals (common knots for all columns)
-  Columns orig;
-  for (const auto& c : net_in.cols) {
-    auto r = clamp(p, net_in.knots, c);
-    orig.knots = std::move(r.knots);
-    orig.cols.push_back(std::move(r.points));
-  }
+  const Columns orig = clamp(p, net_in);
   const KnotVector& U = orig.knots;
 
   // Bezier-wise reduction -> C0 B-spline of degree q

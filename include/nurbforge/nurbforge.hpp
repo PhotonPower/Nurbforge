@@ -10,6 +10,7 @@
 #include "nurbforge/nurbs/basis.hpp"
 #include "nurbforge/nurbs/curve.hpp"
 #include "nurbforge/nurbs/surface.hpp"
+#include "nurbforge/nurbs/join.hpp"
 #include "nurbforge/geometry/transform.hpp"
 #include "nurbforge/geometry/primitives.hpp"
 #include "nurbforge/modeling/construct.hpp"

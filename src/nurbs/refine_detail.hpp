@@ -3,6 +3,7 @@
 /// Internal knot refinement on homogeneous control points (shared by curves and surfaces).
 
 #include <cstddef>
+#include <utility>
 #include <vector>
 
 #include "nurbforge/core/vec.hpp"
@@ -55,6 +56,13 @@ std::size_t remove_knot(std::size_t p, Columns& net, double u, std::size_t times
 /// continuity; the result is verified rigorously by elevating it back and comparing control
 /// polygons on a common knot vector. Throws GeometryError if the tolerance cannot be met.
 [[nodiscard]] Columns reduce_degree(std::size_t p, const Columns& net, double tolerance);
+
+/// Splits all columns at the interior parameter u (input is clamped first). Both parts are
+/// clamped and keep their parameter intervals [a, u] and [u, b].
+[[nodiscard]] std::pair<Columns, Columns> split(std::size_t p, const Columns& net, double u);
+
+/// Clamps all columns (common knot vector).
+[[nodiscard]] Columns clamp(std::size_t p, const Columns& net);
 
 /// Start indices k of the non-empty spans [U[k], U[k+1]) inside the domain. After Bézier
 /// refinement the segment on span k has control points k-p .. k.

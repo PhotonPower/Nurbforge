@@ -15,6 +15,9 @@ versioning: [SemVer](https://semver.org).
 - `NurbsCurve::clamped()` / `is_clamped()`: equivalent curve with clamped knot vector.
 - Knot removal within a Cartesian tolerance (A5.8): `NurbsCurve::try_remove_knot` /
   `remove_knot`, `NurbsSurface::remove_knot_u/v`.
+- Splitting and joining: `NurbsCurve::split` / `sub_curve`, `NurbsSurface::split_u/v` /
+  `sub_surface` / `clamped`, free functions `join`, `join_u`, `join_v` (`nurbs/join.hpp`).
+- `NurbsSurface::try_remove_knot_u/v`.
 - Degree reduction with rigorous error verification: `NurbsCurve::reduce_degree`,
   `NurbsSurface::reduce_degree_u/v`.
 ### Changed

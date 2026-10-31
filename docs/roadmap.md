@@ -9,7 +9,7 @@
 ## 0.2 – Complete NURBS toolbox
 - Degree elevation ✅, degree reduction ✅, knot removal ✅
 - Knot refinement ✅, Bézier decomposition ✅
-- Curve/surface splitting and joining
+- Curve/surface splitting and joining ✅
 - Interpolation and least-squares approximation (curves and surfaces)
 - Closest point / point inversion, arc length, curvature, area
 - Extrapolation (curve/surface extension with G1/G2 continuity)

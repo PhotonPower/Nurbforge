@@ -4,7 +4,11 @@ import numpy as np
 import nurbforge as nf
 import pytest
 
-gmsh = pytest.importorskip("gmsh")
+try:  # gmsh raises OSError (not ImportError) if system libraries are missing
+    import gmsh
+except (ImportError, OSError) as exc:  # pragma: no cover
+    pytest.skip(f"gmsh not usable: {exc}", allow_module_level=True)
+
 from nurbforge.mesh import GmshSession
 
 

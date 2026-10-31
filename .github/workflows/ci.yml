@@ -22,8 +22,9 @@ jobs:
       - name: System packages
         run: |
           dnf install -y gcc-c++ git python3 python3-devel python3-pip \
-                         mesa-libGLU libXcursor libXinerama libXft libXrender
-      - uses: actions/checkout@v4
+                         mesa-libGL mesa-libGLU libglvnd-opengl libgomp fontconfig \
+                         libX11 libXext libXfixes libXcursor libXinerama libXft libXrender
+      - uses: actions/checkout@v5
       - name: Python environment
         run: |
           python3 -m venv /opt/venv
@@ -39,14 +40,15 @@ jobs:
         run: |
           export PATH=/opt/venv/bin:$PATH
           pip install ".[dev]"
+          python -c "import gmsh; print('gmsh', gmsh.__version__)"
           pytest -v
 
   windows11:
     name: Windows (MSVC)
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
       - name: Configure & build (C++)
@@ -59,14 +61,15 @@ jobs:
       - name: Python package & tests
         run: |
           pip install ".[dev]"
+          python -c "import gmsh; print('gmsh', gmsh.__version__)"
           pytest -v
 
   lint:
     name: Lint (ruff, clang-format)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
       - run: pip install ruff clang-format

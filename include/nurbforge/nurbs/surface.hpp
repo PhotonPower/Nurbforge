@@ -52,6 +52,16 @@ class NurbsSurface {
   /// Structured grid of points (nu_samples x nv_samples), row-major.
   [[nodiscard]] std::vector<Vec3> sample(std::size_t nu_samples, std::size_t nv_samples) const;
 
+  /// Inserts all knots X into the u (resp. v) knot vector (A5.5). Shape is unchanged.
+  /// Same rules as NurbsCurve::refine_knots.
+  [[nodiscard]] NurbsSurface refine_knots_u(const std::vector<double>& X) const;
+  [[nodiscard]] NurbsSurface refine_knots_v(const std::vector<double>& X) const;
+
+  /// Splits the surface into Bézier patches, one per pair of non-empty knot spans. Returned in
+  /// row-major order (u span outer, v span inner); each patch keeps its original parameter
+  /// rectangle.
+  [[nodiscard]] std::vector<NurbsSurface> decompose_bezier() const;
+
   [[nodiscard]] NurbsSurface transformed(const Transform& t) const;
 
   /// Swaps the u and v directions (transposes the control net).

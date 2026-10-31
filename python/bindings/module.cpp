@@ -119,6 +119,10 @@ PYBIND11_MODULE(_core, m) {
       .def("sample", [](const NurbsCurve& c, std::size_t n) { return to_numpy(c.sample(n)); },
            py::arg("n") = 100)
       .def("insert_knot", &NurbsCurve::insert_knot, py::arg("u"), py::arg("times") = 1)
+      .def("refine_knots", &NurbsCurve::refine_knots, py::arg("knots"),
+           "Insert all given knots at once (shape-preserving).")
+      .def("decompose_bezier", &NurbsCurve::decompose_bezier,
+           "Bezier segments, each on its original parameter interval.")
       .def("reversed", &NurbsCurve::reversed)
       .def("transformed", &NurbsCurve::transformed, py::arg("transform"))
       .def("__repr__", [](const NurbsCurve& c) {
@@ -159,6 +163,10 @@ PYBIND11_MODULE(_core, m) {
              auto a = to_numpy(s.sample(nu, nv));
              return a.reshape({static_cast<py::ssize_t>(nu), static_cast<py::ssize_t>(nv), py::ssize_t{3}});
            }, py::arg("nu") = 20, py::arg("nv") = 20)
+      .def("refine_knots_u", &NurbsSurface::refine_knots_u, py::arg("knots"))
+      .def("refine_knots_v", &NurbsSurface::refine_knots_v, py::arg("knots"))
+      .def("decompose_bezier", &NurbsSurface::decompose_bezier,
+           "Bezier patches in row-major order (u span outer), original parameter rectangles.")
       .def("transformed", &NurbsSurface::transformed, py::arg("transform"))
       .def("transposed", &NurbsSurface::transposed)
       .def("__repr__", [](const NurbsSurface& s) {

@@ -8,6 +8,9 @@ versioning: [SemVer](https://semver.org).
 - Named tolerances `nf::tol::kLength`, `kParametric`, `kAngular` and the per-operation
   `nf::Tolerance` struct (`nurbforge/core/tolerance.hpp`, ADR 0005).
 - Build guides for AlmaLinux 10 and Windows 11 (`docs/build/`).
+- Knot refinement `NurbsCurve::refine_knots` (A5.4) and `NurbsSurface::refine_knots_u/v` (A5.5).
+- Bézier decomposition `decompose_bezier()` for curves and surfaces; segments keep their original
+  parameter intervals, unclamped knot vectors are supported.
 ### Changed
 - All tolerance literals in `src/` replaced by the named constants; angular comparisons now
   uniformly use 1e-9.

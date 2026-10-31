@@ -37,6 +37,9 @@ Internally all evaluation is done in homogeneous coordinates **P**ʷ = (wP, w) a
 | A4.2 RatCurveDerivs | `NurbsCurve::derivatives` |
 | first-order RatSurfaceDerivs | `NurbsSurface::first_derivatives` |
 | A5.1 CurveKnotIns | `NurbsCurve::insert_knot` |
+| A5.4 RefineKnotVectCurve | `NurbsCurve::refine_knots` |
+| A5.5 RefineKnotVectSurface | `NurbsSurface::refine_knots_u/v` (A5.4 per column/row) |
+| A5.6 DecomposeCurve (equivalent) | `NurbsCurve::decompose_bezier`, `NurbsSurface::decompose_bezier` – refine every domain knot to multiplicity p, then slice; also works for unclamped knot vectors |
 | A7.1 MakeNurbsCircle | `make_arc`, `make_circle` |
 | A8.1 MakeRevolvedSurf | `revolve` |
 

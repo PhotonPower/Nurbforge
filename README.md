@@ -14,7 +14,7 @@ from code (C++ or Python), from a local LLM (Ollama), and meshed with [gmsh](htt
 
 | Area | Available now | Planned |
 |---|---|---|
-| NURBS core | Basis functions + derivatives, curve/surface evaluation, rational derivatives, knot insertion, reversal, iso-curves | Degree elevation, knot removal, splitting, refinement |
+| NURBS core | Basis functions + derivatives, curve/surface evaluation, rational derivatives, knot insertion and refinement, Bézier decomposition, reversal, iso-curves | Degree elevation, knot removal, splitting |
 | Primitives | Point, line, polyline, exact arc and circle, bilinear patch, rectangle | Ellipse, conics, aspheres, Zernike/XY-polynomial optical surfaces |
 | Construction | Extrusion, revolution (full/partial), ruled surface (auto knot compatibility) | Loft/skinning, sweep, Coons/Gordon patches, offset, fillets |
 | Transforms | Translate, rotate, scale, mirror, composition | – |

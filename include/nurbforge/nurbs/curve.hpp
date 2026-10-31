@@ -51,6 +51,16 @@ class NurbsCurve {
   /// Returns a copy with knot u inserted r times (A5.1). Shape is unchanged.
   [[nodiscard]] NurbsCurve insert_knot(double u, std::size_t r = 1) const;
 
+  /// Returns a copy with all knots in X inserted (A5.4). X may be unsorted and contain repeated
+  /// values; every value must lie in the domain and no knot may exceed multiplicity p.
+  /// Shape is unchanged.
+  [[nodiscard]] NurbsCurve refine_knots(const std::vector<double>& X) const;
+
+  /// Splits the curve into its Bézier segments (one per non-empty knot span of the domain).
+  /// Segment k is a NURBS of the same degree with knots {a,..,a, b,..,b} on its original
+  /// parameter interval [a, b], so parameters carry over unchanged.
+  [[nodiscard]] std::vector<NurbsCurve> decompose_bezier() const;
+
   /// Returns the curve with reversed parametrisation (same geometry).
   [[nodiscard]] NurbsCurve reversed() const;
 

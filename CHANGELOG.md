@@ -8,10 +8,17 @@ versioning: [SemVer](https://semver.org).
 - Named tolerances `nf::tol::kLength`, `kParametric`, `kAngular` and the per-operation
   `nf::Tolerance` struct (`nurbforge/core/tolerance.hpp`, ADR 0005).
 - Build guides for AlmaLinux 10 and Windows 11 (`docs/build/`).
+- Knot refinement `NurbsCurve::refine_knots` (A5.4) and `NurbsSurface::refine_knots_u/v` (A5.5).
+- Bézier decomposition `decompose_bezier()` for curves and surfaces; segments keep their original
+  parameter intervals, unclamped knot vectors are supported.
+- Degree elevation `NurbsCurve::elevate_degree` (A5.9) and `NurbsSurface::elevate_degree_u/v`.
+- `NurbsCurve::clamped()` / `is_clamped()`: equivalent curve with clamped knot vector.
 ### Changed
 - All tolerance literals in `src/` replaced by the named constants; angular comparisons now
   uniformly use 1e-9.
 ### Fixed
+- `ruled` / `make_compatible` now handle curves of different degree (previously
+  `NotImplementedError`) and unclamped curves.
 - `NurbsCurve::is_rational` compares weights relatively, so uniformly scaled weights
   (e.g. all 1e-12) are no longer misclassified.
 - `pip install .` on Windows with Visual Studio 2026 and an older system CMake: CMake >= 4.2 is

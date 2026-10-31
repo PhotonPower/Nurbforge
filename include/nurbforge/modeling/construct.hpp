@@ -19,11 +19,12 @@ namespace nf {
 
 /// Ruled (linearly lofted) surface between two curves.
 /// v = 0 lies on c0, v = 1 on c1. Curves are made compatible (degree and knots)
-/// automatically where possible; currently both curves must have equal degree.
+/// automatically, see make_compatible.
 [[nodiscard]] NurbsSurface ruled(const NurbsCurve& c0, const NurbsCurve& c1);
 
-/// Makes two curves of equal degree share a common knot vector by knot insertion.
-/// Domains are first normalised to [0, 1].
+/// Makes two curves compatible: clamped knot vectors, common domain [0, 1], equal degree
+/// (by elevating the lower one) and a common knot vector (by knot insertion). Shapes are
+/// unchanged.
 void make_compatible(NurbsCurve& a, NurbsCurve& b);
 
 /// Linear reparametrisation of a curve to the domain [a, b].

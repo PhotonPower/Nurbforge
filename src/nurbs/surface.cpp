@@ -6,6 +6,7 @@
 #include "nurbforge/geometry/transform.hpp"
 #include "nurbforge/nurbs/basis.hpp"
 #include "nurbforge/nurbs/curve.hpp"
+#include "refine_detail.hpp"
 
 namespace nf {
 
@@ -97,6 +98,93 @@ std::vector<Vec3> NurbsSurface::sample(std::size_t nus, std::size_t nvs) const {
     }
   }
   return pts;
+}
+
+NurbsSurface NurbsSurface::refine_knots_u(const std::vector<double>& X) const {
+  if (X.empty()) return *this;
+  KnotVector new_ku;
+  std::size_t new_nu = 0;
+  std::vector<Vec3> c;
+  std::vector<double> w;
+  // refine every column (fixed j, i along u) – A5.5 applied column by column
+  for (std::size_t j = 0; j < nv_; ++j) {
+    std::vector<Vec4> col(nu_);
+    for (std::size_t i = 0; i < nu_; ++i)
+      col[i] = Vec4::from_point(ctrl_[i * nv_ + j], weights_[i * nv_ + j]);
+    auto r = detail::refine_knot_vector(pu_, ku_, col, X);
+    if (j == 0) {
+      new_ku = std::move(r.knots);
+      new_nu = r.points.size();
+      c.resize(new_nu * nv_);
+      w.resize(new_nu * nv_);
+    }
+    for (std::size_t i = 0; i < new_nu; ++i) {
+      c[i * nv_ + j] = r.points[i].project();
+      w[i * nv_ + j] = r.points[i].w;
+    }
+  }
+  return {pu_, pv_, std::move(new_ku), kv_, new_nu, nv_, std::move(c), std::move(w)};
+}
+
+NurbsSurface NurbsSurface::elevate_degree_u(std::size_t t) const {
+  if (t == 0) return *this;
+  KnotVector new_ku;
+  std::size_t new_nu = 0;
+  std::vector<Vec3> c;
+  std::vector<double> w;
+  for (std::size_t j = 0; j < nv_; ++j) {  // every column (fixed j) has the same knots
+    std::vector<Vec4> col(nu_);
+    for (std::size_t i = 0; i < nu_; ++i)
+      col[i] = Vec4::from_point(ctrl_[i * nv_ + j], weights_[i * nv_ + j]);
+    auto r = detail::elevate_degree(pu_, ku_, col, t);
+    if (j == 0) {
+      new_ku = std::move(r.knots);
+      new_nu = r.points.size();
+      c.resize(new_nu * nv_);
+      w.resize(new_nu * nv_);
+    }
+    for (std::size_t i = 0; i < new_nu; ++i) {
+      c[i * nv_ + j] = r.points[i].project();
+      w[i * nv_ + j] = r.points[i].w;
+    }
+  }
+  return {pu_ + t, pv_, std::move(new_ku), kv_, new_nu, nv_, std::move(c), std::move(w)};
+}
+
+NurbsSurface NurbsSurface::elevate_degree_v(std::size_t t) const {
+  if (t == 0) return *this;
+  return transposed().elevate_degree_u(t).transposed();
+}
+
+NurbsSurface NurbsSurface::refine_knots_v(const std::vector<double>& X) const {
+  if (X.empty()) return *this;
+  return transposed().refine_knots_u(X).transposed();
+}
+
+std::vector<NurbsSurface> NurbsSurface::decompose_bezier() const {
+  const NurbsSurface s = refine_knots_u(detail::bezier_refinement_knots(pu_, ku_, nu_))
+                             .refine_knots_v(detail::bezier_refinement_knots(pv_, kv_, nv_));
+  const auto clamped = [](std::size_t p, double a, double b) {
+    KnotVector U(2 * (p + 1), a);
+    std::fill(U.begin() + static_cast<std::ptrdiff_t>(p + 1), U.end(), b);
+    return U;
+  };
+  std::vector<NurbsSurface> patches;
+  for (std::size_t ku : detail::nonempty_spans(pu_, s.ku_, s.nu_)) {
+    for (std::size_t kv : detail::nonempty_spans(pv_, s.kv_, s.nv_)) {
+      std::vector<Vec3> c;
+      std::vector<double> w;
+      for (std::size_t i = ku - pu_; i <= ku; ++i)
+        for (std::size_t j = kv - pv_; j <= kv; ++j) {
+          c.push_back(s.control_point(i, j));
+          w.push_back(s.weight(i, j));
+        }
+      patches.emplace_back(pu_, pv_, clamped(pu_, s.ku_[ku], s.ku_[ku + 1]),
+                           clamped(pv_, s.kv_[kv], s.kv_[kv + 1]), pu_ + 1, pv_ + 1,
+                           std::move(c), std::move(w));
+    }
+  }
+  return patches;
 }
 
 NurbsSurface NurbsSurface::transformed(const Transform& t) const {

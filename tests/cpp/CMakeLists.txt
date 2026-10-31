@@ -15,6 +15,8 @@ add_executable(nurbforge_tests
   test_curve.cpp
   test_surface.cpp
   test_transform.cpp
-  test_construct.cpp)
+  test_construct.cpp
+  test_refine.cpp
+  test_elevate.cpp)
 target_link_libraries(nurbforge_tests PRIVATE Nurbforge::core Catch2::Catch2WithMain)
 catch_discover_tests(nurbforge_tests)

@@ -6,6 +6,7 @@
 #include "nurbforge/core/error.hpp"
 #include "nurbforge/geometry/transform.hpp"
 #include "nurbforge/nurbs/basis.hpp"
+#include "refine_detail.hpp"
 
 namespace nf {
 
@@ -139,6 +140,42 @@ NurbsCurve NurbsCurve::insert_knot(double u, std::size_t r) const {
   for (std::size_t i = L + 1; i < k - s; ++i) Qw[i] = Rw[i - L];
 
   return from_homogeneous(p, std::move(UQ), Qw);
+}
+
+NurbsCurve NurbsCurve::refine_knots(const std::vector<double>& X) const {
+  auto r = detail::refine_knot_vector(degree_, knots_, homogeneous_control_points(), X);
+  return from_homogeneous(degree_, std::move(r.knots), r.points);
+}
+
+bool NurbsCurve::is_clamped() const noexcept {
+  return knots_.front() == domain_start() && knots_.back() == domain_end();
+}
+
+NurbsCurve NurbsCurve::clamped() const {
+  if (is_clamped()) return *this;
+  auto r = detail::clamp(degree_, knots_, homogeneous_control_points());
+  return from_homogeneous(degree_, std::move(r.knots), r.points);
+}
+
+NurbsCurve NurbsCurve::elevate_degree(std::size_t t) const {
+  if (t == 0) return *this;
+  auto r = detail::elevate_degree(degree_, knots_, homogeneous_control_points(), t);
+  return from_homogeneous(degree_ + t, std::move(r.knots), r.points);
+}
+
+std::vector<NurbsCurve> NurbsCurve::decompose_bezier() const {
+  const std::size_t p = degree_;
+  const auto X = detail::bezier_refinement_knots(p, knots_, ctrl_.size());
+  const auto r = detail::refine_knot_vector(p, knots_, homogeneous_control_points(), X);
+  std::vector<NurbsCurve> segments;
+  for (std::size_t k : detail::nonempty_spans(p, r.knots, r.points.size())) {
+    KnotVector U(2 * (p + 1), r.knots[k]);
+    std::fill(U.begin() + static_cast<std::ptrdiff_t>(p + 1), U.end(), r.knots[k + 1]);
+    std::vector<Vec4> pw(r.points.begin() + static_cast<std::ptrdiff_t>(k - p),
+                         r.points.begin() + static_cast<std::ptrdiff_t>(k + 1));
+    segments.push_back(from_homogeneous(p, std::move(U), pw));
+  }
+  return segments;
 }
 
 NurbsCurve NurbsCurve::reversed() const {

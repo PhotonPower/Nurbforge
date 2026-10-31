@@ -54,3 +54,59 @@ def test_surface_normal_and_iso_curve():
     n = s.normal(0.5, 0.5)
     assert tuple(n) == pytest.approx((0, 0, 1))
     assert nf.distance(s.iso_curve_u(0.3)(0.6), s(0.3, 0.6)) < 1e-12
+
+
+def test_curve_refinement_and_bezier_decomposition():
+    c = nf.make_circle((0, 0, 0), (0, 0, 1), 2.0)
+    r = c.refine_knots([0.6, 0.1, 0.6])
+    assert len(r.control_points) == len(c.control_points) + 3
+    for u in np.linspace(0, 1, 51):
+        assert nf.distance(c(u), r(u)) < 1e-12
+
+    segs = c.decompose_bezier()
+    assert len(segs) == 4
+    for s in segs:
+        a, b = s.domain
+        for u in np.linspace(a, b, 7):
+            assert nf.distance(s(u), c(u)) < 1e-12
+
+    with pytest.raises(nf.GeometryError):
+        c.refine_knots([1.5])
+
+
+def test_surface_refinement_and_bezier_decomposition():
+    meridian = nf.make_arc((0, 0, 0), (0, 0, -1), (1, 0, 0), 1.0, 0.0, math.pi)
+    sphere = nf.revolve(meridian, (0, 0, 0), (0, 0, 1), 2 * math.pi)
+    r = sphere.refine_knots_u([0.1, 0.9]).refine_knots_v([0.3])
+    assert (r.num_u, r.num_v) == (sphere.num_u + 2, sphere.num_v + 1)
+    assert nf.distance(r(0.37, 0.61), sphere(0.37, 0.61)) < 1e-12
+
+    patches = sphere.decompose_bezier()
+    assert len(patches) == 4 * 2
+    for p in patches:
+        (u0, u1), (v0, v1) = p.domain_u, p.domain_v
+        u, v = 0.5 * (u0 + u1), 0.5 * (v0 + v1)
+        assert nf.distance(p(u, v), sphere(u, v)) < 1e-12
+
+
+def test_degree_elevation():
+    c = nf.make_circle((0, 0, 0), (0, 0, 1), 1.5)
+    e = c.elevate_degree(2)
+    assert e.degree == 4 and e.is_clamped
+    for u in np.linspace(0, 1, 41):
+        assert nf.distance(c(u), e(u)) < 1e-12
+
+    meridian = nf.make_arc((0, 0, 0), (0, 0, -1), (1, 0, 0), 1.0, 0.0, math.pi)
+    sphere = nf.revolve(meridian, (0, 0, 0), (0, 0, 1), 2 * math.pi)
+    s = sphere.elevate_degree_u().elevate_degree_v(2)
+    assert (s.degree_u, s.degree_v) == (3, 4)
+    assert nf.distance(s(0.3, 0.7), sphere(0.3, 0.7)) < 1e-12
+
+
+def test_ruled_surface_between_different_degrees():
+    line = nf.make_line((-1, 0, 0), (1, 0, 0))
+    arc = nf.make_arc((0, 0, 2), (-1, 0, 0), (0, 1, 0), 1.0, 0.0, math.pi)
+    s = nf.ruled(line, arc)
+    for u in np.linspace(0, 1, 11):
+        assert nf.distance(s(u, 0.0), line(u)) < 1e-12
+        assert nf.distance(s(u, 1.0), arc(u)) < 1e-12

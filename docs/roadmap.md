@@ -6,7 +6,7 @@
 - Extrusion, revolution, ruled surface; affine transforms; linear/grid/polar arrays
 - Python bindings, gmsh transfer, Ollama agent; CI on AlmaLinux 10 and Windows 11
 
-## 0.2 – Complete NURBS toolbox
+## 0.2 – Complete NURBS toolbox ✅
 - Degree elevation ✅, degree reduction ✅, knot removal ✅
 - Knot refinement ✅, Bézier decomposition ✅
 - Curve/surface splitting and joining ✅
@@ -14,7 +14,7 @@
 - Full surface derivatives ✅, limit normals at poles ✅
 - Closest point / point inversion ✅
 - Arc length, curvature, torsion, area ✅
-- Extrapolation (curve/surface extension with G1/G2 continuity)
+- Extrapolation (curve/surface extension: natural C∞ and linear G1/C1) ✅
 
 ## 0.3 – Surface construction
 - Loft / skinning, sweep (one and two rails), Coons and Gordon patches

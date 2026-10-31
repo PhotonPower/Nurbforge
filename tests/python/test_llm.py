@@ -69,3 +69,11 @@ def test_interpolate_points_tool():
     out = call_tool(ws, "interpolate_points", {"name": "c", "points": [[0, 0, 0], [1, 1, 0], [2, 0, 0]]})
     assert out.startswith("stored c")
     assert ws.get("c").degree == 2  # degree limited by the number of points
+
+
+def test_extend_tool():
+    ws = Workspace()
+    call_tool(ws, "make_line", {"name": "l", "p0": [0, 0, 0], "p1": [1, 0, 0]})
+    out = call_tool(ws, "extend", {"name": "l2", "source": "l", "where": "end", "length": 1.5})
+    assert out.startswith("stored l2")
+    assert abs(ws.get("l2")(ws.get("l2").domain[1]).x - 2.5) < 1e-12

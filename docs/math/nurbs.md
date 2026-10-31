@@ -95,6 +95,19 @@ no Eigen needed so far). `approximate_curve_tol` measures the residual at the da
 (an upper bound of the point-to-curve distance) and finds the smallest admissible number of
 control points by exponential search and bisection.
 
+## Extrapolation
+
+- **Natural:** the boundary span is made a Bézier piece (knot insertion), its homogeneous control
+  points are re-computed for the longer interval by de Casteljau at t > 1, and the inserted knots
+  are removed again where exact. The continuation is the same (rational) polynomial, hence C∞ at
+  the old boundary, and conics/quadrics built from them stay exact (circle → circle, torus →
+  torus). Non-positive extrapolated weights are rejected.
+- **Linear:** a line along the end tangent whose parameter speed equals |C'(b)|, joined with
+  `join` → C1 for non-rational geometry, G1 otherwise. For surfaces the iso-curves across the
+  side must have constant weights.
+- The extension length is an arc length (Newton on the length of the extension); surfaces measure
+  it along the middle iso-curve. Original parameters are preserved.
+
 ## Integral and differential properties
 
 - Arc length and area use adaptive Gauss–Kronrod 7/15 (QUADPACK nodes) on every knot span

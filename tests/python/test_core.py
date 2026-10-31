@@ -239,3 +239,16 @@ def test_fitting():
     assert nf.distance(s(x[3, 2], y[3, 2]), nf.Vec3(*grid[3, 2])) < 1e-12
     w = nf.approximate_surface(grid, 2, 2, 4, 4)
     assert (w.num_u, w.num_v) == (4, 4)
+
+
+def test_extend():
+    arc = nf.make_arc((0, 0, 0), (1, 0, 0), (0, 1, 0), 1.0, 0.0, math.pi / 2)
+    e = nf.extend(arc, nf.CurveEnd.End, math.pi / 4)
+    assert abs(nf.length(e) - 3 * math.pi / 4) < 1e-9
+    assert abs(nf.norm(e(e.domain[1])) - 1.0) < 1e-12  # still on the circle
+    line = nf.extend(nf.make_line((0, 0, 0), (1, 0, 0)), nf.CurveEnd.Start, 2.0, nf.Extension.Linear)
+    assert nf.distance(line(line.domain[0]), nf.Vec3(-2, 0, 0)) < 1e-12
+
+    cyl = nf.extrude(nf.make_circle((0, 0, 0), (0, 0, 1), 1.0), (0, 0, 2))
+    s = nf.extend(cyl, nf.SurfaceSide.VMax, 1.0)
+    assert abs(s(0.2, s.domain_v[1]).z - 3.0) < 1e-12

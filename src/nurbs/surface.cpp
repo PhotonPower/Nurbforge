@@ -13,6 +13,12 @@ namespace nf {
 
 namespace {
 
+double binomial(std::size_t n, std::size_t k) {
+  double r = 1.0;
+  for (std::size_t i = 1; i <= k; ++i) r = r * static_cast<double>(n - k + i) / static_cast<double>(i);
+  return r;
+}
+
 // Columns of the u direction: column j holds the points (i, j), i = 0..num_u-1.
 detail::Columns columns_u(const NurbsSurface& s) {
   detail::Columns net{s.knots_u(), {}};
@@ -72,30 +78,76 @@ Vec3 NurbsSurface::evaluate(double u, double v) const {
   return sw.project();
 }
 
-std::array<Vec3, 3> NurbsSurface::first_derivatives(double u, double v) const {
+std::vector<std::vector<Vec3>> NurbsSurface::derivatives(double u, double v,
+                                                         std::size_t d) const {
   const std::size_t su = find_span(nu_ - 1, pu_, u, ku_);
   const std::size_t sv = find_span(nv_ - 1, pv_, v, kv_);
-  const auto Du = basis_function_derivatives(su, u, pu_, 1, ku_);
-  const auto Dv = basis_function_derivatives(sv, v, pv_, 1, kv_);
-  Vec3 A, Au, Av;
-  double w = 0, wu = 0, wv = 0;
-  for (std::size_t a = 0; a <= pu_; ++a) {
-    for (std::size_t b = 0; b <= pv_; ++b) {
-      const std::size_t idx = (su - pu_ + a) * nv_ + (sv - pv_ + b);
-      const double wi = weights_[idx];
-      const Vec3 pwi = wi * ctrl_[idx];
-      A += Du[0][a] * Dv[0][b] * pwi;   w += Du[0][a] * Dv[0][b] * wi;
-      Au += Du[1][a] * Dv[0][b] * pwi;  wu += Du[1][a] * Dv[0][b] * wi;
-      Av += Du[0][a] * Dv[1][b] * pwi;  wv += Du[0][a] * Dv[1][b] * wi;
+  const auto Nu = basis_function_derivatives(su, u, pu_, d, ku_);
+  const auto Nv = basis_function_derivatives(sv, v, pv_, d, kv_);
+
+  // A3.6 on homogeneous points: A[k][l] (xyz part) and W[k][l]
+  std::vector<std::vector<Vec4>> Aw(d + 1, std::vector<Vec4>(d + 1));
+  std::vector<Vec4> temp(pv_ + 1);
+  for (std::size_t k = 0; k <= std::min(d, pu_); ++k) {
+    for (std::size_t s = 0; s <= pv_; ++s) {
+      temp[s] = Vec4{};
+      for (std::size_t r = 0; r <= pu_; ++r) {
+        const std::size_t idx = (su - pu_ + r) * nv_ + (sv - pv_ + s);
+        temp[s] += Nu[k][r] * Vec4::from_point(ctrl_[idx], weights_[idx]);
+      }
+    }
+    for (std::size_t l = 0; l <= std::min(d - k, pv_); ++l)
+      for (std::size_t s = 0; s <= pv_; ++s) Aw[k][l] += Nv[l][s] * temp[s];
+  }
+
+  // A4.4 RatSurfaceDerivs
+  std::vector<std::vector<Vec3>> SKL(d + 1, std::vector<Vec3>(d + 1));
+  for (std::size_t k = 0; k <= d; ++k) {
+    for (std::size_t l = 0; l + k <= d; ++l) {
+      Vec3 val = Aw[k][l].xyz();
+      for (std::size_t j = 1; j <= l; ++j) val -= binomial(l, j) * Aw[0][j].w * SKL[k][l - j];
+      for (std::size_t i = 1; i <= k; ++i) {
+        val -= binomial(k, i) * Aw[i][0].w * SKL[k - i][l];
+        Vec3 v2;
+        for (std::size_t j = 1; j <= l; ++j) v2 += binomial(l, j) * Aw[i][j].w * SKL[k - i][l - j];
+        val -= binomial(k, i) * v2;
+      }
+      SKL[k][l] = val / Aw[0][0].w;
     }
   }
-  const Vec3 S = A / w;
-  return {S, (Au - wu * S) / w, (Av - wv * S) / w};
+  return SKL;
+}
+
+std::array<Vec3, 3> NurbsSurface::first_derivatives(double u, double v) const {
+  const auto D = derivatives(u, v, 1);
+  return {D[0][0], D[1][0], D[0][1]};
 }
 
 Vec3 NurbsSurface::normal(double u, double v) const {
-  const auto d = first_derivatives(u, v);
-  return normalized(cross(d[1], d[2]));
+  const auto D = derivatives(u, v, 2);
+  const Vec3& Su = D[1][0];
+  const Vec3& Sv = D[0][1];
+  const Vec3 n = cross(Su, Sv);
+  // scale-aware degeneracy test: |Su x Sv| small relative to |Su| |Sv| (or both tiny)
+  const double scale = std::max(norm(Su), norm(Sv));
+  if (norm(n) > tol::kAngular * scale * scale && scale > 0.0) return normalized(n);
+
+  // Degenerate point. If Su vanishes (collapsed u row, e.g. pole of a revolved surface), then
+  // Su(u, v+h) ~ h Suv and Su x Sv ~ h (Suv x Sv); h points into the domain.
+  const auto dv = domain_v(), du = domain_u();
+  const double nsu = norm(Su), nsv = norm(Sv);
+  Vec3 limit;
+  if (nsu <= nsv) {
+    const double sign = (v >= dv[1] - tol::kParametric) ? -1.0 : 1.0;
+    limit = sign * cross(D[1][1], Sv);
+  } else {
+    const double sign = (u >= du[1] - tol::kParametric) ? -1.0 : 1.0;
+    limit = sign * cross(Su, D[1][1]);
+  }
+  if (norm(limit) <= tol::kLength)
+    throw GeometryError("normal is undefined at (" + std::to_string(u) + ", " +
+                        std::to_string(v) + ")");
+  return normalized(limit);
 }
 
 NurbsCurve NurbsSurface::iso_curve_u(double u) const {

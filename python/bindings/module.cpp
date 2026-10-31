@@ -169,6 +169,8 @@ PYBIND11_MODULE(_core, m) {
       .def_property_readonly("domain_v", &NurbsSurface::domain_v)
       .def("evaluate", &NurbsSurface::evaluate, py::arg("u"), py::arg("v"))
       .def("__call__", &NurbsSurface::evaluate, py::arg("u"), py::arg("v"))
+      .def("derivatives", &NurbsSurface::derivatives, py::arg("u"), py::arg("v"), py::arg("order") = 1,
+           "Partial derivatives D[k][l] = d^(k+l)S/du^k dv^l for k + l <= order.")
       .def("first_derivatives", &NurbsSurface::first_derivatives, py::arg("u"), py::arg("v"))
       .def("normal", &NurbsSurface::normal, py::arg("u"), py::arg("v"))
       .def("iso_curve_u", &NurbsSurface::iso_curve_u, py::arg("u"))

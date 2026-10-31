@@ -168,3 +168,18 @@ def test_split_and_join():
     assert nf.distance(ju(0.6, 0.4), sphere(0.6, 0.4)) < 1e-12
     patch = sphere.sub_surface(0.1, 0.2, 0.3, 0.6)
     assert nf.distance(patch(0.15, 0.5), sphere(0.15, 0.5)) < 1e-12
+
+
+def test_surface_derivatives_and_pole_normals():
+    meridian = nf.make_arc((0, 0, 0), (0, 0, -1), (1, 0, 0), 2.0, 0.0, math.pi)
+    sphere = nf.revolve(meridian, (0, 0, 0), (0, 0, 1), 2 * math.pi)
+    D = sphere.derivatives(0.3, 0.4, 2)
+    assert len(D) == 3 and len(D[0]) == 3
+    h = 1e-6
+    fd = (np.array(sphere(0.3 + h, 0.4)) - np.array(sphere(0.3 - h, 0.4))) / (2 * h)
+    assert np.allclose(fd, np.array(D[1][0]), atol=1e-6)
+
+    sign = np.sign(np.dot(np.array(sphere.normal(0.3, 0.5)), np.array(sphere(0.3, 0.5))))
+    for v in (0.0, 1.0):  # poles
+        n = np.array(sphere.normal(0.25, v))
+        assert np.allclose(n, sign * np.array(sphere(0.25, v)) / 2.0, atol=1e-9)

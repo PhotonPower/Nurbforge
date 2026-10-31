@@ -157,6 +157,13 @@ def _build_tools() -> list[Tool]:
         pts = np.asarray(points, dtype=float)
         return ws.put(name, nf.interpolate_curve(pts, min(int(degree), len(pts) - 1)))
 
+    @add("loft", "Create a smooth surface through several section curves (in the given order).",
+         {"name": _NAME, "sections": {"type": "array", "items": _NAME, "minItems": 2},
+          "degree": {"type": "integer", "description": "degree across the sections, default 3"}},
+         ["name", "sections"])
+    def _(ws, name, sections, degree=3):
+        return ws.put(name, nf.loft([ws.get(s) for s in sections], int(degree)))
+
     @add("extend", "Extend a curve at its start or end (or a surface across a side umin/umax/"
          "vmin/vmax) by a length. mode 'natural' continues the shape smoothly, 'linear' "
          "continues straight along the tangent.",

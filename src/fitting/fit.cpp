@@ -83,8 +83,8 @@ std::vector<double> raw_parameters(const std::vector<Vec3>& Q, Parametrization m
 // Interpolation knots by averaging (Eq. 9.8).
 KnotVector interpolation_knots(const std::vector<double>& ub, std::size_t p) {
   const std::size_t n = ub.size() - 1;
-  KnotVector U(n + p + 2, 0.0);
-  for (std::size_t i = n + 1; i < U.size(); ++i) U[i] = 1.0;
+  KnotVector U(n + p + 2, ub.front());
+  for (std::size_t i = n + 1; i < U.size(); ++i) U[i] = ub.back();
   for (std::size_t j = 1; j + p <= n; ++j) {
     double s = 0.0;
     for (std::size_t i = j; i < j + p; ++i) s += ub[i];
@@ -213,6 +213,28 @@ std::vector<double> data_parameters(const std::vector<Vec3>& points, Parametriza
   for (std::size_t k = 1; k < t.size(); ++k)
     if (!(t[k] > t[k - 1])) throw GeometryError("fitting: coincident consecutive points");
   return t;
+}
+
+std::vector<double> data_parameters(const std::vector<std::vector<Vec3>>& sequences,
+                                    Parametrization method) {
+  if (sequences.empty() || sequences.front().size() < 2)
+    throw GeometryError("fitting: need at least two points per sequence");
+  for (const auto& s : sequences)
+    if (s.size() != sequences.front().size())
+      throw GeometryError("fitting: all sequences must have the same number of points");
+  return averaged_parameters(sequences, method);
+}
+
+NurbsCurve interpolate_curve(const std::vector<Vec3>& Q, std::size_t p,
+                             const std::vector<double>& params) {
+  if (p < 1) throw GeometryError("fitting: degree must be >= 1");
+  if (params.size() != Q.size()) throw GeometryError("interpolate_curve: one parameter per point");
+  if (Q.size() < p + 1) throw GeometryError("interpolate_curve: need at least degree+1 points");
+  for (std::size_t k = 1; k < params.size(); ++k)
+    if (!(params[k] > params[k - 1]))
+      throw GeometryError("interpolate_curve: parameters must be strictly increasing");
+  const KnotVector U = interpolation_knots(params, p);
+  return {p, U, interpolation_matrix(p, U, params).solve(Q)};
 }
 
 NurbsCurve interpolate_curve(const std::vector<Vec3>& Q, std::size_t p, Parametrization method,

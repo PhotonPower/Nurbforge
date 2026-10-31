@@ -25,6 +25,16 @@ enum class Parametrization {
 [[nodiscard]] std::vector<double> data_parameters(const std::vector<Vec3>& points,
                                                   Parametrization method);
 
+/// Parameters on [0, 1] averaged over several point sequences of equal length (P&T Eq. 9.18,
+/// 10.8); degenerate sequences (all points equal) are skipped.
+[[nodiscard]] std::vector<double> data_parameters(const std::vector<std::vector<Vec3>>& sequences,
+                                                  Parametrization method);
+
+/// Global interpolation with explicit, strictly increasing parameters (domain
+/// [params.front(), params.back()], knots by averaging).
+[[nodiscard]] NurbsCurve interpolate_curve(const std::vector<Vec3>& points, std::size_t degree,
+                                           const std::vector<double>& params);
+
 /// Global interpolation (A9.1): non-rational B-spline of the given degree on [0, 1] through all
 /// points, knots by averaging (Eq. 9.8). Optional end derivatives {C'(0), C'(1)} (w.r.t. the
 /// parameter on [0, 1]) add two control points (Eq. 9.21/9.22). Needs at least degree+1 points.

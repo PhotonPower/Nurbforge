@@ -38,6 +38,7 @@ add_library(nurbforge_core STATIC
   src/modeling/construct.cpp
   src/modeling/pattern.cpp
   src/modeling/extend.cpp
+  src/modeling/loft.cpp
   src/analysis/closest_point.cpp
   src/analysis/properties.cpp
   src/fitting/fit.cpp)

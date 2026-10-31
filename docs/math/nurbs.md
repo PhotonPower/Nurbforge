@@ -95,6 +95,16 @@ no Eigen needed so far). `approximate_curve_tol` measures the residual at the da
 (an upper bound of the point-to-curve distance) and finds the smallest admissible number of
 control points by exponential search and bisection.
 
+## Loft (skinning)
+
+`loft` follows P&T section 10.3: the sections are made compatible (`make_compatible`: clamped,
+domain [0, 1], highest degree, union of knots), section parameters v_k are averaged over the
+control-point columns (Eq. 10.8, centripetal/chord length) or given explicitly, and every column
+is interpolated across the sections with degree min(q, K−1). Rational sections are interpolated
+in homogeneous space – the interpolation is linear in the data, so w·P and w are interpolated
+separately with identical knots. Linear data are reproduced exactly (equal circles → cylinder,
+linearly growing circles → cone).
+
 ## Extrapolation
 
 - **Natural:** the boundary span is made a Bézier piece (knot insertion), its homogeneous control

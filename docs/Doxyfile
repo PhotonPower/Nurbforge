@@ -1,0 +1,12 @@
+PROJECT_NAME           = "Nurbforge"
+PROJECT_BRIEF          = "Headless NURBS CAD kernel"
+OUTPUT_DIRECTORY       = build/docs
+INPUT                  = include README.md docs/math/nurbs.md docs/architecture.md
+FILE_PATTERNS          = *.hpp *.md
+RECURSIVE              = YES
+USE_MDFILE_AS_MAINPAGE = README.md
+EXTRACT_ALL            = YES
+GENERATE_LATEX         = NO
+GENERATE_XML           = YES
+QUIET                  = YES
+WARN_IF_UNDOCUMENTED   = NO

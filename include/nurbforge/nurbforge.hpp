@@ -1,0 +1,15 @@
+#pragma once
+/// @file nurbforge.hpp
+/// Umbrella header for the Nurbforge kernel.
+
+#include "nurbforge/version.hpp"
+#include "nurbforge/core/error.hpp"
+#include "nurbforge/core/vec.hpp"
+#include "nurbforge/nurbs/knot_vector.hpp"
+#include "nurbforge/nurbs/basis.hpp"
+#include "nurbforge/nurbs/curve.hpp"
+#include "nurbforge/nurbs/surface.hpp"
+#include "nurbforge/geometry/transform.hpp"
+#include "nurbforge/geometry/primitives.hpp"
+#include "nurbforge/modeling/construct.hpp"
+#include "nurbforge/modeling/pattern.hpp"

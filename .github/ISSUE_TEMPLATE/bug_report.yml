@@ -1,0 +1,26 @@
+name: Bug report
+description: Something produces wrong geometry, crashes or fails to build
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: Include a minimal script (Python or C++) that reproduces the problem.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected result
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform
+      options: [AlmaLinux 10, Windows 11, Other]
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Nurbforge version / commit

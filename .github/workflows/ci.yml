@@ -1,0 +1,77 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  almalinux10:
+    name: AlmaLinux 10 (GCC)
+    runs-on: ubuntu-latest
+    container: almalinux:10
+    steps:
+      - name: System packages
+        run: |
+          dnf install -y gcc-c++ git python3 python3-devel python3-pip \
+                         mesa-libGLU libXcursor libXinerama libXft libXrender
+      - uses: actions/checkout@v4
+      - name: Python environment
+        run: |
+          python3 -m venv /opt/venv
+          /opt/venv/bin/pip install --upgrade pip cmake ninja pybind11 scikit-build-core
+      - name: Configure & build (C++)
+        run: |
+          export PATH=/opt/venv/bin:$PATH
+          cmake --preset ci -DNF_BUILD_PYTHON=OFF
+          cmake --build --preset ci -j
+      - name: C++ tests
+        run: /opt/venv/bin/ctest --preset ci
+      - name: Python package & tests
+        run: |
+          export PATH=/opt/venv/bin:$PATH
+          pip install ".[dev]"
+          pytest -v
+
+  windows11:
+    name: Windows (MSVC)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Configure & build (C++)
+        run: |
+          pip install pybind11
+          cmake --preset msvc -DNF_BUILD_PYTHON=OFF
+          cmake --build --preset msvc
+      - name: C++ tests
+        run: ctest --preset msvc
+      - name: Python package & tests
+        run: |
+          pip install ".[dev]"
+          pytest -v
+
+  lint:
+    name: Lint (ruff, clang-format)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install ruff clang-format
+      - run: ruff check python tests examples
+      - name: clang-format (report only)
+        run: |
+          find include src python/bindings tests/cpp examples/cpp -name '*.[ch]pp' \
+            | xargs clang-format --dry-run || true

@@ -1,0 +1,36 @@
+# Build
+build/
+out/
+_skbuild/
+dist/
+*.egg-info/
+CMakeUserPresets.json
+compile_commands.json
+
+# Compiled extension placed in-tree
+python/nurbforge/_core*.so
+python/nurbforge/_core*.pyd
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Mesh / CAD outputs
+*.msh
+*.vtk
+*.stl
+*.step
+*.stp
+*.brep
+
+# IDEs / OS
+.vscode/
+.idea/
+.vs/
+*.swp
+.DS_Store
+Thumbs.db

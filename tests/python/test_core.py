@@ -110,3 +110,31 @@ def test_ruled_surface_between_different_degrees():
     for u in np.linspace(0, 1, 11):
         assert nf.distance(s(u, 0.0), line(u)) < 1e-12
         assert nf.distance(s(u, 1.0), arc(u)) < 1e-12
+
+
+def test_knot_removal_and_degree_reduction():
+    c = nf.make_circle((0, 0, 0), (0, 0, 1), 2.0)
+    r = c.insert_knot(0.6, 2).remove_knot(0.6, 2)
+    assert np.allclose(r.control_points, c.control_points, atol=1e-12)
+
+    same, removed = c.try_remove_knot(0.25)
+    assert len(same.control_points) == len(c.control_points)
+    assert removed == 0
+    with pytest.raises(nf.GeometryError):
+        c.remove_knot(0.25)
+
+    back = c.elevate_degree(1).reduce_degree()
+    assert back.degree == 2
+    assert np.allclose(back.control_points, c.control_points, atol=1e-12)
+    assert np.allclose(back.knots, c.knots, atol=1e-12)
+
+    wavy = nf.NurbsCurve.from_points(3, np.array(
+        [[0, 0, 0], [1, 3, 0], [2, -2, 0], [3, 3, 1], [4, -1, 0]], dtype=float))
+    with pytest.raises(nf.GeometryError):
+        wavy.reduce_degree()
+
+    meridian = nf.make_arc((0, 0, 0), (0, 0, -1), (1, 0, 0), 1.0, 0.0, math.pi)
+    sphere = nf.revolve(meridian, (0, 0, 0), (0, 0, 1), 2 * math.pi)
+    s = sphere.elevate_degree_v().reduce_degree_v().refine_knots_u([0.1]).remove_knot_u(0.1)
+    assert (s.degree_v, s.num_u, s.num_v) == (2, sphere.num_u, sphere.num_v)
+    assert nf.distance(s(0.3, 0.7), sphere(0.3, 0.7)) < 1e-12

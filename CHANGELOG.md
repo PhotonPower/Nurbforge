@@ -13,6 +13,10 @@ versioning: [SemVer](https://semver.org).
   parameter intervals, unclamped knot vectors are supported.
 - Degree elevation `NurbsCurve::elevate_degree` (A5.9) and `NurbsSurface::elevate_degree_u/v`.
 - `NurbsCurve::clamped()` / `is_clamped()`: equivalent curve with clamped knot vector.
+- Knot removal within a Cartesian tolerance (A5.8): `NurbsCurve::try_remove_knot` /
+  `remove_knot`, `NurbsSurface::remove_knot_u/v`.
+- Degree reduction with rigorous error verification: `NurbsCurve::reduce_degree`,
+  `NurbsSurface::reduce_degree_u/v`.
 ### Changed
 - All tolerance literals in `src/` replaced by the named constants; angular comparisons now
   uniformly use 1e-9.

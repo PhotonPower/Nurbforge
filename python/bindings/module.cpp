@@ -125,6 +125,13 @@ PYBIND11_MODULE(_core, m) {
       .def("clamped", &NurbsCurve::clamped, "Same curve with a clamped knot vector.")
       .def("elevate_degree", &NurbsCurve::elevate_degree, py::arg("times") = 1,
            "Degree elevation (shape-preserving); result is clamped.")
+      .def("try_remove_knot", &NurbsCurve::try_remove_knot, py::arg("u"), py::arg("times") = 1,
+           py::arg("tolerance") = tol::kLength,
+           "Remove knot u up to `times` times within tolerance -> (curve, removed).")
+      .def("remove_knot", &NurbsCurve::remove_knot, py::arg("u"), py::arg("times") = 1,
+           py::arg("tolerance") = tol::kLength)
+      .def("reduce_degree", &NurbsCurve::reduce_degree, py::arg("tolerance") = tol::kLength,
+           "Degree reduction by one within tolerance (raises GeometryError otherwise).")
       .def("decompose_bezier", &NurbsCurve::decompose_bezier,
            "Bezier segments, each on its original parameter interval.")
       .def("reversed", &NurbsCurve::reversed)
@@ -171,6 +178,12 @@ PYBIND11_MODULE(_core, m) {
       .def("refine_knots_v", &NurbsSurface::refine_knots_v, py::arg("knots"))
       .def("elevate_degree_u", &NurbsSurface::elevate_degree_u, py::arg("times") = 1)
       .def("elevate_degree_v", &NurbsSurface::elevate_degree_v, py::arg("times") = 1)
+      .def("remove_knot_u", &NurbsSurface::remove_knot_u, py::arg("u"), py::arg("times") = 1,
+           py::arg("tolerance") = tol::kLength)
+      .def("remove_knot_v", &NurbsSurface::remove_knot_v, py::arg("v"), py::arg("times") = 1,
+           py::arg("tolerance") = tol::kLength)
+      .def("reduce_degree_u", &NurbsSurface::reduce_degree_u, py::arg("tolerance") = tol::kLength)
+      .def("reduce_degree_v", &NurbsSurface::reduce_degree_v, py::arg("tolerance") = tol::kLength)
       .def("decompose_bezier", &NurbsSurface::decompose_bezier,
            "Bezier patches in row-major order (u span outer), original parameter rectangles.")
       .def("transformed", &NurbsSurface::transformed, py::arg("transform"))

@@ -3,6 +3,7 @@
 /// Non-uniform rational B-spline curve in R^3.
 
 #include <cstddef>
+#include <utility>
 #include <vector>
 
 #include "nurbforge/core/vec.hpp"
@@ -65,6 +66,20 @@ class NurbsCurve {
   /// Degree elevation by t (A5.9). Shape and domain are unchanged; the result is clamped,
   /// has degree p+t and every interior knot multiplicity is raised by t.
   [[nodiscard]] NurbsCurve elevate_degree(std::size_t t = 1) const;
+
+  /// Removes the interior knot u up to `times` times (A5.8), as far as the curve stays within
+  /// the Cartesian deviation `tolerance`. Returns the new curve and the number of removals.
+  [[nodiscard]] std::pair<NurbsCurve, std::size_t> try_remove_knot(
+      double u, std::size_t times = 1, double tolerance = tol::kLength) const;
+
+  /// Like try_remove_knot, but throws GeometryError unless all `times` removals succeed.
+  [[nodiscard]] NurbsCurve remove_knot(double u, std::size_t times = 1,
+                                       double tolerance = tol::kLength) const;
+
+  /// Degree reduction by one within the Cartesian deviation `tolerance` (verified rigorously).
+  /// The result is clamped; knots keep their original continuity where the tolerance allows.
+  /// Throws GeometryError if the curve cannot be reduced within the tolerance.
+  [[nodiscard]] NurbsCurve reduce_degree(double tolerance = tol::kLength) const;
 
   /// Splits the curve into its Bézier segments (one per non-empty knot span of the domain).
   /// Segment k is a NURBS of the same degree with knots {a,..,a, b,..,b} on its original

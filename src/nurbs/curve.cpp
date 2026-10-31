@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <string>
 
 #include "nurbforge/core/error.hpp"
 #include "nurbforge/geometry/transform.hpp"
@@ -161,6 +162,27 @@ NurbsCurve NurbsCurve::elevate_degree(std::size_t t) const {
   if (t == 0) return *this;
   auto r = detail::elevate_degree(degree_, knots_, homogeneous_control_points(), t);
   return from_homogeneous(degree_ + t, std::move(r.knots), r.points);
+}
+
+std::pair<NurbsCurve, std::size_t> NurbsCurve::try_remove_knot(double u, std::size_t times,
+                                                                double tolerance) const {
+  detail::Columns net{knots_, {homogeneous_control_points()}};
+  const std::size_t removed = detail::remove_knot(degree_, net, u, times, tolerance);
+  if (removed == 0) return {*this, 0};
+  return {from_homogeneous(degree_, std::move(net.knots), net.cols.front()), removed};
+}
+
+NurbsCurve NurbsCurve::remove_knot(double u, std::size_t times, double tolerance) const {
+  auto [curve, removed] = try_remove_knot(u, times, tolerance);
+  if (removed < times)
+    throw GeometryError("remove_knot: only " + std::to_string(removed) + " of " +
+                        std::to_string(times) + " removals possible within tolerance");
+  return curve;
+}
+
+NurbsCurve NurbsCurve::reduce_degree(double tolerance) const {
+  const auto r = detail::reduce_degree(degree_, {knots_, {homogeneous_control_points()}}, tolerance);
+  return from_homogeneous(degree_ - 1, r.knots, r.cols.front());
 }
 
 std::vector<NurbsCurve> NurbsCurve::decompose_bezier() const {

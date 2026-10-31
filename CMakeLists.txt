@@ -31,6 +31,7 @@ add_library(nurbforge_core STATIC
   src/nurbs/curve.cpp
   src/nurbs/surface.cpp
   src/nurbs/refine.cpp
+  src/nurbs/reduce.cpp
   src/geometry/transform.cpp
   src/geometry/primitives.cpp
   src/modeling/construct.cpp

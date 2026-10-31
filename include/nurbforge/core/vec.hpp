@@ -6,10 +6,12 @@
 #include <cmath>
 #include <ostream>
 
+#include "nurbforge/core/tolerance.hpp"
+
 namespace nf {
 
-/// Global geometric tolerance (model units). Can be refined per operation later.
-inline constexpr double kTolerance = 1e-10;
+/// Legacy alias for the model-space length tolerance; prefer `nf::tol::kLength`.
+inline constexpr double kTolerance = tol::kLength;
 
 struct Vec3 {
   double x{0.0}, y{0.0}, z{0.0};

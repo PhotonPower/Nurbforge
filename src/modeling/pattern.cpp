@@ -28,7 +28,7 @@ std::vector<Transform> polar_pattern(const Vec3& axis_point, const Vec3& axis_di
                                      std::size_t count, double total_angle) {
   std::vector<Transform> out;
   if (count == 0) return out;
-  const bool full = std::abs(total_angle - 2.0 * std::numbers::pi) < 1e-9;
+  const bool full = std::abs(total_angle - 2.0 * std::numbers::pi) < tol::kAngular;
   const double denom = static_cast<double>(full ? count : (count > 1 ? count - 1 : 1));
   const double step = total_angle / denom;
   for (std::size_t i = 0; i < count; ++i)

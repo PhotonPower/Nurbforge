@@ -64,7 +64,7 @@ cmake --preset release && cmake --build --preset release && ctest --preset relea
 | Platform | Toolchain | Guide |
 |---|---|---|
 | AlmaLinux 10 | GCC 14, CMake ≥ 3.24, Python ≥ 3.10 | [docs/build/almalinux10.md](docs/build/almalinux10.md) |
-| Windows 11 | Visual Studio 2022 (MSVC), CMake, Python ≥ 3.10 | [docs/build/windows11.md](docs/build/windows11.md) |
+| Windows 11 | Visual Studio 2022 or 2026 (MSVC), CMake ≥ 3.24 (≥ 4.2 for VS 2026), Python ≥ 3.10 | [docs/build/windows11.md](docs/build/windows11.md) |
 
 ## Documentation
 

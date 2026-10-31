@@ -5,7 +5,7 @@ namespace nf {
 
 Vec3 normalized(const Vec3& a) {
   const double n = norm(a);
-  if (n < kTolerance) throw GeometryError("cannot normalize a zero-length vector");
+  if (n < tol::kLength) throw GeometryError("cannot normalize a zero-length vector");
   return a / n;
 }
 

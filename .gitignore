@@ -1,6 +1,6 @@
 # Build
-build/
-out/
+/build/
+/out/
 _skbuild/
 dist/
 *.egg-info/

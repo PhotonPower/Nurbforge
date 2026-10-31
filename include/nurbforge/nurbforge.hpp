@@ -4,6 +4,7 @@
 
 #include "nurbforge/version.hpp"
 #include "nurbforge/core/error.hpp"
+#include "nurbforge/core/tolerance.hpp"
 #include "nurbforge/core/vec.hpp"
 #include "nurbforge/nurbs/knot_vector.hpp"
 #include "nurbforge/nurbs/basis.hpp"

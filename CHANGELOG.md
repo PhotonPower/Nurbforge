@@ -4,6 +4,18 @@ All notable changes are documented here. Format: [Keep a Changelog](https://keep
 versioning: [SemVer](https://semver.org).
 
 ## [Unreleased]
+### Added
+- Named tolerances `nf::tol::kLength`, `kParametric`, `kAngular` and the per-operation
+  `nf::Tolerance` struct (`nurbforge/core/tolerance.hpp`, ADR 0005).
+- Build guides for AlmaLinux 10 and Windows 11 (`docs/build/`).
+### Changed
+- All tolerance literals in `src/` replaced by the named constants; angular comparisons now
+  uniformly use 1e-9.
+### Fixed
+- `NurbsCurve::is_rational` compares weights relatively, so uniformly scaled weights
+  (e.g. all 1e-12) are no longer misclassified.
+- `pip install .` on Windows with Visual Studio 2026 and an older system CMake: CMake >= 4.2 is
+  now required there and fetched automatically.
 
 ## [0.1.0] – 2026-10-31
 ### Added

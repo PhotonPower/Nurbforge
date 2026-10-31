@@ -9,3 +9,4 @@ New ADRs get the next number; superseded ADRs stay and are marked as such.
 | [0002](0002-dependency-free-kernel.md) | Dependency-free kernel | accepted |
 | [0003](0003-gmsh-exact-transfer.md) | gmsh integration via Python with exact NURBS transfer | accepted |
 | [0004](0004-llm-whitelisted-tools.md) | LLM access only through whitelisted tools | accepted |
+| [0005](0005-tolerance-model.md) | Tolerance model (length, parametric, angular) | accepted |

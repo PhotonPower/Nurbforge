@@ -39,6 +39,12 @@ cmake.build-type = "Release"
 wheel.packages = ["python/nurbforge"]
 cmake.define = { NF_BUILD_TESTS = "OFF", NF_BUILD_EXAMPLES = "OFF", NF_BUILD_PYTHON = "ON" }
 
+# Visual Studio 2026 needs CMake >= 4.2; older CMake silently falls back to NMake and fails.
+# scikit-build-core downloads a suitable CMake from PyPI if the system one is too old.
+[[tool.scikit-build.overrides]]
+if.platform-system = "win32"
+cmake.version = ">=4.2"
+
 [tool.pytest.ini_options]
 testpaths = ["tests/python"]
 

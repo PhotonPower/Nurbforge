@@ -35,8 +35,10 @@ NurbsCurve NurbsCurve::from_points(std::size_t degree, std::vector<Vec3> control
 }
 
 bool NurbsCurve::is_rational() const noexcept {
+  // Weights are scale-invariant (w and c*w give the same curve), so compare relatively.
+  const double w0 = weights_.front();
   return std::any_of(weights_.begin(), weights_.end(),
-                     [&](double w) { return std::abs(w - weights_.front()) > kTolerance; });
+                     [&](double w) { return std::abs(w - w0) > tol::kLength * std::abs(w0); });
 }
 
 std::vector<Vec4> NurbsCurve::homogeneous_control_points() const {

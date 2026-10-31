@@ -259,6 +259,44 @@ RefinedPolygon elevate_degree(std::size_t p_in, const KnotVector& U_in,
   return {std::move(Uh), std::move(Qw)};
 }
 
+Columns clamp(std::size_t p, const Columns& net) {
+  Columns out;
+  for (const auto& c : net.cols) {
+    auto r = clamp(p, net.knots, c);
+    out.knots = std::move(r.knots);
+    out.cols.push_back(std::move(r.points));
+  }
+  return out;
+}
+
+std::pair<Columns, Columns> split(std::size_t p, const Columns& net, double u) {
+  const Columns cl = clamp(p, net);
+  const std::size_t n_ctrl = cl.cols.front().size();
+  const double a = cl.knots[p], b = cl.knots[n_ctrl];
+  if (!(u > a + tol::kParametric && u < b - tol::kParametric))
+    throw GeometryError("split: parameter " + std::to_string(u) + " is not inside (" +
+                        std::to_string(a) + ", " + std::to_string(b) + ")");
+  for (double k : cl.knots)
+    if (std::abs(k - u) < tol::kParametric) { u = k; break; }
+  const std::vector<double> X(p - knot_multiplicity(cl.knots, u), u);
+
+  Columns left, right;
+  for (const auto& col : cl.cols) {
+    auto r = refine_knot_vector(p, cl.knots, col, X);
+    std::size_t f = 0;  // first index of u (multiplicity p)
+    while (r.knots[f] != u) ++f;
+    if (left.knots.empty()) {
+      left.knots.assign(r.knots.begin(), r.knots.begin() + static_cast<idx>(f + p));
+      left.knots.push_back(u);
+      right.knots.assign(1, u);
+      right.knots.insert(right.knots.end(), r.knots.begin() + static_cast<idx>(f), r.knots.end());
+    }
+    left.cols.emplace_back(r.points.begin(), r.points.begin() + static_cast<idx>(f));
+    right.cols.emplace_back(r.points.begin() + static_cast<idx>(f - 1), r.points.end());
+  }
+  return {std::move(left), std::move(right)};
+}
+
 std::vector<std::size_t> nonempty_spans(std::size_t p, const KnotVector& U, std::size_t n_ctrl) {
   std::vector<std::size_t> spans;
   for (std::size_t k = p; k < n_ctrl; ++k)

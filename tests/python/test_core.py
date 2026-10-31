@@ -138,3 +138,33 @@ def test_knot_removal_and_degree_reduction():
     s = sphere.elevate_degree_v().reduce_degree_v().refine_knots_u([0.1]).remove_knot_u(0.1)
     assert (s.degree_v, s.num_u, s.num_v) == (2, sphere.num_u, sphere.num_v)
     assert nf.distance(s(0.3, 0.7), sphere(0.3, 0.7)) < 1e-12
+
+
+def test_split_and_join():
+    c = nf.make_circle((0, 0, 0), (0, 0, 1), 2.0)
+    left, right = c.split(0.4)
+    assert left.domain == (0.0, 0.4) and right.domain == (0.4, 1.0)
+    back = nf.join(left, right)
+    assert np.allclose(back.control_points, c.control_points, atol=1e-12)
+    assert np.allclose(back.knots, c.knots, atol=1e-12)
+
+    s = c.sub_curve(0.1, 0.3)
+    assert nf.distance(s(0.2), c(0.2)) < 1e-12
+
+    quarter = c.sub_curve(0.0, 0.25)
+    line = nf.make_line(tuple(c(0.25)), (5, 5, 0))
+    j = nf.join(quarter, line)
+    assert j.degree == 2 and j.domain == (0.0, 1.25)
+    assert nf.distance(j(0.1), c(0.1)) < 1e-12
+    assert nf.distance(j(1.25), nf.Vec3(5, 5, 0)) < 1e-12
+    with pytest.raises(nf.GeometryError):
+        nf.join(line, quarter)  # line ends at (5,5,0), the arc does not start there
+
+    meridian = nf.make_arc((0, 0, 0), (0, 0, -1), (1, 0, 0), 1.0, 0.0, math.pi)
+    sphere = nf.revolve(meridian, (0, 0, 0), (0, 0, 1), 2 * math.pi)
+    a, b = sphere.split_u(0.3)
+    ju = nf.join_u(a, b)
+    assert ju.num_u == sphere.num_u
+    assert nf.distance(ju(0.6, 0.4), sphere(0.6, 0.4)) < 1e-12
+    patch = sphere.sub_surface(0.1, 0.2, 0.3, 0.6)
+    assert nf.distance(patch(0.15, 0.5), sphere(0.15, 0.5)) < 1e-12

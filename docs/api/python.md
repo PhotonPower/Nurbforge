@@ -9,9 +9,9 @@ import nurbforge as nf
 | Class | Key members |
 |---|---|
 | `Vec3(x, y, z)` | `x, y, z`, `+ - *`, iterable; tuples/lists convert implicitly |
-| `NurbsCurve(degree, knots, control_points, weights=[])` | `evaluate(u)` / `c(u)`, `derivatives(u, order)`, `tangent(u)`, `sample(n) -> ndarray (n,3)`, `insert_knot(u, times)`, `refine_knots(X)`, `decompose_bezier()`, `elevate_degree(times)`, `reduce_degree(tolerance)`, `try_remove_knot(u, times, tolerance) -> (curve, removed)`, `remove_knot(u, times, tolerance)`, `clamped()`, `is_clamped`, `reversed()`, `transformed(T)`, `domain`, `knots`, `weights`, `control_points`, `is_rational` |
+| `NurbsCurve(degree, knots, control_points, weights=[])` | `evaluate(u)` / `c(u)`, `derivatives(u, order)`, `tangent(u)`, `sample(n) -> ndarray (n,3)`, `insert_knot(u, times)`, `refine_knots(X)`, `decompose_bezier()`, `elevate_degree(times)`, `reduce_degree(tolerance)`, `try_remove_knot(u, times, tolerance) -> (curve, removed)`, `remove_knot(u, times, tolerance)`, `split(u) -> (left, right)`, `sub_curve(u0, u1)`, `clamped()`, `is_clamped`, `reversed()`, `transformed(T)`, `domain`, `knots`, `weights`, `control_points`, `is_rational` |
 | `NurbsCurve.from_points(degree, pts)` | clamped uniform B-spline |
-| `NurbsSurface(du, dv, ku, kv, nu, nv, pts, weights=[])` | `evaluate(u,v)` / `s(u,v)`, `first_derivatives`, `normal`, `iso_curve_u/v`, `sample(nu,nv) -> ndarray (nu,nv,3)`, `refine_knots_u/v(X)`, `elevate_degree_u/v(times)`, `reduce_degree_u/v(tolerance)`, `remove_knot_u/v(u, times, tolerance)`, `decompose_bezier()`, `transformed`, `transposed` |
+| `NurbsSurface(du, dv, ku, kv, nu, nv, pts, weights=[])` | `evaluate(u,v)` / `s(u,v)`, `first_derivatives`, `normal`, `iso_curve_u/v`, `sample(nu,nv) -> ndarray (nu,nv,3)`, `refine_knots_u/v(X)`, `elevate_degree_u/v(times)`, `reduce_degree_u/v(tolerance)`, `remove_knot_u/v(u, times, tolerance)`, `try_remove_knot_u/v`, `split_u/v`, `sub_surface(u0, u1, v0, v1)`, `clamped()`, `decompose_bezier()`, `transformed`, `transposed` |
 | `Transform` | `translation`, `rotation(origin, axis, angle)`, `scaling`, `mirror(point, normal)`, `T1 * T2`, `apply`, `apply_vector` |
 
 ## Functions
@@ -20,6 +20,7 @@ import nurbforge as nf
 |---|---|
 | Primitives | `make_line`, `make_polyline`, `make_arc`, `make_circle`, `make_bilinear`, `make_rectangle` |
 | Construction | `extrude`, `revolve`, `ruled`, `reparametrize` |
+| Joining | `join(a, b, tolerance)`, `join_u(a, b, tolerance)`, `join_v(a, b, tolerance)` |
 | Arrays | `linear_pattern`, `grid_pattern`, `polar_pattern`, `apply_pattern` |
 | Knots | `clamped_uniform_knots`, `unique_knots`, `validate_knots` |
 | Vector math | `dot`, `cross`, `norm`, `distance` |

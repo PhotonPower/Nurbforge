@@ -185,13 +185,60 @@ NurbsSurface NurbsSurface::elevate_degree_v(std::size_t t) const {
   return transposed().elevate_degree_u(t).transposed();
 }
 
-NurbsSurface NurbsSurface::remove_knot_u(double u, std::size_t times, double tolerance) const {
+NurbsSurface NurbsSurface::clamped() const {
+  const bool cu = ku_.front() == ku_[pu_] && ku_.back() == ku_[nu_];
+  const bool cv = kv_.front() == kv_[pv_] && kv_.back() == kv_[nv_];
+  NurbsSurface s = cu ? *this : from_columns_u(*this, pu_, detail::clamp(pu_, columns_u(*this)));
+  if (cv) return s;
+  const NurbsSurface t = s.transposed();
+  return from_columns_u(t, pv_, detail::clamp(pv_, columns_u(t))).transposed();
+}
+
+std::pair<NurbsSurface, NurbsSurface> NurbsSurface::split_u(double u) const {
+  const auto [l, r] = detail::split(pu_, columns_u(*this), u);
+  return {from_columns_u(*this, pu_, l), from_columns_u(*this, pu_, r)};
+}
+
+std::pair<NurbsSurface, NurbsSurface> NurbsSurface::split_v(double v) const {
+  const auto [l, r] = transposed().split_u(v);
+  return {l.transposed(), r.transposed()};
+}
+
+NurbsSurface NurbsSurface::sub_surface(double u0, double u1, double v0, double v1) const {
+  const auto du = domain_u(), dv = domain_v();
+  const auto bad = [](double a0, double a1, const std::array<double, 2>& d) {
+    return !(a0 < a1) || a0 < d[0] - tol::kParametric || a1 > d[1] + tol::kParametric;
+  };
+  if (bad(u0, u1, du) || bad(v0, v1, dv))
+    throw GeometryError("sub_surface: parameter ranges must be increasing and inside the domain");
+  NurbsSurface s = clamped();
+  if (u1 < du[1] - tol::kParametric) s = s.split_u(u1).first;
+  if (u0 > du[0] + tol::kParametric) s = s.split_u(u0).second;
+  if (v1 < dv[1] - tol::kParametric) s = s.split_v(v1).first;
+  if (v0 > dv[0] + tol::kParametric) s = s.split_v(v0).second;
+  return s;
+}
+
+std::pair<NurbsSurface, std::size_t> NurbsSurface::try_remove_knot_u(double u, std::size_t times,
+                                                                      double tolerance) const {
   auto net = columns_u(*this);
   const std::size_t removed = detail::remove_knot(pu_, net, u, times, tolerance);
+  if (removed == 0) return {*this, 0};
+  return {from_columns_u(*this, pu_, net), removed};
+}
+
+std::pair<NurbsSurface, std::size_t> NurbsSurface::try_remove_knot_v(double v, std::size_t times,
+                                                                      double tolerance) const {
+  auto [s, removed] = transposed().try_remove_knot_u(v, times, tolerance);
+  return {s.transposed(), removed};
+}
+
+NurbsSurface NurbsSurface::remove_knot_u(double u, std::size_t times, double tolerance) const {
+  auto [s, removed] = try_remove_knot_u(u, times, tolerance);
   if (removed < times)
     throw GeometryError("remove_knot_u: only " + std::to_string(removed) + " of " +
                         std::to_string(times) + " removals possible within tolerance");
-  return from_columns_u(*this, pu_, net);
+  return s;
 }
 
 NurbsSurface NurbsSurface::remove_knot_v(double v, std::size_t times, double tolerance) const {

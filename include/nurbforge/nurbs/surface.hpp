@@ -4,6 +4,7 @@
 
 #include <array>
 #include <cstddef>
+#include <utility>
 #include <vector>
 
 #include "nurbforge/core/vec.hpp"
@@ -61,6 +62,23 @@ class NurbsSurface {
   /// vector of that direction becomes clamped.
   [[nodiscard]] NurbsSurface elevate_degree_u(std::size_t t = 1) const;
   [[nodiscard]] NurbsSurface elevate_degree_v(std::size_t t = 1) const;
+
+  /// Same surface with clamped knot vectors in both directions (copy if already clamped).
+  [[nodiscard]] NurbsSurface clamped() const;
+
+  /// Splits at the interior parameter u (resp. v); both parts keep their parameter ranges.
+  [[nodiscard]] std::pair<NurbsSurface, NurbsSurface> split_u(double u) const;
+  [[nodiscard]] std::pair<NurbsSurface, NurbsSurface> split_v(double v) const;
+
+  /// Part of the surface on [u0, u1] x [v0, v1] (within the domain), clamped.
+  [[nodiscard]] NurbsSurface sub_surface(double u0, double u1, double v0, double v1) const;
+
+  /// Removes the interior knot u (resp. v) up to `times` times, as far as every row/column stays
+  /// within `tolerance`. Returns the new surface and the number of removals.
+  [[nodiscard]] std::pair<NurbsSurface, std::size_t> try_remove_knot_u(
+      double u, std::size_t times = 1, double tolerance = tol::kLength) const;
+  [[nodiscard]] std::pair<NurbsSurface, std::size_t> try_remove_knot_v(
+      double v, std::size_t times = 1, double tolerance = tol::kLength) const;
 
   /// Removes the interior knot u of the u (resp. v) direction `times` times (A5.8 applied to all
   /// rows/columns). Throws GeometryError unless all removals stay within `tolerance`.

@@ -185,6 +185,22 @@ NurbsCurve NurbsCurve::reduce_degree(double tolerance) const {
   return from_homogeneous(degree_ - 1, r.knots, r.cols.front());
 }
 
+std::pair<NurbsCurve, NurbsCurve> NurbsCurve::split(double u) const {
+  const auto [l, r] = detail::split(degree_, {knots_, {homogeneous_control_points()}}, u);
+  return {from_homogeneous(degree_, l.knots, l.cols.front()),
+          from_homogeneous(degree_, r.knots, r.cols.front())};
+}
+
+NurbsCurve NurbsCurve::sub_curve(double u0, double u1) const {
+  const double a = domain_start(), b = domain_end();
+  if (!(u0 < u1) || u0 < a - tol::kParametric || u1 > b + tol::kParametric)
+    throw GeometryError("sub_curve: need domain_start <= u0 < u1 <= domain_end");
+  NurbsCurve c = clamped();
+  if (u1 < b - tol::kParametric) c = c.split(u1).first;
+  if (u0 > a + tol::kParametric) c = c.split(u0).second;
+  return c;
+}
+
 std::vector<NurbsCurve> NurbsCurve::decompose_bezier() const {
   const std::size_t p = degree_;
   const auto X = detail::bezier_refinement_knots(p, knots_, ctrl_.size());

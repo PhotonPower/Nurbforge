@@ -132,6 +132,9 @@ PYBIND11_MODULE(_core, m) {
            py::arg("tolerance") = tol::kLength)
       .def("reduce_degree", &NurbsCurve::reduce_degree, py::arg("tolerance") = tol::kLength,
            "Degree reduction by one within tolerance (raises GeometryError otherwise).")
+      .def("split", &NurbsCurve::split, py::arg("u"),
+           "Split at u -> (left, right); both keep their parameter intervals.")
+      .def("sub_curve", &NurbsCurve::sub_curve, py::arg("u0"), py::arg("u1"))
       .def("decompose_bezier", &NurbsCurve::decompose_bezier,
            "Bezier segments, each on its original parameter interval.")
       .def("reversed", &NurbsCurve::reversed)
@@ -178,6 +181,15 @@ PYBIND11_MODULE(_core, m) {
       .def("refine_knots_v", &NurbsSurface::refine_knots_v, py::arg("knots"))
       .def("elevate_degree_u", &NurbsSurface::elevate_degree_u, py::arg("times") = 1)
       .def("elevate_degree_v", &NurbsSurface::elevate_degree_v, py::arg("times") = 1)
+      .def("clamped", &NurbsSurface::clamped)
+      .def("split_u", &NurbsSurface::split_u, py::arg("u"))
+      .def("split_v", &NurbsSurface::split_v, py::arg("v"))
+      .def("sub_surface", &NurbsSurface::sub_surface, py::arg("u0"), py::arg("u1"), py::arg("v0"),
+           py::arg("v1"))
+      .def("try_remove_knot_u", &NurbsSurface::try_remove_knot_u, py::arg("u"), py::arg("times") = 1,
+           py::arg("tolerance") = tol::kLength)
+      .def("try_remove_knot_v", &NurbsSurface::try_remove_knot_v, py::arg("v"), py::arg("times") = 1,
+           py::arg("tolerance") = tol::kLength)
       .def("remove_knot_u", &NurbsSurface::remove_knot_u, py::arg("u"), py::arg("times") = 1,
            py::arg("tolerance") = tol::kLength)
       .def("remove_knot_v", &NurbsSurface::remove_knot_v, py::arg("v"), py::arg("times") = 1,
@@ -192,6 +204,12 @@ PYBIND11_MODULE(_core, m) {
         return "<NurbsSurface degree=(" + std::to_string(s.degree_u()) + "," + std::to_string(s.degree_v()) +
                ") net=" + std::to_string(s.num_u()) + "x" + std::to_string(s.num_v()) + ">";
       });
+
+  // ------------------------------------------------------------------ joining
+  m.def("join", &join, py::arg("a"), py::arg("b"), py::arg("tolerance") = tol::kLength,
+        "Join curve b to the end of curve a (gap <= tolerance).");
+  m.def("join_u", &join_u, py::arg("a"), py::arg("b"), py::arg("tolerance") = tol::kLength);
+  m.def("join_v", &join_v, py::arg("a"), py::arg("b"), py::arg("tolerance") = tol::kLength);
 
   // ------------------------------------------------------------------ primitives
   m.def("make_line", &make_line, py::arg("p0"), py::arg("p1"));

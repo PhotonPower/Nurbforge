@@ -81,6 +81,13 @@ class NurbsCurve {
   /// Throws GeometryError if the curve cannot be reduced within the tolerance.
   [[nodiscard]] NurbsCurve reduce_degree(double tolerance = tol::kLength) const;
 
+  /// Splits at the interior parameter u. Both parts are clamped and keep their parameter
+  /// intervals [a, u] and [u, b].
+  [[nodiscard]] std::pair<NurbsCurve, NurbsCurve> split(double u) const;
+
+  /// Part of the curve on [u0, u1] (domain_start <= u0 < u1 <= domain_end), clamped.
+  [[nodiscard]] NurbsCurve sub_curve(double u0, double u1) const;
+
   /// Splits the curve into its Bézier segments (one per non-empty knot span of the domain).
   /// Segment k is a NURBS of the same degree with knots {a,..,a, b,..,b} on its original
   /// parameter interval [a, b], so parameters carry over unchanged.

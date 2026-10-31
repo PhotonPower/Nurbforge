@@ -67,6 +67,17 @@ Degree reduction is not a port of A5.11. Instead:
 The bound is conservative, so a reduction may be rejected although the true deviation is
 slightly below the tolerance. Undoing a degree elevation always succeeds exactly.
 
+## Splitting and joining
+
+- `split(u)` raises the multiplicity of u to p and cuts the control polygon; both parts are
+  clamped and **keep their parameter intervals** ([a, u] and [u, b]).
+- `join(a, b, tol)` unifies degrees (elevation), rescales b's weights so the joint weights agree,
+  shifts b's interval to start at a's end, closes a gap ≤ tol at its midpoint and finally removes
+  the joint knot as far as this is exact. Hence `join(*c.split(u))` reproduces `c.clamped()`.
+- `join_u/join_v` additionally make the surfaces compatible across the seam (v degree, domain,
+  knots). The seam rows must agree as **control rows**, i.e. both boundaries must share their
+  parametrisation, not only their geometry; rational seams need proportional weights.
+
 ## Exactness notes
 
 - Arcs use ≤ 90° segments with middle weight cos(Δθ/2); spheres, cylinders, cones and tori built by

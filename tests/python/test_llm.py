@@ -56,3 +56,9 @@ def test_closest_point_tool():
     call_tool(ws, "make_circle", {"name": "c", "center": [0, 0, 0], "normal": [0, 0, 1], "radius": 1})
     out = call_tool(ws, "closest_point", {"name": "c", "point": [3, 0, 0]})
     assert "distance=2" in out
+
+
+def test_measure_tool():
+    ws = Workspace()
+    call_tool(ws, "make_circle", {"name": "c", "center": [0, 0, 0], "normal": [0, 0, 1], "radius": 1})
+    assert call_tool(ws, "measure", {"name": "c"}).startswith("length=6.28318530")

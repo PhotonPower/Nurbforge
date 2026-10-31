@@ -148,6 +148,13 @@ def _build_tools() -> list[Tool]:
         p = r.point
         return f"{params}, point=({p.x:.6g}, {p.y:.6g}, {p.z:.6g}), distance={r.distance:.6g}"
 
+    @add("measure", "Length of a curve or area of a surface.", {"name": _NAME}, ["name"])
+    def _(ws, name):
+        o = ws.get(name)
+        if isinstance(o, nf.NurbsCurve):
+            return f"length={nf.length(o):.10g}"
+        return f"area={nf.area(o):.10g}"
+
     @add("evaluate", "Evaluate a curve at u or a surface at (u, v).",
          {"name": _NAME, "u": {"type": "number"}, "v": {"type": "number"}}, ["name", "u"])
     def _(ws, name, u, v=None):

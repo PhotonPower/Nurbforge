@@ -200,3 +200,18 @@ def test_closest_point():
     q = sphere(0.3, 0.6)
     loc = nf.closest_point_local(sphere, q, 0.28, 0.62)
     assert loc.distance < 1e-10
+
+
+def test_properties():
+    c = nf.make_circle((0, 0, 0), (0, 0, 1), 2.0)
+    assert abs(nf.length(c) - 4 * math.pi) < 1e-11
+    assert abs(nf.curvature(c, 0.3) - 0.5) < 1e-12
+    assert abs(nf.arc_length(c, 0.0, 0.25) - math.pi) < 1e-11
+    u = nf.parameter_at_length(c, 1.0)
+    assert abs(nf.arc_length(c, 0.0, u) - 1.0) < 1e-9
+
+    meridian = nf.make_arc((0, 0, 0), (0, 0, -1), (1, 0, 0), 2.0, 0.0, math.pi)
+    sphere = nf.revolve(meridian, (0, 0, 0), (0, 0, 1), 2 * math.pi)
+    assert abs(nf.area(sphere) - 16 * math.pi) < 1e-9
+    k = nf.surface_curvature(sphere, 0.2, 0.4)
+    assert abs(k.gaussian - 0.25) < 1e-12 and abs(abs(k.mean) - 0.5) < 1e-12

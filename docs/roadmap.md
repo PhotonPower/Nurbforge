@@ -13,7 +13,7 @@
 - Interpolation and least-squares approximation (curves and surfaces)
 - Full surface derivatives ✅, limit normals at poles ✅
 - Closest point / point inversion ✅
-- Arc length, curvature, area
+- Arc length, curvature, torsion, area ✅
 - Extrapolation (curve/surface extension with G1/G2 continuity)
 
 ## 0.3 – Surface construction

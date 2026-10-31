@@ -78,6 +78,23 @@ slightly below the tolerance. Undoing a degree elevation always succeeds exactly
   knots). The seam rows must agree as **control rows**, i.e. both boundaries must share their
   parametrisation, not only their geometry; rational seams need proportional weights.
 
+## Fitting
+
+| Algorithm | Function |
+|---|---|
+| Eq. 9.3–9.6 parameters | `data_parameters` (uniform, chord length, centripetal) |
+| A9.1 global interpolation, knots Eq. 9.8 | `interpolate_curve` |
+| Eq. 9.21/9.22 end derivatives | `interpolate_curve(..., end_derivatives)` (degree ≥ 2) |
+| Eq. 9.63–9.69 least squares, ends interpolated | `approximate_curve`, `approximate_curve_tol` |
+| A9.4 surface interpolation | `interpolate_surface` |
+| row/column least squares (P&T 9.4.3) | `approximate_surface` |
+
+Linear systems are solved with a small dense LU (partial pivoting) in `src/fitting/fit.cpp`,
+factored once per parameter/knot set and reused for all rows/columns of a surface (ADR 0002:
+no Eigen needed so far). `approximate_curve_tol` measures the residual at the data parameters
+(an upper bound of the point-to-curve distance) and finds the smallest admissible number of
+control points by exponential search and bisection.
+
 ## Integral and differential properties
 
 - Arc length and area use adaptive Gauss–Kronrod 7/15 (QUADPACK nodes) on every knot span

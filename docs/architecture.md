@@ -13,6 +13,7 @@
  ├──────────────────────────────────────────────────────────────┤
  │  C++ kernel  libnurbforge_core  (namespace nf)               │
  │   modeling/  construct (extrude, revolve, ruled), pattern    │
+ │   fitting/   interpolation, least-squares approximation      │
  │   analysis/  closest point, curvature, arc length, area      │
  │   geometry/  transform, primitives                           │
  │   nurbs/     knot_vector, basis, curve, surface, join,       │

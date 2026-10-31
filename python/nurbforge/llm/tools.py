@@ -6,6 +6,8 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 
+import numpy as np
+
 from .. import _core as nf
 
 Vec = list[float]
@@ -147,6 +149,13 @@ def _build_tools() -> list[Tool]:
         params = f"u={r.u:.6g}" if isinstance(r, nf.CurvePoint) else f"u={r.u:.6g}, v={r.v:.6g}"
         p = r.point
         return f"{params}, point=({p.x:.6g}, {p.y:.6g}, {p.z:.6g}), distance={r.distance:.6g}"
+
+    @add("interpolate_points", "Create a smooth curve through the given points (in order).",
+         {"name": _NAME, "points": {"type": "array", "items": _VEC, "minItems": 2},
+          "degree": {"type": "integer", "description": "default 3"}}, ["name", "points"])
+    def _(ws, name, points, degree=3):
+        pts = np.asarray(points, dtype=float)
+        return ws.put(name, nf.interpolate_curve(pts, min(int(degree), len(pts) - 1)))
 
     @add("measure", "Length of a curve or area of a surface.", {"name": _NAME}, ["name"])
     def _(ws, name):

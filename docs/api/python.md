@@ -22,6 +22,7 @@ import nurbforge as nf
 | Construction | `extrude`, `revolve`, `ruled`, `reparametrize` |
 | Analysis | `closest_point(obj, point, tolerance=Tolerance())` → `CurvePoint(u, point, distance)` / `SurfacePoint(u, v, point, distance)`; `closest_point_local(obj, point, u0[, v0])` |
 | Properties | `curvature(curve, u)`, `torsion(curve, u)`, `length(curve)`, `arc_length(curve, u0, u1)`, `parameter_at_length(curve, s)`, `surface_curvature(surface, u, v)` → `SurfaceCurvature(gaussian, mean, k1, k2, normal, dir1, dir2)`, `area(surface[, u0, u1, v0, v1])` |
+| Fitting | `interpolate_curve(points, degree=3, method=Parametrization.Centripetal, end_derivatives=None)`, `approximate_curve(points, degree, n_ctrl)`, `approximate_curve_tol(points, degree, tolerance)`, `interpolate_surface(grid (nu,nv,3), degree_u, degree_v)`, `approximate_surface(grid, degree_u, degree_v, ctrl_u, ctrl_v)`, `data_parameters(points, method)` |
 | Tolerances | `Tolerance(length=1e-10, parametric=1e-10, angular=1e-9)` |
 | Joining | `join(a, b, tolerance)`, `join_u(a, b, tolerance)`, `join_v(a, b, tolerance)` |
 | Arrays | `linear_pattern`, `grid_pattern`, `polar_pattern`, `apply_pattern` |

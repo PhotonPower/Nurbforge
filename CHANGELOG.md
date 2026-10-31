@@ -22,6 +22,10 @@ versioning: [SemVer](https://semver.org).
   branch and bound over Bézier pieces with safe lower bounds, safeguarded (projected) Newton;
   local variant with start value; Python `closest_point`, `closest_point_local`, `Tolerance`;
   LLM tool `closest_point`.
+- Fitting (`fitting/fit.hpp`): curve interpolation (optionally with end derivatives),
+  least-squares approximation, approximation to a tolerance, surface interpolation and
+  approximation of point grids; uniform/chord-length/centripetal parameters; LLM tool
+  `interpolate_points`.
 - Curve curvature, torsion, arc length and its inverse; surface Gaussian/mean/principal
   curvatures with principal directions (also at poles) and area (`analysis/properties.hpp`,
   adaptive Gauss–Kronrod); LLM tool `measure`.

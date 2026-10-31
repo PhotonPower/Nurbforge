@@ -10,7 +10,7 @@
 - Degree elevation ✅, degree reduction ✅, knot removal ✅
 - Knot refinement ✅, Bézier decomposition ✅
 - Curve/surface splitting and joining ✅
-- Interpolation and least-squares approximation (curves and surfaces)
+- Interpolation and least-squares approximation (curves and surfaces) ✅
 - Full surface derivatives ✅, limit normals at poles ✅
 - Closest point / point inversion ✅
 - Arc length, curvature, torsion, area ✅

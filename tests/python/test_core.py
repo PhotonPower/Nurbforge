@@ -215,3 +215,27 @@ def test_properties():
     assert abs(nf.area(sphere) - 16 * math.pi) < 1e-9
     k = nf.surface_curvature(sphere, 0.2, 0.4)
     assert abs(k.gaussian - 0.25) < 1e-12 and abs(abs(k.mean) - 0.5) < 1e-12
+
+
+def test_fitting():
+    t = np.linspace(0, 1, 15)
+    pts = np.stack([t, t**3, 1 - t**2], axis=1)
+    c = nf.interpolate_curve(pts, 3, nf.Parametrization.Uniform)
+    for tt in (0.13, 0.5, 0.91):
+        assert nf.distance(c(tt), nf.Vec3(tt, tt**3, 1 - tt**2)) < 1e-12
+
+    d = nf.interpolate_curve(pts, 3, end_derivatives=((1, 0, 0), (1, 3, -2)))
+    assert nf.distance(d.derivatives(0.0, 1)[1], nf.Vec3(1, 0, 0)) < 1e-10
+
+    a = nf.approximate_curve(pts, 3, 6)
+    assert len(a.control_points) == 6
+    f = nf.approximate_curve_tol(pts, 3, 1e-3)
+    ub = nf.data_parameters(pts)
+    assert max(nf.distance(f(u), nf.Vec3(*p)) for u, p in zip(ub, pts)) <= 1e-3
+
+    x, y = np.meshgrid(np.linspace(0, 1, 8), np.linspace(0, 1, 6), indexing="ij")
+    grid = np.stack([x, y, np.sin(x) * np.cos(y)], axis=2)
+    s = nf.interpolate_surface(grid, 3, 3, nf.Parametrization.Uniform)
+    assert nf.distance(s(x[3, 2], y[3, 2]), nf.Vec3(*grid[3, 2])) < 1e-12
+    w = nf.approximate_surface(grid, 2, 2, 4, 4)
+    assert (w.num_u, w.num_v) == (4, 4)

@@ -1,4 +1,7 @@
 // Python bindings for the Nurbforge kernel (module nurbforge._core).
+#include <optional>
+#include <tuple>
+
 #include <pybind11/numpy.h>
 #include <pybind11/operators.h>
 #include <pybind11/pybind11.h>
@@ -284,6 +287,62 @@ PYBIND11_MODULE(_core, m) {
   m.def("area", py::overload_cast<const NurbsSurface&, double, double, double, double, double>(&area),
         py::arg("surface"), py::arg("u0"), py::arg("u1"), py::arg("v0"), py::arg("v1"),
         py::arg("rel_tol") = kIntegrationRelTol);
+
+  // ------------------------------------------------------------------ fitting
+  py::enum_<Parametrization>(m, "Parametrization")
+      .value("Uniform", Parametrization::Uniform)
+      .value("ChordLength", Parametrization::ChordLength)
+      .value("Centripetal", Parametrization::Centripetal);
+  using Arr = py::array_t<double, py::array::c_style | py::array::forcecast>;
+  const auto grid = [](const Arr& a) {
+    if (a.ndim() != 3 || a.shape(2) != 3) throw py::value_error("expected a grid of shape (nu, nv, 3)");
+    const auto nu = static_cast<std::size_t>(a.shape(0)), nv = static_cast<std::size_t>(a.shape(1));
+    auto r = a.unchecked<3>();
+    std::vector<Vec3> Q(nu * nv);
+    for (py::ssize_t i = 0; i < a.shape(0); ++i)
+      for (py::ssize_t j = 0; j < a.shape(1); ++j)
+        Q[static_cast<std::size_t>(i) * nv + static_cast<std::size_t>(j)] = {r(i, j, 0), r(i, j, 1), r(i, j, 2)};
+    return std::tuple{Q, nu, nv};
+  };
+  m.def("data_parameters", [](const Arr& pts, Parametrization method) {
+        return data_parameters(from_numpy(pts), method);
+      }, py::arg("points"), py::arg("method") = Parametrization::Centripetal);
+  m.def("interpolate_curve",
+        [](const Arr& pts, std::size_t degree, Parametrization method,
+           const std::optional<std::pair<Vec3, Vec3>>& end_derivatives) {
+          return interpolate_curve(from_numpy(pts), degree, method, end_derivatives);
+        },
+        py::arg("points"), py::arg("degree") = 3, py::arg("method") = Parametrization::Centripetal,
+        py::arg("end_derivatives") = py::none(),
+        "Global interpolation through points (n, 3); optional (C'(0), C'(1)).");
+  m.def("approximate_curve",
+        [](const Arr& pts, std::size_t degree, std::size_t n_ctrl, Parametrization method) {
+          return approximate_curve(from_numpy(pts), degree, n_ctrl, method);
+        },
+        py::arg("points"), py::arg("degree"), py::arg("n_ctrl"),
+        py::arg("method") = Parametrization::Centripetal);
+  m.def("approximate_curve_tol",
+        [](const Arr& pts, std::size_t degree, double tolerance, Parametrization method) {
+          return approximate_curve_tol(from_numpy(pts), degree, tolerance, method);
+        },
+        py::arg("points"), py::arg("degree"), py::arg("tolerance"),
+        py::arg("method") = Parametrization::Centripetal,
+        "Least squares with the fewest control points meeting the tolerance.");
+  m.def("interpolate_surface",
+        [grid](const Arr& pts, std::size_t du, std::size_t dv, Parametrization method) {
+          auto [Q, nu, nv] = grid(pts);
+          return interpolate_surface(Q, nu, nv, du, dv, method);
+        },
+        py::arg("points"), py::arg("degree_u") = 3, py::arg("degree_v") = 3,
+        py::arg("method") = Parametrization::Centripetal, "Interpolate a point grid (nu, nv, 3).");
+  m.def("approximate_surface",
+        [grid](const Arr& pts, std::size_t du, std::size_t dv, std::size_t cu, std::size_t cv,
+               Parametrization method) {
+          auto [Q, nu, nv] = grid(pts);
+          return approximate_surface(Q, nu, nv, du, dv, cu, cv, method);
+        },
+        py::arg("points"), py::arg("degree_u"), py::arg("degree_v"), py::arg("ctrl_u"),
+        py::arg("ctrl_v"), py::arg("method") = Parametrization::Centripetal);
 
   // ------------------------------------------------------------------ joining
   m.def("join", &join, py::arg("a"), py::arg("b"), py::arg("tolerance") = tol::kLength,

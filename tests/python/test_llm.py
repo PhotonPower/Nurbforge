@@ -62,3 +62,10 @@ def test_measure_tool():
     ws = Workspace()
     call_tool(ws, "make_circle", {"name": "c", "center": [0, 0, 0], "normal": [0, 0, 1], "radius": 1})
     assert call_tool(ws, "measure", {"name": "c"}).startswith("length=6.28318530")
+
+
+def test_interpolate_points_tool():
+    ws = Workspace()
+    out = call_tool(ws, "interpolate_points", {"name": "c", "points": [[0, 0, 0], [1, 1, 0], [2, 0, 0]]})
+    assert out.startswith("stored c")
+    assert ws.get("c").degree == 2  # degree limited by the number of points

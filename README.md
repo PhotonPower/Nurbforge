@@ -16,6 +16,7 @@ from code (C++ or Python), from a local LLM (Ollama), and meshed with [gmsh](htt
 |---|---|---|
 | NURBS core | Basis functions + derivatives, curve/surface evaluation, rational derivatives, knot insertion and refinement, Bézier decomposition, degree elevation and reduction, knot removal, clamping, splitting/joining, reversal, iso-curves | Interpolation, approximation |
 | Primitives | Point, line, polyline, exact arc and circle, bilinear patch, rectangle | Ellipse, conics, aspheres, Zernike/XY-polynomial optical surfaces |
+| Fitting | Curve/surface interpolation (incl. end tangents), least-squares approximation, fit to a tolerance | Constrained fits, smoothing |
 | Construction | Extrusion, revolution (full/partial), ruled surface (auto degree/knot compatibility) | Loft/skinning, sweep, Coons/Gordon patches, offset, fillets |
 | Transforms | Translate, rotate, scale, mirror, composition | – |
 | Arrays | Linear, grid, polar | Path arrays |

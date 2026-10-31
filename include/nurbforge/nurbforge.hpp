@@ -15,3 +15,4 @@
 #include "nurbforge/geometry/primitives.hpp"
 #include "nurbforge/modeling/construct.hpp"
 #include "nurbforge/modeling/pattern.hpp"
+#include "nurbforge/analysis/closest_point.hpp"

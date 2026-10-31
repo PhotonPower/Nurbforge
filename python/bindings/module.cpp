@@ -75,6 +75,21 @@ PYBIND11_MODULE(_core, m) {
         "Distinct knot values and multiplicities (gmsh/OCC format).");
   m.def("validate_knots", &validate_knots, py::arg("knots"), py::arg("degree"), py::arg("n_ctrl"));
 
+  // ------------------------------------------------------------------ tolerances
+  py::class_<Tolerance>(m, "Tolerance", "Per-operation tolerances (length, parametric, angular).")
+      .def(py::init([](double length, double parametric, double angular) {
+             return Tolerance{length, parametric, angular};
+           }),
+           py::arg("length") = tol::kLength, py::arg("parametric") = tol::kParametric,
+           py::arg("angular") = tol::kAngular)
+      .def_readwrite("length", &Tolerance::length)
+      .def_readwrite("parametric", &Tolerance::parametric)
+      .def_readwrite("angular", &Tolerance::angular)
+      .def("__repr__", [](const Tolerance& t) {
+        return "Tolerance(length=" + std::to_string(t.length) + ", parametric=" +
+               std::to_string(t.parametric) + ", angular=" + std::to_string(t.angular) + ")";
+      });
+
   // ------------------------------------------------------------------ Transform
   py::class_<Transform>(m, "Transform")
       .def(py::init<>())
@@ -206,6 +221,38 @@ PYBIND11_MODULE(_core, m) {
         return "<NurbsSurface degree=(" + std::to_string(s.degree_u()) + "," + std::to_string(s.degree_v()) +
                ") net=" + std::to_string(s.num_u()) + "x" + std::to_string(s.num_v()) + ">";
       });
+
+  // ------------------------------------------------------------------ closest point
+  py::class_<CurvePoint>(m, "CurvePoint")
+      .def_readonly("u", &CurvePoint::u)
+      .def_readonly("point", &CurvePoint::point)
+      .def_readonly("distance", &CurvePoint::distance)
+      .def("__repr__", [](const CurvePoint& r) {
+        return "CurvePoint(u=" + std::to_string(r.u) + ", distance=" + std::to_string(r.distance) + ")";
+      });
+  py::class_<SurfacePoint>(m, "SurfacePoint")
+      .def_readonly("u", &SurfacePoint::u)
+      .def_readonly("v", &SurfacePoint::v)
+      .def_readonly("point", &SurfacePoint::point)
+      .def_readonly("distance", &SurfacePoint::distance)
+      .def("__repr__", [](const SurfacePoint& r) {
+        return "SurfacePoint(u=" + std::to_string(r.u) + ", v=" + std::to_string(r.v) +
+               ", distance=" + std::to_string(r.distance) + ")";
+      });
+  m.def("closest_point", py::overload_cast<const NurbsCurve&, const Vec3&, const Tolerance&>(&closest_point),
+        py::arg("curve"), py::arg("point"), py::arg("tolerance") = Tolerance{},
+        "Global closest point on a curve (point projection / inversion).");
+  m.def("closest_point", py::overload_cast<const NurbsSurface&, const Vec3&, const Tolerance&>(&closest_point),
+        py::arg("surface"), py::arg("point"), py::arg("tolerance") = Tolerance{},
+        "Global closest point on a surface.");
+  m.def("closest_point_local",
+        py::overload_cast<const NurbsCurve&, const Vec3&, double, const Tolerance&>(&closest_point_local),
+        py::arg("curve"), py::arg("point"), py::arg("u0"), py::arg("tolerance") = Tolerance{});
+  m.def("closest_point_local",
+        py::overload_cast<const NurbsSurface&, const Vec3&, double, double, const Tolerance&>(
+            &closest_point_local),
+        py::arg("surface"), py::arg("point"), py::arg("u0"), py::arg("v0"),
+        py::arg("tolerance") = Tolerance{});
 
   // ------------------------------------------------------------------ joining
   m.def("join", &join, py::arg("a"), py::arg("b"), py::arg("tolerance") = tol::kLength,

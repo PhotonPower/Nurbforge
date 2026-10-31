@@ -19,7 +19,7 @@ from code (C++ or Python), from a local LLM (Ollama), and meshed with [gmsh](htt
 | Construction | Extrusion, revolution (full/partial), ruled surface (auto degree/knot compatibility) | Loft/skinning, sweep, Coons/Gordon patches, offset, fillets |
 | Transforms | Translate, rotate, scale, mirror, composition | – |
 | Arrays | Linear, grid, polar | Path arrays |
-| Analysis | Point, tangent, normal (incl. poles), partial derivatives of any order, sampling | Closest point, curvature, length/area, intersections |
+| Analysis | Point, tangent, normal (incl. poles), partial derivatives of any order, global closest point / point inversion, sampling | Curvature, length/area, intersections |
 | Topology | – | Trimming, B-rep, Boolean union/intersection/difference, extrapolation |
 | Meshing | Exact NURBS transfer to gmsh (OCC), 2D meshing, high order, `.msh/.vtk/.stl/.step` | Physical groups, size fields, BEM-ready closed shells |
 | LLM | Ollama tool-calling agent with whitelisted geometry tools, CLI | Constraint-aware planning, verification loop |

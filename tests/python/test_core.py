@@ -183,3 +183,20 @@ def test_surface_derivatives_and_pole_normals():
     for v in (0.0, 1.0):  # poles
         n = np.array(sphere.normal(0.25, v))
         assert np.allclose(n, sign * np.array(sphere(0.25, v)) / 2.0, atol=1e-9)
+
+
+def test_closest_point():
+    c = nf.make_circle((0, 0, 0), (0, 0, 1), 2.0)
+    r = nf.closest_point(c, (5, 0, 1))
+    assert isinstance(r, nf.CurvePoint)
+    assert abs(r.distance - math.hypot(3, 1)) < 1e-12
+    assert nf.distance(r.point, nf.Vec3(2, 0, 0)) < 1e-9
+    assert nf.distance(c(r.u), r.point) < 1e-14
+
+    meridian = nf.make_arc((0, 0, 0), (0, 0, -1), (1, 0, 0), 2.0, 0.0, math.pi)
+    sphere = nf.revolve(meridian, (0, 0, 0), (0, 0, 1), 2 * math.pi)
+    s = nf.closest_point(sphere, (0, 0, 7), nf.Tolerance(length=1e-12))
+    assert abs(s.distance - 5.0) < 1e-12  # pole
+    q = sphere(0.3, 0.6)
+    loc = nf.closest_point_local(sphere, q, 0.28, 0.62)
+    assert loc.distance < 1e-10

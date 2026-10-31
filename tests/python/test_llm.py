@@ -49,3 +49,10 @@ def test_errors_are_reported_not_raised():
                                     "axis_dir": [0, 0, 1], "angle_deg": 90})
     assert out.startswith("ERROR")
     assert call_tool(ws, "rm_rf", {}).startswith("ERROR")
+
+
+def test_closest_point_tool():
+    ws = Workspace()
+    call_tool(ws, "make_circle", {"name": "c", "center": [0, 0, 0], "normal": [0, 0, 1], "radius": 1})
+    out = call_tool(ws, "closest_point", {"name": "c", "point": [3, 0, 0]})
+    assert "distance=2" in out

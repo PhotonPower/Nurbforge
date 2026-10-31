@@ -140,6 +140,14 @@ def _build_tools() -> list[Tool]:
     def _(ws):
         return "\n".join(f"{k}: {v!r}" for k, v in ws.objects.items()) or "(empty)"
 
+    @add("closest_point", "Closest point of an object to a given point, with its parameters "
+         "and the distance.", {"name": _NAME, "point": _VEC}, ["name", "point"])
+    def _(ws, name, point):
+        r = nf.closest_point(ws.get(name), point)
+        params = f"u={r.u:.6g}" if isinstance(r, nf.CurvePoint) else f"u={r.u:.6g}, v={r.v:.6g}"
+        p = r.point
+        return f"{params}, point=({p.x:.6g}, {p.y:.6g}, {p.z:.6g}), distance={r.distance:.6g}"
+
     @add("evaluate", "Evaluate a curve at u or a surface at (u, v).",
          {"name": _NAME, "u": {"type": "number"}, "v": {"type": "number"}}, ["name", "u"])
     def _(ws, name, u, v=None):

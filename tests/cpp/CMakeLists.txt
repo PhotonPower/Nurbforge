@@ -21,6 +21,7 @@ add_executable(nurbforge_tests
   test_reduce.cpp
   test_split_join.cpp
   test_derivatives.cpp
-  test_closest_point.cpp)
+  test_closest_point.cpp
+  test_properties.cpp)
 target_link_libraries(nurbforge_tests PRIVATE Nurbforge::core Catch2::Catch2WithMain)
 catch_discover_tests(nurbforge_tests)

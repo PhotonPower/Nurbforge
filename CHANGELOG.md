@@ -22,6 +22,9 @@ versioning: [SemVer](https://semver.org).
   branch and bound over Bézier pieces with safe lower bounds, safeguarded (projected) Newton;
   local variant with start value; Python `closest_point`, `closest_point_local`, `Tolerance`;
   LLM tool `closest_point`.
+- Curve curvature, torsion, arc length and its inverse; surface Gaussian/mean/principal
+  curvatures with principal directions (also at poles) and area (`analysis/properties.hpp`,
+  adaptive Gauss–Kronrod); LLM tool `measure`.
 - `NurbsSurface::derivatives(u, v, order)`: all partial derivatives of any order (A3.6 + A4.4).
 - Degree reduction with rigorous error verification: `NurbsCurve::reduce_degree`,
   `NurbsSurface::reduce_degree_u/v`.

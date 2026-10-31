@@ -254,6 +254,37 @@ PYBIND11_MODULE(_core, m) {
         py::arg("surface"), py::arg("point"), py::arg("u0"), py::arg("v0"),
         py::arg("tolerance") = Tolerance{});
 
+  // ------------------------------------------------------------------ properties
+  m.def("curvature", py::overload_cast<const NurbsCurve&, double>(&curvature), py::arg("curve"),
+        py::arg("u"), "Curvature |C' x C''| / |C'|^3.");
+  m.def("torsion", &torsion, py::arg("curve"), py::arg("u"));
+  m.def("arc_length", py::overload_cast<const NurbsCurve&, double, double, double>(&arc_length),
+        py::arg("curve"), py::arg("u0"), py::arg("u1"), py::arg("rel_tol") = kIntegrationRelTol);
+  m.def("length", py::overload_cast<const NurbsCurve&, double>(&arc_length), py::arg("curve"),
+        py::arg("rel_tol") = kIntegrationRelTol, "Total arc length of a curve.");
+  m.def("parameter_at_length", &parameter_at_length, py::arg("curve"), py::arg("s"),
+        py::arg("rel_tol") = kIntegrationRelTol);
+  py::class_<SurfaceCurvature>(m, "SurfaceCurvature")
+      .def_readonly("gaussian", &SurfaceCurvature::gaussian)
+      .def_readonly("mean", &SurfaceCurvature::mean)
+      .def_readonly("k1", &SurfaceCurvature::k1)
+      .def_readonly("k2", &SurfaceCurvature::k2)
+      .def_readonly("normal", &SurfaceCurvature::normal)
+      .def_readonly("dir1", &SurfaceCurvature::dir1)
+      .def_readonly("dir2", &SurfaceCurvature::dir2)
+      .def("__repr__", [](const SurfaceCurvature& k) {
+        return "SurfaceCurvature(K=" + std::to_string(k.gaussian) + ", H=" + std::to_string(k.mean) +
+               ", k1=" + std::to_string(k.k1) + ", k2=" + std::to_string(k.k2) + ")";
+      });
+  m.def("surface_curvature", py::overload_cast<const NurbsSurface&, double, double>(&curvature),
+        py::arg("surface"), py::arg("u"), py::arg("v"),
+        "Gaussian, mean and principal curvatures and directions.");
+  m.def("area", py::overload_cast<const NurbsSurface&, double>(&area), py::arg("surface"),
+        py::arg("rel_tol") = kIntegrationRelTol);
+  m.def("area", py::overload_cast<const NurbsSurface&, double, double, double, double, double>(&area),
+        py::arg("surface"), py::arg("u0"), py::arg("u1"), py::arg("v0"), py::arg("v1"),
+        py::arg("rel_tol") = kIntegrationRelTol);
+
   // ------------------------------------------------------------------ joining
   m.def("join", &join, py::arg("a"), py::arg("b"), py::arg("tolerance") = tol::kLength,
         "Join curve b to the end of curve a (gap <= tolerance).");

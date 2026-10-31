@@ -78,6 +78,17 @@ slightly below the tolerance. Undoing a degree elevation always succeeds exactly
   knots). The seam rows must agree as **control rows**, i.e. both boundaries must share their
   parametrisation, not only their geometry; rational seams need proportional weights.
 
+## Integral and differential properties
+
+- Arc length and area use adaptive Gauss–Kronrod 7/15 (QUADPACK nodes) on every knot span
+  (tensor rule for areas); the integrands |C'| and |S_u × S_v| are smooth inside spans. Default
+  relative accuracy `kIntegrationRelTol = 1e-10`.
+- `parameter_at_length` inverts the arc length by safeguarded Newton (bisection fallback),
+  accumulating the length incrementally between iterates.
+- Surface curvature uses the fundamental forms with n = S_u × S_v / |S_u × S_v|; the sign of H,
+  k1, k2 follows this orientation. At singular points (poles) the values are Richardson-
+  extrapolated from two nearby regular points.
+
 ## Exactness notes
 
 - Arcs use ≤ 90° segments with middle weight cos(Δθ/2); spheres, cylinders, cones and tori built by

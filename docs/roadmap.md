@@ -7,7 +7,7 @@
 - Python bindings, gmsh transfer, Ollama agent; CI on AlmaLinux 10 and Windows 11
 
 ## 0.2 – Complete NURBS toolbox
-- Degree elevation / reduction, knot removal
+- Degree elevation ✅; degree reduction, knot removal
 - Knot refinement ✅, Bézier decomposition ✅
 - Curve/surface splitting and joining
 - Interpolation and least-squares approximation (curves and surfaces)

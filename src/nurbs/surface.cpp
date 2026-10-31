@@ -126,6 +126,36 @@ NurbsSurface NurbsSurface::refine_knots_u(const std::vector<double>& X) const {
   return {pu_, pv_, std::move(new_ku), kv_, new_nu, nv_, std::move(c), std::move(w)};
 }
 
+NurbsSurface NurbsSurface::elevate_degree_u(std::size_t t) const {
+  if (t == 0) return *this;
+  KnotVector new_ku;
+  std::size_t new_nu = 0;
+  std::vector<Vec3> c;
+  std::vector<double> w;
+  for (std::size_t j = 0; j < nv_; ++j) {  // every column (fixed j) has the same knots
+    std::vector<Vec4> col(nu_);
+    for (std::size_t i = 0; i < nu_; ++i)
+      col[i] = Vec4::from_point(ctrl_[i * nv_ + j], weights_[i * nv_ + j]);
+    auto r = detail::elevate_degree(pu_, ku_, col, t);
+    if (j == 0) {
+      new_ku = std::move(r.knots);
+      new_nu = r.points.size();
+      c.resize(new_nu * nv_);
+      w.resize(new_nu * nv_);
+    }
+    for (std::size_t i = 0; i < new_nu; ++i) {
+      c[i * nv_ + j] = r.points[i].project();
+      w[i * nv_ + j] = r.points[i].w;
+    }
+  }
+  return {pu_ + t, pv_, std::move(new_ku), kv_, new_nu, nv_, std::move(c), std::move(w)};
+}
+
+NurbsSurface NurbsSurface::elevate_degree_v(std::size_t t) const {
+  if (t == 0) return *this;
+  return transposed().elevate_degree_u(t).transposed();
+}
+
 NurbsSurface NurbsSurface::refine_knots_v(const std::vector<double>& X) const {
   if (X.empty()) return *this;
   return transposed().refine_knots_u(X).transposed();

@@ -57,6 +57,11 @@ class NurbsSurface {
   [[nodiscard]] NurbsSurface refine_knots_u(const std::vector<double>& X) const;
   [[nodiscard]] NurbsSurface refine_knots_v(const std::vector<double>& X) const;
 
+  /// Degree elevation by t in u (resp. v), A5.10. Shape and domain are unchanged; the knot
+  /// vector of that direction becomes clamped.
+  [[nodiscard]] NurbsSurface elevate_degree_u(std::size_t t = 1) const;
+  [[nodiscard]] NurbsSurface elevate_degree_v(std::size_t t = 1) const;
+
   /// Splits the surface into Bézier patches, one per pair of non-empty knot spans. Returned in
   /// row-major order (u span outer, v span inner); each patch keeps its original parameter
   /// rectangle.

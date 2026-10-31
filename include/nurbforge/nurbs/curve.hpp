@@ -56,6 +56,16 @@ class NurbsCurve {
   /// Shape is unchanged.
   [[nodiscard]] NurbsCurve refine_knots(const std::vector<double>& X) const;
 
+  /// True if the first and last knot have multiplicity degree+1 (end points interpolated).
+  [[nodiscard]] bool is_clamped() const noexcept;
+
+  /// Same curve on the same domain with a clamped knot vector (copy if already clamped).
+  [[nodiscard]] NurbsCurve clamped() const;
+
+  /// Degree elevation by t (A5.9). Shape and domain are unchanged; the result is clamped,
+  /// has degree p+t and every interior knot multiplicity is raised by t.
+  [[nodiscard]] NurbsCurve elevate_degree(std::size_t t = 1) const;
+
   /// Splits the curve into its Bézier segments (one per non-empty knot span of the domain).
   /// Segment k is a NURBS of the same degree with knots {a,..,a, b,..,b} on its original
   /// parameter interval [a, b], so parameters carry over unchanged.

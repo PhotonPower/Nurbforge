@@ -52,8 +52,8 @@ tolerance context per model.
 ## Error handling
 
 - `GeometryError` – invalid input or degenerate geometry.
-- `NotImplementedError` – recognised request for a planned feature (e.g. ruled surface between
-  curves of different degree until degree elevation lands).
+- `NotImplementedError` – recognised request for a planned feature (raised by the Python layer
+  and reserved in the kernel for roadmap items that are not implemented yet).
 
 ## Build
 

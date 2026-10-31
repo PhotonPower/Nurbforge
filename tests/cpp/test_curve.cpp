@@ -25,6 +25,15 @@ TEST_CASE("exact circle stays on radius", "[curve]") {
   }
 }
 
+TEST_CASE("uniformly scaled weights are not rational", "[curve][tolerance]") {
+  const KnotVector U{0, 0, 0, 1, 1, 1};
+  const std::vector<Vec3> P{{0, 0, 0}, {1, 1, 0}, {2, 0, 0}};
+  CHECK_FALSE(NurbsCurve(2, U, P, {1e6, 1e6, 1e6}).is_rational());
+  CHECK_FALSE(NurbsCurve(2, U, P, {1e-12, 1e-12, 1e-12}).is_rational());
+  // differences below the absolute tolerance must still count when the weights are tiny
+  CHECK(NurbsCurve(2, U, P, {1e-12, 2e-12, 1e-12}).is_rational());
+}
+
 TEST_CASE("arc end points", "[curve]") {
   const auto a = make_arc({0, 0, 0}, {1, 0, 0}, {0, 1, 0}, 1.0, 0.0, std::numbers::pi / 3);
   const auto e = a.evaluate(a.domain_end());

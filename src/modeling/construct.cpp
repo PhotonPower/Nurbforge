@@ -9,7 +9,7 @@
 namespace nf {
 
 NurbsSurface extrude(const NurbsCurve& profile, const Vec3& direction) {
-  if (norm(direction) < kTolerance) throw GeometryError("extrusion direction is zero");
+  if (norm(direction) < tol::kLength) throw GeometryError("extrusion direction is zero");
   const std::size_t n = profile.num_control_points();
   std::vector<Vec3> P;
   std::vector<double> W;
@@ -25,7 +25,7 @@ NurbsSurface extrude(const NurbsCurve& profile, const Vec3& direction) {
 }
 
 NurbsSurface revolve(const NurbsCurve& profile, const Vec3& S, const Vec3& axis_dir, double theta) {
-  if (!(theta > 0.0) || theta > 2.0 * std::numbers::pi + 1e-12)
+  if (!(theta > 0.0) || theta > 2.0 * std::numbers::pi + tol::kAngular)
     throw GeometryError("revolution angle must be in (0, 2*pi]");
   const Vec3 T = normalized(axis_dir);
   const std::size_t narcs = detail::arc_segment_count(theta);
@@ -50,7 +50,7 @@ NurbsSurface revolve(const NurbsCurve& profile, const Vec3& S, const Vec3& axis_
     const Vec3 O = S + dot(Pj - S, T) * T;  // projection onto axis
     Vec3 X = Pj - O;
     const double r = norm(X);
-    if (r < kTolerance) {  // point on the axis: degenerate (pole)
+    if (r < tol::kLength) {  // point on the axis: degenerate (pole)
       for (std::size_t i = 0; i < nu; ++i) {
         P[idx(i, j)] = Pj;
         W[idx(i, j)] = (i % 2 == 1) ? wm * wj : wj;

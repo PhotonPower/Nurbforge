@@ -24,7 +24,7 @@ Internally all evaluation is done in homogeneous coordinates **P**ʷ = (wP, w) a
 | Extrusion / ruled | u = profile, v = sweep direction (degree 1) |
 | Angles | Radians in C++/Python API; **degrees** in LLM tools |
 | Circle orientation | Counter-clockwise about the given normal; start point on `any_perpendicular(normal)` |
-| Tolerance | `nf::kTolerance = 1e-10` (model units) |
+| Tolerances | `nf::tol::kLength = 1e-10` (model units), `kParametric = 1e-10`, `kAngular = 1e-9` rad – see [ADR 0005](../adr/0005-tolerance-model.md) |
 
 ## Implemented algorithms (Piegl & Tiller numbering)
 

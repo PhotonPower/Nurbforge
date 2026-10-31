@@ -11,9 +11,9 @@ namespace detail {
 
 std::size_t arc_segment_count(double sweep) {
   constexpr double half_pi = std::numbers::pi / 2.0;
-  if (sweep <= half_pi + 1e-12) return 1;
-  if (sweep <= std::numbers::pi + 1e-12) return 2;
-  if (sweep <= 3.0 * half_pi + 1e-12) return 3;
+  if (sweep <= half_pi + tol::kAngular) return 1;
+  if (sweep <= std::numbers::pi + tol::kAngular) return 2;
+  if (sweep <= 3.0 * half_pi + tol::kAngular) return 3;
   return 4;
 }
 
@@ -35,7 +35,7 @@ Vec3 intersect_lines(const Vec3& p0, const Vec3& t0, const Vec3& p2, const Vec3&
   const double a = dot(t0, t0), b = dot(t0, t2), c = dot(t2, t2);
   const double d = dot(t0, w), e = dot(t2, w);
   const double den = a * c - b * b;
-  if (std::abs(den) < kTolerance) throw GeometryError("lines are parallel");
+  if (std::abs(den) < tol::kLength) throw GeometryError("lines are parallel");
   const double s = (b * e - c * d) / den;
   return p0 + s * t0;
 }
@@ -63,7 +63,7 @@ NurbsCurve make_polyline(const std::vector<Vec3>& points) {
     total += distance(points[i], points[i - 1]);
     acc[i] = total;
   }
-  if (total < kTolerance) throw GeometryError("polyline has zero length");
+  if (total < tol::kLength) throw GeometryError("polyline has zero length");
   for (std::size_t i = 0; i < points.size(); ++i) U[i + 1] = acc[i] / total;
   U.back() = 1.0;
   return {1, std::move(U), points};
@@ -74,10 +74,10 @@ NurbsCurve make_arc(const Vec3& O, const Vec3& x_axis, const Vec3& y_axis, doubl
   if (r <= 0.0) throw GeometryError("radius must be positive");
   const Vec3 X = normalized(x_axis);
   const Vec3 Y = normalized(y_axis);
-  if (std::abs(dot(X, Y)) > 1e-9) throw GeometryError("arc axes must be orthogonal");
+  if (std::abs(dot(X, Y)) > tol::kAngular) throw GeometryError("arc axes must be orthogonal");
   while (the < ths) the += 2.0 * std::numbers::pi;
   const double theta = the - ths;
-  if (theta < kTolerance) throw GeometryError("arc sweep must be positive");
+  if (theta < tol::kAngular) throw GeometryError("arc sweep must be positive");
 
   const std::size_t narcs = detail::arc_segment_count(theta);
   const double dtheta = theta / static_cast<double>(narcs);

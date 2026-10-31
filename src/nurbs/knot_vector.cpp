@@ -23,7 +23,7 @@ void validate_knots(const KnotVector& knots, std::size_t degree, std::size_t n_c
   // interior multiplicity must not exceed degree (curve would be disconnected)
   std::size_t mult = 1;
   for (std::size_t i = degree + 1; i < n_ctrl; ++i) {
-    mult = (std::abs(knots[i] - knots[i - 1]) < kTolerance) ? mult + 1 : 1;
+    mult = (std::abs(knots[i] - knots[i - 1]) < tol::kParametric) ? mult + 1 : 1;
     if (mult > degree) throw GeometryError("interior knot multiplicity exceeds degree");
   }
 }
@@ -52,7 +52,7 @@ std::size_t find_span(std::size_t n, std::size_t degree, double u, const KnotVec
 
 std::size_t knot_multiplicity(const KnotVector& knots, double u) {
   std::size_t m = 0;
-  for (double k : knots) if (std::abs(k - u) < kTolerance) ++m;
+  for (double k : knots) if (std::abs(k - u) < tol::kParametric) ++m;
   return m;
 }
 
@@ -60,7 +60,7 @@ std::pair<std::vector<double>, std::vector<int>> unique_knots(const KnotVector& 
   std::vector<double> values;
   std::vector<int> mults;
   for (double k : knots) {
-    if (!values.empty() && std::abs(k - values.back()) < kTolerance) ++mults.back();
+    if (!values.empty() && std::abs(k - values.back()) < tol::kParametric) ++mults.back();
     else { values.push_back(k); mults.push_back(1); }
   }
   return {values, mults};

@@ -147,6 +147,22 @@ NurbsCurve NurbsCurve::refine_knots(const std::vector<double>& X) const {
   return from_homogeneous(degree_, std::move(r.knots), r.points);
 }
 
+bool NurbsCurve::is_clamped() const noexcept {
+  return knots_.front() == domain_start() && knots_.back() == domain_end();
+}
+
+NurbsCurve NurbsCurve::clamped() const {
+  if (is_clamped()) return *this;
+  auto r = detail::clamp(degree_, knots_, homogeneous_control_points());
+  return from_homogeneous(degree_, std::move(r.knots), r.points);
+}
+
+NurbsCurve NurbsCurve::elevate_degree(std::size_t t) const {
+  if (t == 0) return *this;
+  auto r = detail::elevate_degree(degree_, knots_, homogeneous_control_points(), t);
+  return from_homogeneous(degree_ + t, std::move(r.knots), r.points);
+}
+
 std::vector<NurbsCurve> NurbsCurve::decompose_bezier() const {
   const std::size_t p = degree_;
   const auto X = detail::bezier_refinement_knots(p, knots_, ctrl_.size());

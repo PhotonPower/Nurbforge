@@ -88,10 +88,10 @@ NurbsCurve reparametrize(const NurbsCurve& c, double a, double b) {
 }
 
 void make_compatible(NurbsCurve& a, NurbsCurve& b) {
-  if (a.degree() != b.degree())
-    throw NotImplementedError("make_compatible: degree elevation is not implemented yet");
-  a = reparametrize(a, 0.0, 1.0);
-  b = reparametrize(b, 0.0, 1.0);
+  a = reparametrize(a.clamped(), 0.0, 1.0);
+  b = reparametrize(b.clamped(), 0.0, 1.0);
+  if (a.degree() < b.degree()) a = a.elevate_degree(b.degree() - a.degree());
+  if (b.degree() < a.degree()) b = b.elevate_degree(a.degree() - b.degree());
   auto merge_into = [](NurbsCurve& target, const NurbsCurve& source) {
     const auto [vals, mults] = unique_knots(source.knots());
     for (std::size_t i = 0; i < vals.size(); ++i) {

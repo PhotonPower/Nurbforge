@@ -87,3 +87,26 @@ def test_surface_refinement_and_bezier_decomposition():
         (u0, u1), (v0, v1) = p.domain_u, p.domain_v
         u, v = 0.5 * (u0 + u1), 0.5 * (v0 + v1)
         assert nf.distance(p(u, v), sphere(u, v)) < 1e-12
+
+
+def test_degree_elevation():
+    c = nf.make_circle((0, 0, 0), (0, 0, 1), 1.5)
+    e = c.elevate_degree(2)
+    assert e.degree == 4 and e.is_clamped
+    for u in np.linspace(0, 1, 41):
+        assert nf.distance(c(u), e(u)) < 1e-12
+
+    meridian = nf.make_arc((0, 0, 0), (0, 0, -1), (1, 0, 0), 1.0, 0.0, math.pi)
+    sphere = nf.revolve(meridian, (0, 0, 0), (0, 0, 1), 2 * math.pi)
+    s = sphere.elevate_degree_u().elevate_degree_v(2)
+    assert (s.degree_u, s.degree_v) == (3, 4)
+    assert nf.distance(s(0.3, 0.7), sphere(0.3, 0.7)) < 1e-12
+
+
+def test_ruled_surface_between_different_degrees():
+    line = nf.make_line((-1, 0, 0), (1, 0, 0))
+    arc = nf.make_arc((0, 0, 2), (-1, 0, 0), (0, 1, 0), 1.0, 0.0, math.pi)
+    s = nf.ruled(line, arc)
+    for u in np.linspace(0, 1, 11):
+        assert nf.distance(s(u, 0.0), line(u)) < 1e-12
+        assert nf.distance(s(u, 1.0), arc(u)) < 1e-12

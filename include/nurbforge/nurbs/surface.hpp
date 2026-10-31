@@ -40,10 +40,20 @@ class NurbsSurface {
   /// Point on the surface (A4.3).
   [[nodiscard]] Vec3 evaluate(double u, double v) const;
 
+  /// All partial derivatives up to total order `order` (A3.6 + A4.4 for the rational case):
+  /// result[k][l] = d^(k+l) S / du^k dv^l for k + l <= order; entries with k + l > order are zero.
+  /// Size (order+1) x (order+1). Orders above the degree are handled (rational derivatives of
+  /// any order are generally non-zero).
+  [[nodiscard]] std::vector<std::vector<Vec3>> derivatives(double u, double v,
+                                                           std::size_t order) const;
+
   /// {S, S_u, S_v} – first order partial derivatives (rational).
   [[nodiscard]] std::array<Vec3, 3> first_derivatives(double u, double v) const;
 
-  /// Unit normal (S_u x S_v). Throws at degenerate points (e.g. poles).
+  /// Unit normal along S_u x S_v. At degenerate points where S_u or S_v vanishes (poles of
+  /// revolved surfaces, collapsed edges) the limit normal is computed from the mixed second
+  /// derivative, oriented consistently with the neighbourhood. Throws GeometryError if the
+  /// normal is undefined (e.g. both S_u and S_v vanish, or a cusp).
   [[nodiscard]] Vec3 normal(double u, double v) const;
 
   /// Iso-parametric curve at fixed u (direction v) or fixed v (direction u).

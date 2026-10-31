@@ -35,7 +35,7 @@ Internally all evaluation is done in homogeneous coordinates **P**ʷ = (wP, w) a
 | A2.3 DersBasisFuns | `basis_function_derivatives` |
 | A4.1 / A4.3 rational point | `NurbsCurve::evaluate`, `NurbsSurface::evaluate` |
 | A4.2 RatCurveDerivs | `NurbsCurve::derivatives` |
-| first-order RatSurfaceDerivs | `NurbsSurface::first_derivatives` |
+| A3.6 SurfaceDerivsAlg1 + A4.4 RatSurfaceDerivs | `NurbsSurface::derivatives` (any order), `first_derivatives` |
 | A5.1 CurveKnotIns | `NurbsCurve::insert_knot` |
 | A5.4 RefineKnotVectCurve | `NurbsCurve::refine_knots` |
 | A5.5 RefineKnotVectSurface | `NurbsSurface::refine_knots_u/v` (A5.4 per column/row) |
@@ -84,8 +84,10 @@ slightly below the tolerance. Undoing a degree elevation always succeeds exactly
   revolution are therefore exact up to floating point.
 - Affine transforms act on control points only (affine invariance). Projective maps would also need
   weights and are not part of `Transform`.
-- Poles (profile points on the axis) produce collapsed rows in the control net; normals there are
-  undefined and `normal()` throws.
+- Poles (profile points on the axis) produce collapsed rows in the control net. There S_u (or S_v)
+  vanishes and `normal()` returns the **limit normal** from the mixed derivative:
+  S_u(u, v+h) ≈ h·S_uv, hence N ∝ ±S_uv × S_v, with the sign chosen so that it matches the
+  neighbourhood (h points into the domain). If both partials vanish, `normal()` throws.
 
 ## Reference
 

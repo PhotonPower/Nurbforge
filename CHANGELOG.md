@@ -18,12 +18,15 @@ versioning: [SemVer](https://semver.org).
 - Splitting and joining: `NurbsCurve::split` / `sub_curve`, `NurbsSurface::split_u/v` /
   `sub_surface` / `clamped`, free functions `join`, `join_u`, `join_v` (`nurbs/join.hpp`).
 - `NurbsSurface::try_remove_knot_u/v`.
+- `NurbsSurface::derivatives(u, v, order)`: all partial derivatives of any order (A3.6 + A4.4).
 - Degree reduction with rigorous error verification: `NurbsCurve::reduce_degree`,
   `NurbsSurface::reduce_degree_u/v`.
 ### Changed
 - All tolerance literals in `src/` replaced by the named constants; angular comparisons now
   uniformly use 1e-9.
 ### Fixed
+- `NurbsSurface::normal` returns the limit normal at poles and collapsed edges instead of throwing
+  (e.g. at the poles of revolved spheres – relevant for BEM meshes).
 - `ruled` / `make_compatible` now handle curves of different degree (previously
   `NotImplementedError`) and unclamped curves.
 - `NurbsCurve::is_rational` compares weights relatively, so uniformly scaled weights

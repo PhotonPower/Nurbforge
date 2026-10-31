@@ -12,7 +12,8 @@
 - Curve/surface splitting and joining ✅
 - Interpolation and least-squares approximation (curves and surfaces)
 - Full surface derivatives ✅, limit normals at poles ✅
-- Closest point / point inversion, arc length, curvature, area
+- Closest point / point inversion ✅
+- Arc length, curvature, area
 - Extrapolation (curve/surface extension with G1/G2 continuity)
 
 ## 0.3 – Surface construction

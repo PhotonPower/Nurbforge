@@ -20,6 +20,8 @@ import nurbforge as nf
 |---|---|
 | Primitives | `make_line`, `make_polyline`, `make_arc`, `make_circle`, `make_bilinear`, `make_rectangle` |
 | Construction | `extrude`, `revolve`, `ruled`, `reparametrize` |
+| Analysis | `closest_point(obj, point, tolerance=Tolerance())` → `CurvePoint(u, point, distance)` / `SurfacePoint(u, v, point, distance)`; `closest_point_local(obj, point, u0[, v0])` |
+| Tolerances | `Tolerance(length=1e-10, parametric=1e-10, angular=1e-9)` |
 | Joining | `join(a, b, tolerance)`, `join_u(a, b, tolerance)`, `join_v(a, b, tolerance)` |
 | Arrays | `linear_pattern`, `grid_pattern`, `polar_pattern`, `apply_pattern` |
 | Knots | `clamped_uniform_knots`, `unique_knots`, `validate_knots` |

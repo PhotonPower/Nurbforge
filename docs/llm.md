@@ -31,7 +31,8 @@ Environment variables: `OLLAMA_HOST`, `NURBFORGE_LLM_MODEL`.
 ## Available tools
 
 `make_line`, `make_circle`, `make_arc`, `make_rectangle`, `revolve`, `extrude`, `ruled`,
-`translate`, `rotate`, `mirror`, `linear_array`, `polar_array`, `list_objects`, `evaluate`.
+`translate`, `rotate`, `mirror`, `linear_array`, `polar_array`, `list_objects`, `evaluate`,
+`closest_point`.
 Angles are in **degrees** at this level (models handle degrees more reliably).
 
 ## Adding a tool

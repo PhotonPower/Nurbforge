@@ -36,7 +36,8 @@ add_library(nurbforge_core STATIC
   src/geometry/transform.cpp
   src/geometry/primitives.cpp
   src/modeling/construct.cpp
-  src/modeling/pattern.cpp)
+  src/modeling/pattern.cpp
+  src/analysis/closest_point.cpp)
 add_library(Nurbforge::core ALIAS nurbforge_core)
 set_target_properties(nurbforge_core PROPERTIES EXPORT_NAME core)
 

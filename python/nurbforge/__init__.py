@@ -7,13 +7,18 @@ interface via Ollama (:mod:`nurbforge.llm`).
 from __future__ import annotations
 
 from ._core import (  # noqa: F401
+    CurvePoint,
     GeometryError,
     NurbsCurve,
     NurbsSurface,
+    SurfacePoint,
+    Tolerance,
     Transform,
     Vec3,
     __version__,
     clamped_uniform_knots,
+    closest_point,
+    closest_point_local,
     cross,
     distance,
     dot,

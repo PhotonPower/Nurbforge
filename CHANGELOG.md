@@ -18,6 +18,10 @@ versioning: [SemVer](https://semver.org).
 - Splitting and joining: `NurbsCurve::split` / `sub_curve`, `NurbsSurface::split_u/v` /
   `sub_surface` / `clamped`, free functions `join`, `join_u`, `join_v` (`nurbs/join.hpp`).
 - `NurbsSurface::try_remove_knot_u/v`.
+- Global closest point / point inversion on curves and surfaces (`analysis/closest_point.hpp`):
+  branch and bound over Bézier pieces with safe lower bounds, safeguarded (projected) Newton;
+  local variant with start value; Python `closest_point`, `closest_point_local`, `Tolerance`;
+  LLM tool `closest_point`.
 - `NurbsSurface::derivatives(u, v, order)`: all partial derivatives of any order (A3.6 + A4.4).
 - Degree reduction with rigorous error verification: `NurbsCurve::reduce_degree`,
   `NurbsSurface::reduce_degree_u/v`.

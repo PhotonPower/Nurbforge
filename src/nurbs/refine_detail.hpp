@@ -37,6 +37,25 @@ struct RefinedPolygon {
 [[nodiscard]] RefinedPolygon elevate_degree(std::size_t p, const KnotVector& U,
                                             const std::vector<Vec4>& Pw, std::size_t t);
 
+/// Several control polygons sharing one degree and knot vector: a curve is one column, a surface
+/// direction is the set of its columns (fixed index in the other direction).
+struct Columns {
+  KnotVector knots;
+  std::vector<std::vector<Vec4>> cols;
+};
+
+/// Removes knot u up to `times` times from all columns simultaneously (A5.8), as long as every
+/// column stays within the Cartesian deviation `tolerance` (converted with P&T Eq. 5.30).
+/// Returns the number of removals done. Throws if u is not an interior knot.
+std::size_t remove_knot(std::size_t p, Columns& net, double u, std::size_t times,
+                        double tolerance);
+
+/// Degree reduction by one of all columns, within the Cartesian deviation `tolerance`.
+/// Bezier-wise reduction (P&T Eq. 5.41/5.42), then knot removal to restore the original
+/// continuity; the result is verified rigorously by elevating it back and comparing control
+/// polygons on a common knot vector. Throws GeometryError if the tolerance cannot be met.
+[[nodiscard]] Columns reduce_degree(std::size_t p, const Columns& net, double tolerance);
+
 /// Start indices k of the non-empty spans [U[k], U[k+1]) inside the domain. After Bézier
 /// refinement the segment on span k has control points k-p .. k.
 [[nodiscard]] std::vector<std::size_t> nonempty_spans(std::size_t p, const KnotVector& U,

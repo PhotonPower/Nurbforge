@@ -1,6 +1,7 @@
 #include "nurbforge/nurbs/surface.hpp"
 
 #include <algorithm>
+#include <string>
 
 #include "nurbforge/core/error.hpp"
 #include "nurbforge/geometry/transform.hpp"
@@ -9,6 +10,34 @@
 #include "refine_detail.hpp"
 
 namespace nf {
+
+namespace {
+
+// Columns of the u direction: column j holds the points (i, j), i = 0..num_u-1.
+detail::Columns columns_u(const NurbsSurface& s) {
+  detail::Columns net{s.knots_u(), {}};
+  for (std::size_t j = 0; j < s.num_v(); ++j) {
+    std::vector<Vec4> col(s.num_u());
+    for (std::size_t i = 0; i < s.num_u(); ++i)
+      col[i] = Vec4::from_point(s.control_point(i, j), s.weight(i, j));
+    net.cols.push_back(std::move(col));
+  }
+  return net;
+}
+
+NurbsSurface from_columns_u(const NurbsSurface& s, std::size_t degree_u, const detail::Columns& net) {
+  const std::size_t nu = net.cols.front().size(), nv = net.cols.size();
+  std::vector<Vec3> c(nu * nv);
+  std::vector<double> w(nu * nv);
+  for (std::size_t j = 0; j < nv; ++j)
+    for (std::size_t i = 0; i < nu; ++i) {
+      c[i * nv + j] = net.cols[j][i].project();
+      w[i * nv + j] = net.cols[j][i].w;
+    }
+  return {degree_u, s.degree_v(), net.knots, s.knots_v(), nu, nv, std::move(c), std::move(w)};
+}
+
+}  // namespace
 
 NurbsSurface::NurbsSurface(std::size_t degree_u, std::size_t degree_v, KnotVector knots_u,
                            KnotVector knots_v, std::size_t num_u, std::size_t num_v,
@@ -154,6 +183,27 @@ NurbsSurface NurbsSurface::elevate_degree_u(std::size_t t) const {
 NurbsSurface NurbsSurface::elevate_degree_v(std::size_t t) const {
   if (t == 0) return *this;
   return transposed().elevate_degree_u(t).transposed();
+}
+
+NurbsSurface NurbsSurface::remove_knot_u(double u, std::size_t times, double tolerance) const {
+  auto net = columns_u(*this);
+  const std::size_t removed = detail::remove_knot(pu_, net, u, times, tolerance);
+  if (removed < times)
+    throw GeometryError("remove_knot_u: only " + std::to_string(removed) + " of " +
+                        std::to_string(times) + " removals possible within tolerance");
+  return from_columns_u(*this, pu_, net);
+}
+
+NurbsSurface NurbsSurface::remove_knot_v(double v, std::size_t times, double tolerance) const {
+  return transposed().remove_knot_u(v, times, tolerance).transposed();
+}
+
+NurbsSurface NurbsSurface::reduce_degree_u(double tolerance) const {
+  return from_columns_u(*this, pu_ - 1, detail::reduce_degree(pu_, columns_u(*this), tolerance));
+}
+
+NurbsSurface NurbsSurface::reduce_degree_v(double tolerance) const {
+  return transposed().reduce_degree_u(tolerance).transposed();
 }
 
 NurbsSurface NurbsSurface::refine_knots_v(const std::vector<double>& X) const {

@@ -62,6 +62,18 @@ class NurbsSurface {
   [[nodiscard]] NurbsSurface elevate_degree_u(std::size_t t = 1) const;
   [[nodiscard]] NurbsSurface elevate_degree_v(std::size_t t = 1) const;
 
+  /// Removes the interior knot u of the u (resp. v) direction `times` times (A5.8 applied to all
+  /// rows/columns). Throws GeometryError unless all removals stay within `tolerance`.
+  [[nodiscard]] NurbsSurface remove_knot_u(double u, std::size_t times = 1,
+                                           double tolerance = tol::kLength) const;
+  [[nodiscard]] NurbsSurface remove_knot_v(double v, std::size_t times = 1,
+                                           double tolerance = tol::kLength) const;
+
+  /// Degree reduction by one in u (resp. v) within `tolerance` (verified rigorously).
+  /// Throws GeometryError if the tolerance cannot be met.
+  [[nodiscard]] NurbsSurface reduce_degree_u(double tolerance = tol::kLength) const;
+  [[nodiscard]] NurbsSurface reduce_degree_v(double tolerance = tol::kLength) const;
+
   /// Splits the surface into Bézier patches, one per pair of non-empty knot spans. Returned in
   /// row-major order (u span outer, v span inner); each patch keeps its original parameter
   /// rectangle.

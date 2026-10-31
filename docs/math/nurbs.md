@@ -39,11 +39,33 @@ Internally all evaluation is done in homogeneous coordinates **P**ʷ = (wP, w) a
 | A5.1 CurveKnotIns | `NurbsCurve::insert_knot` |
 | A5.4 RefineKnotVectCurve | `NurbsCurve::refine_knots` |
 | A5.5 RefineKnotVectSurface | `NurbsSurface::refine_knots_u/v` (A5.4 per column/row) |
+| A5.8 RemoveCurveKnot | `NurbsCurve::try_remove_knot` / `remove_knot`, `NurbsSurface::remove_knot_u/v` (common count over all rows) |
+| Degree reduction (Eq. 5.41/5.42) | `NurbsCurve::reduce_degree`, `NurbsSurface::reduce_degree_u/v` – see below |
 | A5.9 DegreeElevateCurve | `NurbsCurve::elevate_degree` (input clamped first) |
 | A5.10 DegreeElevateSurface | `NurbsSurface::elevate_degree_u/v` (A5.9 per column/row) |
 | A5.6 DecomposeCurve (equivalent) | `NurbsCurve::decompose_bezier`, `NurbsSurface::decompose_bezier` – refine every domain knot to multiplicity p, then slice; also works for unclamped knot vectors |
 | A7.1 MakeNurbsCircle | `make_arc`, `make_circle` |
 | A8.1 MakeRevolvedSurf | `revolve` |
+
+## Knot removal and degree reduction tolerances
+
+Tolerances of `remove_knot` and `reduce_degree` are **Cartesian deviations** (model units).
+Internally they are checked on homogeneous control points: for non-rational geometry the
+control-point deviation bounds the curve deviation directly; for rational geometry the tolerance
+is scaled by w_min / (1 + max|P_i|) (P&T Eq. 5.30), which is conservative.
+
+Degree reduction is not a port of A5.11. Instead:
+
+1. decompose into Bézier segments and reduce each one (Eq. 5.41/5.42, end points fixed, pivot
+   point averaged from both recursions),
+2. join them C0 and restore the original continuity by knot removal (multiplicity s → s−1;
+   simple knots stay simple),
+3. **verify rigorously**: elevate the result back by one, refine both to common knots and compare
+   control polygons. If the bound exceeds the tolerance with full continuity, the C0 version is
+   checked; if that also fails, `GeometryError` is raised.
+
+The bound is conservative, so a reduction may be rejected although the true deviation is
+slightly below the tolerance. Undoing a degree elevation always succeeds exactly.
 
 ## Exactness notes
 

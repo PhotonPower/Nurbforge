@@ -24,6 +24,7 @@ import nurbforge as nf
 | Properties | `curvature(curve, u)`, `torsion(curve, u)`, `length(curve)`, `arc_length(curve, u0, u1)`, `parameter_at_length(curve, s)`, `surface_curvature(surface, u, v)` → `SurfaceCurvature(gaussian, mean, k1, k2, normal, dir1, dir2)`, `area(surface[, u0, u1, v0, v1])` |
 | Fitting | `interpolate_curve(points, degree=3, method=Parametrization.Centripetal, end_derivatives=None)`, `approximate_curve(points, degree, n_ctrl)`, `approximate_curve_tol(points, degree, tolerance)`, `interpolate_surface(grid (nu,nv,3), degree_u, degree_v)`, `approximate_surface(grid, degree_u, degree_v, ctrl_u, ctrl_v)`, `data_parameters(points, method)` |
 | Tolerances | `Tolerance(length=1e-10, parametric=1e-10, angular=1e-9)` |
+| Extrapolation | `extend(curve, CurveEnd.Start/End, length, Extension.Natural/Linear)`, `extend(surface, SurfaceSide.UMin/UMax/VMin/VMax, length, type)` |
 | Joining | `join(a, b, tolerance)`, `join_u(a, b, tolerance)`, `join_v(a, b, tolerance)` |
 | Arrays | `linear_pattern`, `grid_pattern`, `polar_pattern`, `apply_pattern` |
 | Knots | `clamped_uniform_knots`, `unique_knots`, `validate_knots` |

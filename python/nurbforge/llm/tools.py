@@ -157,6 +157,24 @@ def _build_tools() -> list[Tool]:
         pts = np.asarray(points, dtype=float)
         return ws.put(name, nf.interpolate_curve(pts, min(int(degree), len(pts) - 1)))
 
+    @add("extend", "Extend a curve at its start or end (or a surface across a side umin/umax/"
+         "vmin/vmax) by a length. mode 'natural' continues the shape smoothly, 'linear' "
+         "continues straight along the tangent.",
+         {"name": _NAME, "source": _NAME,
+          "where": {"type": "string", "enum": ["start", "end", "umin", "umax", "vmin", "vmax"]},
+          "length": {"type": "number"},
+          "mode": {"type": "string", "enum": ["natural", "linear"]}},
+         ["name", "source", "where", "length"])
+    def _(ws, name, source, where, length, mode="natural"):
+        o = ws.get(source)
+        kind = nf.Extension.Linear if mode == "linear" else nf.Extension.Natural
+        if isinstance(o, nf.NurbsCurve):
+            end = {"start": nf.CurveEnd.Start, "end": nf.CurveEnd.End}[where]
+            return ws.put(name, nf.extend(o, end, length, kind))
+        side = {"umin": nf.SurfaceSide.UMin, "umax": nf.SurfaceSide.UMax,
+                "vmin": nf.SurfaceSide.VMin, "vmax": nf.SurfaceSide.VMax}[where]
+        return ws.put(name, nf.extend(o, side, length, kind))
+
     @add("measure", "Length of a curve or area of a surface.", {"name": _NAME}, ["name"])
     def _(ws, name):
         o = ws.get(name)

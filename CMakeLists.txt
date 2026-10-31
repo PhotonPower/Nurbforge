@@ -37,6 +37,7 @@ add_library(nurbforge_core STATIC
   src/geometry/primitives.cpp
   src/modeling/construct.cpp
   src/modeling/pattern.cpp
+  src/modeling/extend.cpp
   src/analysis/closest_point.cpp
   src/analysis/properties.cpp
   src/fitting/fit.cpp)

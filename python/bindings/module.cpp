@@ -366,6 +366,23 @@ PYBIND11_MODULE(_core, m) {
   m.def("ruled", &ruled, py::arg("c0"), py::arg("c1"));
   m.def("reparametrize", &reparametrize, py::arg("curve"), py::arg("a"), py::arg("b"));
 
+  // ------------------------------------------------------------------ extrapolation
+  py::enum_<Extension>(m, "Extension")
+      .value("Natural", Extension::Natural)
+      .value("Linear", Extension::Linear);
+  py::enum_<CurveEnd>(m, "CurveEnd").value("Start", CurveEnd::Start).value("End", CurveEnd::End);
+  py::enum_<SurfaceSide>(m, "SurfaceSide")
+      .value("UMin", SurfaceSide::UMin)
+      .value("UMax", SurfaceSide::UMax)
+      .value("VMin", SurfaceSide::VMin)
+      .value("VMax", SurfaceSide::VMax);
+  m.def("extend", py::overload_cast<const NurbsCurve&, CurveEnd, double, Extension>(&extend),
+        py::arg("curve"), py::arg("end"), py::arg("length"), py::arg("type") = Extension::Natural,
+        "Extend a curve at one end by an arc length; original parameters are kept.");
+  m.def("extend", py::overload_cast<const NurbsSurface&, SurfaceSide, double, Extension>(&extend),
+        py::arg("surface"), py::arg("side"), py::arg("length"), py::arg("type") = Extension::Natural,
+        "Extend a surface across one side; original parameters are kept.");
+
   // ------------------------------------------------------------------ patterns
   m.def("linear_pattern", &linear_pattern, py::arg("step"), py::arg("count"));
   m.def("grid_pattern", &grid_pattern, py::arg("step_a"), py::arg("count_a"), py::arg("step_b"),

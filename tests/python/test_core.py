@@ -429,6 +429,25 @@ def test_shell():
     assert len(open_box.free_edges()) == 4
 
 
+def test_numpy_points_convert_to_vec3():
+    line = nf.make_line((0, 0, 0), (1, 0, 0))
+    assert nf.distance(nf.Vec3(1, 0, 0), np.array([1.0, 0.0, 0.0])) == 0.0
+    assert abs(nf.closest_point(line, np.array([0.5, 1.0, 0.0])).u - 0.5) < 1e-12
+    pts = np.array([[0.0, 0.0, 0.0], [1.0, 1.0, 0.0], [2.0, 0.0, 0.0], [3.0, 1.0, 0.0]])
+    c = nf.interpolate_curve(pts, 3)
+    assert nf.distance(c.evaluate(c.domain[1]), (3, 1, 0)) < 1e-12
+
+
+def test_coons_side_curves_in_any_order():
+    c0 = nf.make_line((0, 0, 0), (1, 0, 0))
+    c1 = nf.make_line((0, 1, 0), (1, 1, 0))
+    d0 = nf.make_line((0, 0, 0), (0, 1, 0))
+    d1 = nf.make_line((1, 0, 0), (1, 1, 0))
+    for sides in ((d0, d1), (d1, d0), (d1.reversed(), d0)):
+        s = nf.coons(c0, c1, *sides)
+        assert nf.distance(s.evaluate(0.5, 0.5), (0.5, 0.5, 0)) < 1e-12
+
+
 def test_booleans():
     def sphere(c, r):
         m = nf.make_arc(c, (0, 0, -1), (1, 0, 0), r, 0.0, math.pi)

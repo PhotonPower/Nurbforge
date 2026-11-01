@@ -111,6 +111,12 @@ versioning: [SemVer](https://semver.org).
 - All tolerance literals in `src/` replaced by the named constants; angular comparisons now
   uniformly use 1e-9.
 ### Fixed
+- Python: any sequence of three numbers converts to `Vec3`, including NumPy rows
+  (`np.array([x, y, z])`, rows of an (n, 3) array) – previously only tuples and lists.
+- `coons()` also accepts the two side curves in either order (the docstring promised automatic
+  orientation, but swapped side curves raised "corner gap").
+- Sphinx: `|...|` in two docstrings (`curvature`, `offset_curve`) was read as an RST
+  substitution.
 - Trimmed boundary curves were fitted across C1 knot lines of the surface (thousands of points,
   slow sewing); they are now split at the knot-line crossings.
 - Adaptive quadrature (arc length, area, `integrate`) could explode on noise-dominated

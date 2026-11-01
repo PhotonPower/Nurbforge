@@ -67,6 +67,8 @@ PYBIND11_MODULE(_core, m) {
       .def("to_tuple", [](const Vec3& v) { return py::make_tuple(v.x, v.y, v.z); });
   py::implicitly_convertible<py::tuple, Vec3>();
   py::implicitly_convertible<py::list, Vec3>();
+  // any other sequence of three numbers, e.g. a NumPy row (np.array([x, y, z]))
+  py::implicitly_convertible<py::sequence, Vec3>();
 
   m.def("dot", &dot);
   m.def("cross", &cross);
@@ -336,7 +338,7 @@ PYBIND11_MODULE(_core, m) {
 
   // ------------------------------------------------------------------ properties
   m.def("curvature", py::overload_cast<const NurbsCurve&, double>(&curvature), py::arg("curve"),
-        py::arg("u"), "Curvature |C' x C''| / |C'|^3.");
+        py::arg("u"), "Curvature ``|C' x C''| / |C'|^3``.");
   m.def("torsion", &torsion, py::arg("curve"), py::arg("u"));
   m.def("arc_length", py::overload_cast<const NurbsCurve&, double, double, double>(&arc_length),
         py::arg("curve"), py::arg("u0"), py::arg("u1"), py::arg("rel_tol") = kIntegrationRelTol);
@@ -500,7 +502,7 @@ PYBIND11_MODULE(_core, m) {
   m.def("offset_curve", &offset_curve, py::arg("curve"), py::arg("distance"),
         py::arg("plane_normal") = Vec3{0, 0, 1}, py::arg("tolerance") = 1e-7,
         "Planar offset c(t) + d * normalize(plane_normal x c'(t)) as a cubic B-spline fitted to "
-        "the tolerance (parameters kept). Raises GeometryError at cusps (|d| >= radius of "
+        "the tolerance (parameters kept). Raises GeometryError at cusps (``|d|`` >= radius of "
         "curvature on the concave side), corners or non-planar curves.");
   m.def("offset_surface", &offset_surface, py::arg("surface"), py::arg("distance"),
         py::arg("tolerance") = 1e-7,

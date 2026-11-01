@@ -5,6 +5,15 @@ versioning: [SemVer](https://semver.org).
 
 ## [Unreleased]
 ### Added
+- Native STEP writer (`io/step.hpp`, `docs/io.md`): `write_step(path, shells, options)` and
+  `to_step(shells, options)` write ISO 10303-21 files with the AP214 schema without any
+  dependency – closed shells as `MANIFOLD_SOLID_BREP` (`BREP_WITH_VOIDS` for inner void
+  components), open shells as `SHELL_BASED_SURFACE_MODEL`; `ADVANCED_FACE`s on exact
+  (rational) B-spline surfaces, one `EDGE_CURVE` per shell edge shared by its oriented uses
+  (seams twice per loop), length unit mm / cm / m / inch, full-precision reals. Python
+  `nf.write_step(path, shell_or_shells, unit=...)`, `nf.to_step`; LLM tool `export_step`.
+  Round trips through OpenCASCADE (gmsh) give one solid each, volumes within 4·10⁻⁴ of
+  `Shell.volume()` (exact for planar faces).
 - Benchmarks: `benchmarks/bench.cpp` (`-DNF_BUILD_BENCHMARKS=ON`, built and smoke-tested in the CI
   preset), reference timings and an OpenMP experiment in `docs/benchmarks.md`.
 - LLM verification: tools `inspect` (measured properties and detected issues of an object) and

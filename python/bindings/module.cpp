@@ -703,6 +703,56 @@ PYBIND11_MODULE(_core, m) {
   m.def("boolean", &boolean, py::arg("a"), py::arg("b"), py::arg("op"), py::arg("tolerance") = 1e-6,
         "Boolean union / intersection / difference of two closed shells.");
 
+  // ------------------------------------------------------------------ STEP export
+  {
+    const auto shell_list = [](const py::object& shells) {
+      if (py::isinstance<Shell>(shells)) return std::vector<Shell>{shells.cast<Shell>()};
+      return shells.cast<std::vector<Shell>>();
+    };
+    const auto step_options = [](const std::string& unit, const std::string& name, const std::string& author,
+                                 const std::string& organization, const std::string& timestamp,
+                                 double uncertainty) {
+      StepOptions o;
+      if (unit == "mm") o.unit = StepLengthUnit::Millimetre;
+      else if (unit == "cm") o.unit = StepLengthUnit::Centimetre;
+      else if (unit == "m") o.unit = StepLengthUnit::Metre;
+      else if (unit == "inch" || unit == "in") o.unit = StepLengthUnit::Inch;
+      else throw py::value_error("unit must be 'mm', 'cm', 'm' or 'inch'");
+      o.name = name;
+      o.author = author;
+      o.organization = organization;
+      o.timestamp = timestamp;
+      o.uncertainty = uncertainty;
+      return o;
+    };
+    m.def(
+        "write_step",
+        [shell_list, step_options](const py::object& path, const py::object& shells, const std::string& unit,
+                                   const std::string& name, const std::string& author,
+                                   const std::string& organization, const std::string& timestamp,
+                                   double uncertainty) {
+          const auto os = py::module_::import("os");
+          write_step(os.attr("fspath")(path).cast<std::string>(), shell_list(shells),
+                     step_options(unit, name, author, organization, timestamp, uncertainty));
+        },
+        py::arg("path"), py::arg("shells"), py::arg("unit") = "mm", py::arg("name") = "nurbforge",
+        py::arg("author") = "", py::arg("organization") = "", py::arg("timestamp") = "",
+        py::arg("uncertainty") = 1e-6,
+        "Write a Shell or a list of Shells to a STEP file (AP214, native writer). Closed shells become "
+        "solids, open shells surface models. `unit` ('mm', 'cm', 'm', 'inch') declares what one model "
+        "unit means; coordinates are written unchanged.");
+    m.def(
+        "to_step",
+        [shell_list, step_options](const py::object& shells, const std::string& unit, const std::string& name,
+                                   const std::string& author, const std::string& organization,
+                                   const std::string& timestamp, double uncertainty) {
+          return to_step(shell_list(shells), step_options(unit, name, author, organization, timestamp, uncertainty));
+        },
+        py::arg("shells"), py::arg("unit") = "mm", py::arg("name") = "nurbforge", py::arg("author") = "",
+        py::arg("organization") = "", py::arg("timestamp") = "", py::arg("uncertainty") = 1e-6,
+        "The STEP file contents (see write_step) as a string.");
+  }
+
   // ------------------------------------------------------------------ patterns
   m.def("linear_pattern", &linear_pattern, py::arg("step"), py::arg("count"));
   m.def("grid_pattern", &grid_pattern, py::arg("step_a"), py::arg("count_a"), py::arg("step_b"),

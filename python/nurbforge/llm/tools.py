@@ -210,6 +210,14 @@ def _build_tools() -> list[Tool]:
                 "vmin": nf.SurfaceSide.VMin, "vmax": nf.SurfaceSide.VMax}[where]
         return ws.put(name, nf.extend(o, side, length, kind))
 
+    @add("intersect", "Intersection points of a curve with another curve or with a surface.",
+         {"a": _NAME, "b": _NAME}, ["a", "b"])
+    def _(ws, a, b):
+        hits = nf.intersect(ws.get(a), ws.get(b))
+        if not hits:
+            return "no intersection"
+        return "; ".join(f"({h.point.x:.6g}, {h.point.y:.6g}, {h.point.z:.6g})" for h in hits)
+
     @add("measure", "Length of a curve or area of a surface.", {"name": _NAME}, ["name"])
     def _(ws, name):
         o = ws.get(name)

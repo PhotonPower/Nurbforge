@@ -24,7 +24,8 @@
 - Optical surfaces: conics (exact), aspheres (even/odd), Zernike, XY polynomials, freeform sag functions → NURBS fit with verified tolerance ✅
 
 ## 0.4 – Intersections & trimming
-- Curve–curve, curve–surface, surface–surface intersection (subdivision + marching)
+- Curve–curve, curve–surface intersection ✅
+- Surface–surface intersection (subdivision + marching)
 - Trimmed surfaces (parameter-space loops), surface systems with shared edges
 - Planar sections / cuts
 

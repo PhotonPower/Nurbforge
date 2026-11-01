@@ -78,6 +78,24 @@ slightly below the tolerance. Undoing a degree elevation always succeeds exactly
   knots). The seam rows must agree as **control rows**, i.e. both boundaries must share their
   parametrisation, not only their geometry; rational seams need proportional weights.
 
+## Intersections
+
+Curve–curve and curve–surface intersections (`analysis/intersect.hpp`) use subdivision of
+Bézier pieces with bounding-box rejection. A pair of pieces becomes a leaf when it can contain
+at most one intersection:
+
+- curve/curve: the tangent cones (containing all control-polygon edges, hence all tangents)
+  are separated, also against the reversed orientation – a second intersection would put the
+  chord into both cones (it is a positive combination of tangents);
+- curve/surface: the angle between curve tangents and surface normals stays below
+  90° − (α + β), so the height of the curve over the surface is monotone.
+
+Tangential contacts never separate the cones; there a size limit (1e-6 of the model size)
+stops the subdivision. In each leaf, box-constrained Gauss–Newton on a(s) − b(t) = 0 or
+c(t) − S(u, v) = 0 converges quadratically for zero residuals. Candidates are merged if they
+are close or if the curve point at their parameter midpoint is still within tolerance (a
+tangential contact keeps the gap below tol over a short stretch).
+
 ## Fitting
 
 | Algorithm | Function |

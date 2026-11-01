@@ -156,3 +156,23 @@ TEST_CASE("general split of trimmed faces (planar arrangement)", "[trim][arrange
   // a dangling cut (ends inside) changes nothing
   CHECK(split(TrimmedSurface(sq), {make_line({0.2, 0.2, 0}, {0.6, 0.5, 0})}).size() == 1);
 }
+
+TEST_CASE("containment is exact near curved trim loops", "[trim]") {
+  // the polygon of a trim circle deviates from the circle by ~6e-4; near the loop the side is
+  // decided on the exact curve
+  const auto sq = make_rectangle({0, 0, 0}, {1, 0, 0}, {0, 1, 0});
+  const TrimmedSurface disk(sq, circle_loop(0.5, 0.5, 0.4));
+  const TrimmedSurface holed = TrimmedSurface(sq).with_hole(circle_loop(0.5, 0.5, 0.4));
+  for (double a : {0.1, 0.7, 1.9, 3.3, 5.0}) {
+    for (double dr : {-1e-6, 1e-6}) {
+      const double r = 0.4 + dr, u = 0.5 + r * std::cos(a), v = 0.5 + r * std::sin(a);
+      CHECK(disk.contains(u, v) == (dr < 0.0));
+      CHECK(holed.contains(u, v) == (dr > 0.0));
+    }
+  }
+  // polygonal loops: unchanged behaviour at a corner
+  const TrimmedSurface tri(sq, polygon_loop({{0.1, 0.1}, {0.9, 0.1}, {0.5, 0.8}}));
+  CHECK(tri.contains(0.5, 0.3));
+  CHECK_FALSE(tri.contains(0.05, 0.05));
+  CHECK(tri.contains(0.1 + 1e-7, 0.1 + 1e-8));
+}

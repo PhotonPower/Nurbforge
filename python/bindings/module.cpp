@@ -685,6 +685,8 @@ PYBIND11_MODULE(_core, m) {
       .def("non_manifold_edges", &Shell::non_manifold_edges)
       .def_property_readonly("is_closed", &Shell::is_closed)
       .def_property_readonly("is_consistently_oriented", &Shell::is_consistently_oriented)
+      .def("components", &Shell::components,
+           "Connected components as separate shells (outer boundary, void boundaries, lumps).")
       .def("oriented", &Shell::oriented)
       .def("area", &Shell::area, py::arg("rel_tol") = 1e-8)
       .def("volume", &Shell::volume, py::arg("rel_tol") = 1e-8)

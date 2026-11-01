@@ -149,3 +149,72 @@ TEST_CASE("Booleans with coincident faces (cylinders)", "[boolean][coincident]")
     check_volumes(cylinder_shell(0.5, 0, 1), cylinder_shell(0.5, 0.5, 1.5), 1.5 * v, 0.5 * v, 0.5 * v);
   }
 }
+
+// ------------------------------------------------------------------ bodies with several shells
+
+namespace {
+std::vector<TrimmedSurface> faces_of(const Shell& s, bool flip) {
+  std::vector<TrimmedSurface> out;
+  for (const auto& f : s.faces()) out.push_back(flip ? f.flipped() : f);
+  return out;
+}
+Shell hollow_cube(double void_r, bool flip_void) {  // [-1, 1]^3 with a spherical void
+  auto faces = faces_of(box_shell(1.0), false);
+  for (auto& f : faces_of(sphere_shell({0, 0, 0}, void_r), flip_void)) faces.push_back(std::move(f));
+  return Shell::sew(std::move(faces));
+}
+}  // namespace
+
+TEST_CASE("orientation of shells with several components (voids, lumps)", "[shell][bodies]") {
+  const double r = 0.5, vs = 4.0 / 3.0 * pi * r * r * r;
+  for (bool flip_void : {false, true}) {
+    const Shell h = hollow_cube(r, flip_void).oriented();
+    REQUIRE(h.is_closed());
+    CHECK(rel_close(h.volume(1e-8), 8.0 - vs, 1e-7));
+    const auto comps = h.components();
+    REQUIRE(comps.size() == 2);
+    const double v0 = comps[0].volume(1e-8), v1 = comps[1].volume(1e-8);
+    CHECK(rel_close(std::min(v0, v1), -vs, 1e-7));  // the void bounds negative volume
+    CHECK(rel_close(std::max(v0, v1), 8.0, 1e-7));
+  }
+  // two separate spheres, one given inside out: both become outward
+  auto faces = faces_of(sphere_shell({0, 0, 0}, 1.0), false);
+  for (auto& f : faces_of(sphere_shell({3, 0, 0}, 1.0), true)) faces.push_back(std::move(f));
+  const Shell two = Shell::sew(std::move(faces)).oriented();
+  CHECK(two.components().size() == 2);
+  CHECK(rel_close(two.volume(1e-8), 2.0 * 4.0 / 3.0 * pi, 1e-7));
+}
+
+TEST_CASE("Booleans with hollow inputs and several lumps", "[boolean][bodies]") {
+  const double r = 0.5, vs = 4.0 / 3.0 * pi * r * r * r;
+  const Shell hollow = hollow_cube(r, true);
+  SECTION("union with a ball floating in the void") {
+    const double q = 0.25;
+    const Shell u = boolean(hollow, sphere_shell({0, 0, 0}, q), BooleanOp::Union);
+    REQUIRE(u.is_closed());
+    CHECK(u.components().size() == 3);
+    CHECK(rel_close(u.volume(1e-8), 8.0 - vs + 4.0 / 3.0 * pi * q * q * q, 1e-6));
+  }
+  SECTION("intersection cutting through the void") {
+    const Shell i = boolean(hollow, box_shell({0, -2, -2}, {2, 2, 2}), BooleanOp::Intersection);
+    REQUIRE(i.is_closed());
+    CHECK(rel_close(i.volume(1e-8), 4.0 - 0.5 * vs, 1e-6));
+  }
+  SECTION("difference splitting a cube into two lumps") {
+    const Shell d = boolean(box_shell(1.0), box_shell({-0.25, -2, -2}, {0.25, 2, 2}), BooleanOp::Difference);
+    REQUIRE(d.is_closed());
+    CHECK(d.components().size() == 2);
+    CHECK(rel_close(d.volume(1e-8), 6.0, 1e-6));
+    CHECK(rel_close(d.oriented().volume(1e-8), 6.0, 1e-6));
+  }
+}
+
+TEST_CASE("Boolean with a plane through both poles of a sphere", "[boolean][bodies]") {
+  // the intersection curves are meridians ending at the poles (degenerate boundary): the marching
+  // must neither reverse there nor create knot-line points between unrelated pole parameters
+  const double r = 0.5;
+  const Shell half = boolean(sphere_shell({0, 0, 0}, r), box_shell({0, -2, -2}, {2, 2, 2}), BooleanOp::Intersection);
+  REQUIRE(half.is_closed());
+  CHECK(half.components().size() == 1);
+  CHECK(rel_close(half.volume(1e-8), 2.0 / 3.0 * pi * r * r * r, 1e-7));
+}

@@ -414,6 +414,48 @@ class Ssi {
     }
   }
 
+  // A boundary point at a pole (|S_u| or |S_v| vanishing) has one arbitrary parameter: take it
+  // from the previous point, so that the p-curve enters the pole straight and no knot-line
+  // crossings are generated between unrelated parameter values.
+  X4 pole_aligned(const X4& from, X4 xb) const {
+    const auto fix = [](const NurbsSurface& s, double& u, double& v, double fu, double fv) {
+      const auto d = s.first_derivatives(u, v);
+      const double su = norm(d[1]), sv = norm(d[2]), m = std::max(su, sv);
+      if (m <= 0.0) return;
+      if (su <= 1e-6 * m) u = fu;
+      if (sv <= 1e-6 * m) v = fv;
+    };
+    fix(a_, xb[0], xb[1], from[0], from[1]);
+    fix(b_, xb[2], xb[3], from[2], from[3]);
+    return xb;
+  }
+
+  // Appends the exact point on the domain boundary nearest to x (relative distance at most
+  // max_rel, parameter `skip` excluded) – the end of a curve running into a pole.
+  void end_on_nearest_bound(const X4& x, const Vec3& P, std::size_t skip, double max_rel,
+                            std::vector<Node>& pts) const {
+    std::size_t kb = 4;
+    double best = max_rel;
+    for (std::size_t k = 0; k < 4; ++k) {
+      if (k == skip) continue;
+      const double d = std::min(x[k] - lo_[k], hi_[k] - x[k]) / (hi_[k] - lo_[k]);
+      if (d <= best) {
+        best = d;
+        kb = k;
+      }
+    }
+    if (kb == 4) return;
+    X4 xb = x;
+    xb[kb] = x[kb] - lo_[kb] < hi_[kb] - x[kb] ? lo_[kb] : hi_[kb];
+    if (const auto xs = solve_on_bound(xb, kb)) {
+      if (distance(make_point(*xs).point, P) > tol_.length) {
+        const X4 xa = pole_aligned(x, *xs);
+        insert_knot_crossings(x, xa, pts);
+        pts.push_back({xa, false});
+      }
+    }
+  }
+
   std::vector<Node> march(const X4& x0, double sign, const Vec3& start, bool& closed) const {
     const X4 x_start = x0;
     std::vector<Node> pts;
@@ -453,8 +495,9 @@ class Ssi {
           xp[hit] = dx[hit] < 0.0 ? lo_[hit] : hi_[hit];
           if (const auto xb = solve_on_bound(xp, hit)) {
             if (distance(make_point(*xb).point, P) > tol_.length) {
-              insert_knot_crossings(x, *xb, pts);
-              pts.push_back({*xb, false});
+              const X4 xa = pole_aligned(x, *xb);
+              insert_knot_crossings(x, xa, pts);
+              pts.push_back({xa, false});
             }
             return pts;
           }
@@ -467,6 +510,11 @@ class Ssi {
         const double len = distance(Pn, P);
         auto tn = tangent(*xc);
         if (!tn || len < 0.3 * h || len > 2.0 * h) { h *= 0.5; continue; }
+        // the step must advance along the marching direction: near a pole the corrector can
+        // find a point behind the current one on the same meridian (the curve continues on the
+        // opposite meridian, out of reach of a local correction); accepting it would reverse
+        // the march and trace the same branch again
+        if (dot(Pn - P, t) < 0.5 * len) { h *= 0.5; continue; }
         if (dot(*tn, t) < 0.0) *tn = -*tn;
         const double theta = std::acos(std::clamp(dot(*tn, t), -1.0, 1.0));
         if (theta > 0.2 || len * theta / 8.0 > chord_) { h *= 0.5; continue; }
@@ -482,6 +530,20 @@ class Ssi {
             const double dev1 = std::abs((*xs)[0] - xm[0]) * norm(em.su1) + std::abs((*xs)[1] - xm[1]) * norm(em.sv1);
             const double dev2 = std::abs((*xs)[2] - xm[2]) * norm(em.su2) + std::abs((*xs)[3] - xm[3]) * norm(em.sv2);
             if (std::max(dev1, dev2) > chord_) { h *= 0.5; continue; }
+          }
+        }
+        // stepping over a pole: the corrector may land on the opposite meridian (u jumps by half
+        // the domain within one short 3D step) without the predictor ever reaching the degenerate
+        // boundary. The curve ends at the pole instead – on the nearest domain boundary of the
+        // parameters that did not jump – otherwise it would continue on the other side and cover
+        // parts traced from other seeds a second time.
+        {
+          std::size_t jump = 4;
+          for (std::size_t k = 0; k < 4; ++k)
+            if (std::abs((*xc)[k] - x[k]) > 0.25 * (hi_[k] - lo_[k])) jump = k;
+          if (jump < 4) {
+            end_on_nearest_bound(x, P, jump, 1.0, pts);
+            return pts;
           }
         }
         // accept; first insert exact points where the step crosses knot lines of either surface
@@ -505,7 +567,10 @@ class Ssi {
         h = std::clamp(h * std::clamp(grow, 0.5, 2.0), hmin_, hmax_);
         break;
       }
-      if (!accepted) return pts;  // step size collapsed (singular point)
+      if (!accepted) {  // step size collapsed (singular point): end on a pole if it is close
+        end_on_nearest_bound(x, P, 4, 1e-2, pts);
+        return pts;
+      }
     }
     return pts;
   }
@@ -537,8 +602,45 @@ class Ssi {
     if (closed) {
       pts.push_back(pts.front());
       brk.push_back(false);
+    } else {
+      fix_pole_ends(pts);
     }
     result_.curves.push_back(fit(pts, brk, closed));
+  }
+
+  // At a pole (|S_u| = 0 or |S_v| = 0) one parameter of the surface is arbitrary. An open curve
+  // ending there would get whatever value the solver produced, and its p-curve would run along
+  // the degenerate boundary over a vanishing curve parameter (a near-jump that later splits into
+  // zero-length pieces). The arbitrary parameter of an end point is taken from its neighbour,
+  // so the p-curve enters the pole straight.
+  void fix_pole_ends(std::vector<SurfaceSurfacePoint>& pts) const {
+    if (pts.size() < 2) return;
+    // the other parameter is snapped to the domain boundary carrying the pole (the solver stops
+    // within its tolerance, which would leave the p-curve short of the boundary loop)
+    const auto snap = [](double& x, const std::array<double, 2>& r) {
+      const double eps = 1e-6 * (r[1] - r[0]);
+      if (std::abs(x - r[0]) <= eps) x = r[0];
+      if (std::abs(x - r[1]) <= eps) x = r[1];
+    };
+    const auto fix = [&](const NurbsSurface& s, double& u, double& v, double nu, double nv) {
+      const auto d = s.first_derivatives(u, v);
+      const double su = norm(d[1]), sv = norm(d[2]), m = std::max(su, sv);
+      if (m <= 0.0) return;
+      if (su <= 1e-6 * m) {
+        u = nu;
+        snap(v, s.domain_v());
+      }
+      if (sv <= 1e-6 * m) {
+        v = nv;
+        snap(u, s.domain_u());
+      }
+    };
+    for (const std::size_t k : {std::size_t{0}, pts.size() - 1}) {
+      const SurfaceSurfacePoint& n = pts[k == 0 ? 1 : pts.size() - 2];
+      SurfaceSurfacePoint& p = pts[k];
+      fix(a_, p.u1, p.v1, n.u1, n.v1);
+      fix(b_, p.u2, p.v2, n.u2, n.v2);
+    }
   }
 
   // Interpolates the 3D points and both parameter-space polylines with identical parameters,
@@ -553,7 +655,12 @@ class Ssi {
     if (norm(chord) <= 0.0) return std::nullopt;
     const auto xs = correct(xm, 0.5 * (p.point + q.point), chord / norm(chord));
     if (!xs) return std::nullopt;
-    return make_point(*xs);
+    // the corrected point must lie between p and q – near a pole the correction can converge to
+    // another part of the curve, which would make the fitted curve run there and back
+    const SurfaceSurfacePoint m = make_point(*xs);
+    const double c = norm(chord);
+    if (distance(m.point, p.point) > c || distance(m.point, q.point) > c) return std::nullopt;
+    return m;
   }
 
   struct PieceFit {

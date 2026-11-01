@@ -171,6 +171,18 @@ the seam of a closed surface becomes an edge used twice by the same face. T-junc
 Trim curves are mapped to 3D piecewise between the knot lines of the surface they cross (the
 rational circle is only C1 there; a single cubic per trim curve would need thousands of points).
 
+## Bodies with several shells
+
+A `Shell` may consist of several connected components (`Shell::components()`): the outer
+boundary and the void boundaries of a hollow solid, or separate lumps (e.g. a difference that
+cuts a body in two). `oriented()` first makes every component consistent (breadth-first over
+shared edges) and then orients closed components by **nesting depth**: a component lying inside
+an even number of other closed components (tested with `point_in_shell` from a point on it) is
+an outer boundary with outward normals and positive volume; one inside an odd number bounds a
+void, with normals pointing into the void and negative volume. The volume of the shell is then
+the solid volume, Booleans accept hollow inputs, and the STEP writer exports voids as
+`BREP_WITH_VOIDS`.
+
 ## Boolean operations
 
 `boolean(A, B, op)` (`topology/boolean.hpp`) on closed shells:

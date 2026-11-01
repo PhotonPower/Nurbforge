@@ -32,7 +32,7 @@
 - Planar sections / cuts ✅
 
 ## 0.5 – Topology & Booleans
-- B-rep shells (vertex/edge/coedge/face/shell) ✅, watertightness and orientation checks ✅, volume ✅; bodies with several shells
+- B-rep shells (vertex/edge/coedge/face/shell) ✅, watertightness and orientation checks ✅, volume ✅; bodies with several shells ✅ (voids, lumps)
 - Boolean union / intersection / difference on trimmed NURBS shells ✅ (incl. coincident faces)
 - STEP / IGES export via OCC ✅
 - Native STEP writer (AP214, no dependencies) ✅

@@ -458,3 +458,20 @@ def test_booleans():
     i = nf.boolean(a, b, nf.BooleanOp.Intersection)
     assert i.is_closed and abs(i.volume(1e-8) - lens) < 1e-6 * lens
     assert nf.point_in_shell(a, (0.2, 0.1, 0.0)) and not nf.point_in_shell(a, (1.5, 0, 0))
+
+
+def test_shell_components_and_voids():
+    def sphere(c, r):
+        m = nf.make_arc(c, (0, 0, -1), (1, 0, 0), r, 0.0, math.pi)
+        return nf.Shell.sew([nf.TrimmedSurface(nf.revolve(m, c, (0, 0, 1), 2 * math.pi))])
+
+    rects = [((-1, -1, -1), (2, 0, 0), (0, 2, 0)), ((-1, -1, 1), (2, 0, 0), (0, 2, 0)),
+             ((-1, -1, -1), (2, 0, 0), (0, 0, 2)), ((-1, 1, -1), (2, 0, 0), (0, 0, 2)),
+             ((-1, -1, -1), (0, 2, 0), (0, 0, 2)), ((1, -1, -1), (0, 2, 0), (0, 0, 2))]
+    faces = [nf.TrimmedSurface(nf.make_rectangle(*r)) for r in rects]
+    faces += list(sphere((0, 0, 0), 0.5).faces)  # void given with outward normals
+    hollow = nf.Shell.sew(faces).oriented()
+    assert len(hollow.components()) == 2
+    vs = 4 / 3 * math.pi * 0.125
+    assert abs(hollow.volume(1e-8) - (8 - vs)) < 1e-6
+    assert sorted(round(c.volume(1e-8), 6) for c in hollow.components()) == [round(-vs, 6), 8.0]

@@ -8,8 +8,24 @@
 #include "nurbforge/analysis/closest_point.hpp"
 #include "nurbforge/analysis/properties.hpp"
 #include "nurbforge/core/error.hpp"
+#include "nurbforge/topology/boolean.hpp"
 
 namespace nf {
+
+namespace {
+
+// A point on the shell: midpoint of its first edge, else the centre of the first face's domain.
+Vec3 probe_point(const Shell& s) {
+  if (!s.edges().empty()) {
+    const NurbsCurve& c = s.edges().front().curve;
+    return c.evaluate(0.5 * (c.domain_start() + c.domain_end()));
+  }
+  const NurbsSurface& f = s.faces().front().surface();
+  const auto du = f.domain_u(), dv = f.domain_v();
+  return f.evaluate(0.5 * (du[0] + du[1]), 0.5 * (dv[0] + dv[1]));
+}
+
+}  // namespace
 
 namespace {
 
@@ -137,6 +153,39 @@ bool Shell::is_consistently_oriented() const {
   });
 }
 
+std::vector<Shell> Shell::components() const {
+  std::vector<Shell> out;
+  for (const auto& comp : face_components()) {
+    std::vector<TrimmedSurface> faces;
+    for (std::size_t f : comp) faces.push_back(faces_[f]);
+    out.push_back(sew(std::move(faces), tol_));
+  }
+  return out;
+}
+
+std::vector<std::vector<std::size_t>> Shell::face_components() const {
+  const std::size_t F = faces_.size();
+  std::vector<std::size_t> parent(F);
+  for (std::size_t f = 0; f < F; ++f) parent[f] = f;
+  const auto find = [&](std::size_t f) {
+    while (parent[f] != f) f = parent[f] = parent[parent[f]];
+    return f;
+  };
+  for (const auto& e : edges_)
+    for (std::size_t k = 1; k < e.uses.size(); ++k) parent[find(e.uses[k].face)] = find(e.uses[0].face);
+  std::vector<std::vector<std::size_t>> comps;
+  std::vector<std::size_t> index(F, F);
+  for (std::size_t f = 0; f < F; ++f) {
+    const std::size_t r = find(f);
+    if (index[r] == F) {
+      index[r] = comps.size();
+      comps.emplace_back();
+    }
+    comps[index[r]].push_back(f);
+  }
+  return comps;
+}
+
 Shell Shell::oriented() const {
   const std::size_t F = faces_.size();
   std::vector<int> flip(F, -1);  // -1: unvisited, 0/1: keep/flip
@@ -168,13 +217,38 @@ Shell Shell::oriented() const {
   }
   std::vector<TrimmedSurface> faces;
   for (std::size_t f = 0; f < F; ++f) faces.push_back(flip[f] ? faces_[f].flipped() : faces_[f]);
-  Shell sh = sew(std::move(faces), tol_);
-  if (sh.is_closed() && sh.is_consistently_oriented() && sh.volume(1e-6) < 0.0) {
-    std::vector<TrimmedSurface> outward;
-    for (const auto& t : sh.faces_) outward.push_back(t.flipped());
-    sh = sew(std::move(outward), tol_);
+  const auto comps = face_components();
+  if (comps.size() == 1) {  // a single component: outward if closed
+    Shell sh = sew(std::move(faces), tol_);
+    if (sh.is_closed() && sh.is_consistently_oriented() && sh.volume(1e-6) < 0.0) {
+      std::vector<TrimmedSurface> outward;
+      for (const auto& t : sh.faces_) outward.push_back(t.flipped());
+      sh = sew(std::move(outward), tol_);
+    }
+    return sh;
   }
-  return sh;
+  // closed components: orientation by nesting depth (even: outer boundary, odd: void)
+  std::vector<Shell> parts;
+  std::vector<bool> closed(comps.size(), false);
+  for (std::size_t c = 0; c < comps.size(); ++c) {
+    std::vector<TrimmedSurface> fc;
+    for (std::size_t f : comps[c]) fc.push_back(faces[f]);
+    parts.push_back(sew(std::move(fc), tol_));
+    closed[c] = parts[c].is_closed() && parts[c].is_consistently_oriented();
+  }
+  for (std::size_t c = 0; c < comps.size(); ++c) {
+    if (!closed[c]) continue;
+    int depth = 0;
+    if (comps.size() > 1) {
+      const Vec3 probe = probe_point(parts[c]);
+      for (std::size_t d = 0; d < comps.size(); ++d)
+        if (d != c && closed[d] && point_in_shell(parts[d], probe, tol_)) ++depth;
+    }
+    const bool outward = depth % 2 == 0;
+    if ((parts[c].volume(1e-6) > 0.0) != outward)
+      for (std::size_t f : comps[c]) faces[f] = faces[f].flipped();
+  }
+  return sew(std::move(faces), tol_);
 }
 
 double Shell::area(double rel_tol) const {

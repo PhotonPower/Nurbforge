@@ -4,6 +4,25 @@ All notable changes are documented here. Format: [Keep a Changelog](https://keep
 versioning: [SemVer](https://semver.org).
 
 ## [Unreleased]
+### Added
+- Bodies with several shells: `Shell::components()` (Python `Shell.components()`); `oriented()`
+  orients closed components by nesting depth, so voids keep inward normals (hollow solids have
+  the correct volume and work as Boolean inputs; lumps of a Boolean result are separate
+  components).
+
+### Fixed
+- `oriented()` of a shell with several components only checked the sign of the total volume,
+  so the relative orientation of the components (e.g. solid and void) was arbitrary.
+- Surface/surface intersection through the poles of a surface of revolution (e.g. a plane through
+  a sphere's axis): boundary points at a pole took an arbitrary parameter, which generated
+  spurious knot-line points and made the fitted curve run back and forth (wrong Booleans); pole
+  end points now continue the neighbouring parameter and lie exactly on the boundary; marching
+  steps against the direction of travel are rejected and a collapsing step next to a pole ends
+  on it; corrected midpoints must lie between their neighbours.
+- Trim curves running along a knot line of the surface (e.g. such meridians) no longer produce a
+  crossing at every rounding-level sign change (zero-length pieces in `boundary_curves`).
+- Face splitting: curve ends merged into one vertex are moved onto it, so curves meeting within
+  the merge distance (e.g. at a pole) form exactly closed loops.
 
 ## [0.5.0] – 2026-11-01
 Roadmap milestones 0.2–0.5: NURBS toolbox, surface construction and freeform optics,

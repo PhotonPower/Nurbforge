@@ -216,12 +216,24 @@ std::vector<TrimmedSurface> split(const TrimmedSurface& face, const std::vector<
   std::vector<std::vector<TrimLoop>> holes(regions.size());
   for (std::size_t i = 0; i < cycles.size(); ++i) {
     if (cycles[i].area >= 0.0) continue;
-    const P2 p = cycles[i].poly.front();
+    // probe just to the left of the clockwise cycle, i.e. outside the area it encloses: a point
+    // on the cycle itself is ambiguous (the counter-clockwise twin cycle has the same area and
+    // would wrongly receive the hole)
+    std::optional<P2> probe;
+    const auto& poly = cycles[i].poly;
+    for (std::size_t k = 0; k + 1 < poly.size() && !probe; ++k) {
+      const double ex = poly[k + 1][0] - poly[k][0], ey = poly[k + 1][1] - poly[k][1];
+      const double len = std::hypot(ex, ey);
+      if (len <= 0.0) continue;
+      const P2 p{0.5 * (poly[k][0] + poly[k + 1][0]) - 1e-6 * size * ey / len,
+                 0.5 * (poly[k][1] + poly[k + 1][1]) + 1e-6 * size * ex / len};
+      if (!inside_polygon(poly, p[0], p[1])) probe = p;
+    }
+    if (!probe) continue;
     std::optional<std::size_t> best;
     for (std::size_t r = 0; r < regions.size(); ++r) {
       const auto& rc = cycles[regions[r]];
-      if (-cycles[i].area < rc.area && inside_polygon(rc.poly, p[0], p[1]) &&
-          (!best || rc.area < cycles[regions[*best]].area))
+      if (inside_polygon(rc.poly, (*probe)[0], (*probe)[1]) && (!best || rc.area < cycles[regions[*best]].area))
         best = r;
     }
     if (best) holes[*best].push_back(loop_of(cycles[i]));

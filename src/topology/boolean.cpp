@@ -39,21 +39,43 @@ Box3 shell_box(const Shell& s) {
 }
 
 // A parameter point inside the trimmed face (nudged inwards from the outer loop).
+// A parameter point inside the trimmed face. From the midpoints of the outer loop's polyline a
+// ray is sent inwards (to the left of the counter-clockwise loop); the midpoint between the
+// start and the first crossing with any loop lies inside even for very thin pieces (slivers at
+// seams or poles), unlike a fixed inward nudge.
 std::optional<std::array<double, 2>> interior_point(const TrimmedSurface& f) {
   const auto poly = f.outer().polyline(8);
-  const auto du = f.surface().domain_u(), dv = f.surface().domain_v();
-  const double size = std::max(du[1] - du[0], dv[1] - dv[0]);
-  for (double nudge : {1e-3, 1e-2, 1e-4})
-    for (std::size_t k = 0; k < poly.size(); ++k) {
-      const auto& p = poly[k];
-      const auto& q = poly[(k + 1) % poly.size()];
-      const double ex = q[0] - p[0], ey = q[1] - p[1], len = std::hypot(ex, ey);
-      if (len <= 0.0) continue;
-      const std::array<double, 2> c{0.5 * (p[0] + q[0]) - nudge * size * ey / len,
-                                    0.5 * (p[1] + q[1]) + nudge * size * ex / len};
-      if (f.contains(c[0], c[1])) return c;
+  std::vector<std::vector<std::array<double, 2>>> loops{poly};
+  for (const auto& h : f.holes()) loops.push_back(h.polyline(8));
+  std::optional<std::array<double, 2>> best;
+  double best_width = 0.0;
+  for (std::size_t k = 0; k < poly.size(); ++k) {
+    const auto& p = poly[k];
+    const auto& q = poly[(k + 1) % poly.size()];
+    const double ex = q[0] - p[0], ey = q[1] - p[1], len = std::hypot(ex, ey);
+    if (len <= 0.0) continue;
+    const double mx = 0.5 * (p[0] + q[0]), my = 0.5 * (p[1] + q[1]);
+    const double nx = -ey / len, ny = ex / len;  // inward normal
+    // first crossing of the ray m + s n (s > 0) with any loop segment
+    double s_hit = 1e300;
+    for (const auto& lp : loops)
+      for (std::size_t i = 0, j = lp.size() - 1; i < lp.size(); j = i++) {
+        if (&lp == &loops[0] && (i == (k + 1) % poly.size()) && j == k) continue;  // own segment
+        const double ax = lp[j][0], ay = lp[j][1], bx = lp[i][0] - ax, by = lp[i][1] - ay;
+        const double den = nx * by - ny * bx;
+        if (std::abs(den) < 1e-300) continue;
+        const double s = ((ax - mx) * by - (ay - my) * bx) / den;
+        const double t = ((ax - mx) * ny - (ay - my) * nx) / den;
+        if (s > 1e-12 * len && t >= 0.0 && t <= 1.0) s_hit = std::min(s_hit, s);
+      }
+    if (s_hit >= 1e300) continue;
+    const std::array<double, 2> c{mx + 0.5 * s_hit * nx, my + 0.5 * s_hit * ny};
+    if (s_hit > best_width && f.contains(c[0], c[1])) {  // prefer the widest spot
+      best_width = s_hit;
+      best = c;
     }
-  return std::nullopt;
+  }
+  return best;
 }
 
 // Distance of a parameter point from the loops of a face (polyline approximation).

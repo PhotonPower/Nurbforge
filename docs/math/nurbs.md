@@ -130,7 +130,10 @@ tangential contact keeps the gap below tol over a short stretch).
    points, or a short gap apart with tangents along the gap (sagitta ≤ 100 tol), are joined.
 
 Curve portions lying in the other surface (e.g. an edge in a plane) are detected as overlaps
-in the curve/curve and curve/surface intersections, which keeps such symmetric configurations
+in the curve/curve and curve/surface intersections; a curve piece running *close* to the surface
+(within 1e-5 of the size at five samples, e.g. the boundary of a cylinder patch next to a line
+of contact with a tilted plane, whose pieces' boxes overlap it everywhere) is not subdivided:
+the signed distance is scanned at 64 points and sign changes are refined by bisection, which keeps such symmetric configurations
 fast (plane through the middle of a torus along its knot lines: 0.4 s).
 
 ### Planar sections

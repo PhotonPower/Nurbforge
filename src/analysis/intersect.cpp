@@ -4,9 +4,11 @@
 #include <array>
 #include <cmath>
 #include <limits>
+#include <vector>
 #include <numbers>
 
 #include "nurbforge/analysis/closest_point.hpp"
+#include "nurbforge/core/error.hpp"
 
 namespace nf {
 
@@ -297,17 +299,77 @@ struct CurveSurfaceSearch {
     const auto ur = ps.domain_u(), vr = ps.domain_v();
     double gu = 0.5 * (ur[0] + ur[1]), gv = 0.5 * (vr[0] + vr[1]);
     std::array<SurfacePoint, 5> sp{};
+    const double band = 10.0 * min_size;
+    bool within_tol = true;
     for (int i = 0; i <= 4; ++i) {
       const double t = pc.domain_start() + (pc.domain_end() - pc.domain_start()) * i / 4.0;
       sp[static_cast<std::size_t>(i)] = closest_point_local(s, pc.evaluate(t), gu, gv, tol);
       gu = sp[static_cast<std::size_t>(i)].u;
       gv = sp[static_cast<std::size_t>(i)].v;
-      if (sp[static_cast<std::size_t>(i)].distance > tol.length) return false;
+      if (sp[static_cast<std::size_t>(i)].distance > band) return false;
+      if (sp[static_cast<std::size_t>(i)].distance > tol.length) within_tol = false;
     }
+    if (!within_tol) return near_parallel(pc, sp[0].u, sp[0].v);
     for (int i : {0, 4}) {
       const double t = i == 0 ? pc.domain_start() : pc.domain_end();
       const auto& q = sp[static_cast<std::size_t>(i)];
       out.push_back({t, q.u, q.v, 0.5 * (c.evaluate(t) + s.evaluate(q.u, q.v)), q.distance});
+    }
+    return true;
+  }
+
+  // Curve piece running close to the surface without lying in it (e.g. a line just off a
+  // tilted plane, or the boundary of a patch next to a line of tangential contact): the boxes
+  // overlap all along it, and subdivision would go down to the size limit everywhere. Instead
+  // the signed distance is scanned along the piece; sign changes are refined by bisection,
+  // minima within the tolerance are contacts. Returns false (subdivide) if a projection fails.
+  bool near_parallel(const NurbsCurve& pc, double u0, double v0) {
+    constexpr int n = 64;
+    const double t0 = pc.domain_start(), t1 = pc.domain_end();
+    struct Sample {
+      double t, d;
+      SurfacePoint f;
+    };
+    double gu = u0, gv = v0;
+    const auto signed_distance = [&](double t, Sample& out_s) {
+      const Vec3 P = pc.evaluate(t);
+      const SurfacePoint f = closest_point_local(s, P, gu, gv, tol);
+      if (f.distance > 20.0 * min_size) return false;
+      Vec3 nrm;
+      try {
+        nrm = s.normal(f.u, f.v);
+      } catch (const GeometryError&) {
+        return false;
+      }
+      gu = f.u;
+      gv = f.v;
+      out_s = {t, dot(P - f.point, nrm), f};
+      return true;
+    };
+    std::vector<Sample> smp(n + 1);
+    for (int i = 0; i <= n; ++i)
+      if (!signed_distance(t0 + (t1 - t0) * i / n, smp[static_cast<std::size_t>(i)])) return false;
+    const auto push = [&](const Sample& x) {
+      const Vec3 P = c.evaluate(x.t);
+      out.push_back({x.t, x.f.u, x.f.v, 0.5 * (P + x.f.point), std::abs(x.d)});
+    };
+    for (std::size_t i = 0; i < smp.size(); ++i) {
+      const Sample& x = smp[i];
+      if (std::abs(x.d) <= tol.length) {
+        push(x);
+        continue;
+      }
+      if (i + 1 < smp.size() && x.d * smp[i + 1].d < 0.0 && std::abs(smp[i + 1].d) > tol.length) {
+        Sample lo = x, hi = smp[i + 1], mid{};
+        for (int it = 0; it < 60; ++it) {
+          gu = lo.f.u;
+          gv = lo.f.v;
+          if (!signed_distance(0.5 * (lo.t + hi.t), mid)) return false;
+          if (mid.d == 0.0 || hi.t - lo.t <= 1e-15 * (t1 - t0)) break;
+          (mid.d * lo.d > 0.0 ? lo : hi) = mid;
+        }
+        push(mid);
+      }
     }
     return true;
   }

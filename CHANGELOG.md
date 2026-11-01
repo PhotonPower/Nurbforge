@@ -5,6 +5,13 @@ versioning: [SemVer](https://semver.org).
 
 ## [Unreleased]
 ### Fixed (found by the new Boolean stress test, `benchmarks/stress.cpp`)
+- Curve/surface intersection of a curve running just off a surface (a line next to a tilted
+  plane, the patch boundary next to a line of contact between a cylinder and a rotated box
+  face) subdivided down to the size limit along the whole curve and took minutes; the signed
+  distance is now scanned and its sign changes refined by bisection.
+- Intersection curves touching a domain edge: the two ends at the touching point may overlap
+  slightly (their position along the tangent is only determined to ~sqrt(2 r tol)) and are now
+  joined as well (cylinder inside a rotated box touching two sides).
 - `TrimmedSurface::contains` decided near curved trim loops by the loop's polygon (a trim circle
   deviates from its 64-gon by 6e-4): intersection curves ending on a trim circle were clipped
   short, their cuts did not reach the loop and the face was not split (e.g. a box cutting a
@@ -25,6 +32,7 @@ versioning: [SemVer](https://semver.org).
   contact between curved surfaces) and joins curves that touch a domain edge; the Boolean
   classifies touching faces at an interior point clear of the contact and ignores intersection
   curves that only touch a face boundary.
+- Boolean stress test: six families with exact tangential contact (`nf_stress 20 touch`).
 - Native STEP reader: `read_step(path)` / `from_step(text)` (C++ `io/step.hpp`, Python
   `nf.read_step(path, unit=...)`, LLM tool `import_step`) return one `Shell` per
   `MANIFOLD_SOLID_BREP` / `BREP_WITH_VOIDS` / surface-model shell. Part 21 parser (complex

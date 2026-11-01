@@ -16,11 +16,15 @@ so they cannot rot; timings on shared CI runners are not meaningful and are not 
 
 `benchmarks/stress.cpp` (`nf_stress [cases per family] [filter]`) runs union, intersection and
 difference on random but reproducible pairs of seven surface families – sphere/sphere,
-sphere/cylinder, sphere/box, cylinder/box, torus/box, torus/sphere, perpendicular cylinders.
+sphere/cylinder, sphere/box, cylinder/box, torus/box, torus/sphere, perpendicular cylinders –
+and six families with exact tangential contact (`nf_stress 20 touch`): spheres touching
+outside or inside, spheres on or in boxes, cylinders touching a box face rotated about the axis,
+cylinders inside rotated boxes touching two sides, cylinders side by side, spheres touching a
+cylinder from outside or inside.
 Instead of analytic volumes (which do not exist for most pairs) it checks that every result is
 closed and consistently oriented and that the volumes satisfy V(A ∪ B) + V(A ∩ B) = V(A) + V(B)
 and V(A − B) = V(A) − V(A ∩ B) to 1e-5. ctest runs one case per family (`stress_smoke`); a full
-run with 20 cases per family (140 cases, 420 Booleans) passes with a worst identity error of
+run with 20 cases per family (260 cases, 780 Booleans) passes with a worst identity error of
 2.6e-6.
 
 ## Reference results

@@ -77,6 +77,8 @@ Shell rotated(const Shell& s, const Vec3& axis, double angle) {
   return Shell::sew(std::move(faces));
 }
 
+Shell rotated_z(const Shell& s, double angle) { return rotated(s, {0, 0, 1}, angle); }
+
 Vec3 draw_vec(Rng& g, double lo, double hi) {
   const double x = g(lo, hi);
   const double y = g(lo, hi);
@@ -152,6 +154,75 @@ const std::vector<Family>& families() {
          const Shell cross = rotated(cylinder({0, 0, -1.5}, r, 3.0), {0, 1, 0}, pi / 2);  // along x
          return std::pair{cylinder({bx, by, -1.0}, 0.6, 2.0), cross};
        }},
+      // tangential contacts (exact): point and line contacts from outside and inside
+      {"touch sphere/sphere",
+       [](Rng& g) {
+         const double r1 = g(0.6, 1.4);
+         const double r2 = g(0.2, 1.0);
+         const double inside = g(0.0, 1.0);
+         const Vec3 dir = normalized(draw_vec(g, -1.0, 1.0) + Vec3{1e-3, 0, 0});
+         // inside contact needs r2 < r1
+         const double r2i = std::min(r2, 0.8 * r1);
+         const double d = inside < 0.5 ? r1 + r2 : r1 - r2i;
+         return std::pair{sphere({0, 0, 0}, r1), sphere(d * dir, inside < 0.5 ? r2 : r2i)};
+       }},
+      {"touch sphere/box",
+       [](Rng& g) {
+         const double r = g(0.3, 1.0);
+         const double fx = g(-0.6, 0.6);
+         const double fy = g(-0.6, 0.6);
+         const double inside = g(0.0, 1.0);
+         const Vec3 lo{-1.0 + 0.4 * fx, -1.0 + 0.4 * fy, 0.0};
+         const Vec3 hi{1.0 + 0.4 * fx, 1.0 + 0.4 * fy, 1.0};
+         // outside: sphere below the bottom face, touching it at (fx, fy); inside: touching the
+         // top face from below (r < 0.5 so it fits)
+         if (inside < 0.5) return std::pair{box(lo, hi), sphere({fx * 0.5, fy * 0.5, -r}, r)};
+         const double ri = 0.5 * r;
+         return std::pair{box(lo, hi), sphere({fx * 0.5, fy * 0.5, 1.0 - ri}, ri)};
+       }},
+      {"touch cylinder/box",
+       [](Rng& g) {
+         const double r = g(0.3, 0.8);
+         const double angle = g(0.0, 2.0 * pi);
+         const double z0 = g(-0.5, 0.5);
+         const double h = g(0.5, 1.5);
+         const double w = g(0.3, 1.0);
+         // box face at x = r (outside the cylinder), rotated about the axis
+         return std::pair{cylinder({0, 0, 0}, r, 2.0), rotated_z(box({r, -1.0, z0}, {r + w, 1.0, z0 + h}), angle)};
+       }},
+      {"touch cylinder in box",
+       [](Rng& g) {
+         const double r = g(0.3, 0.8);
+         const double angle = g(0.0, 2.0 * pi);
+         const double z0 = g(0.2, 0.8);
+         const double ex = g(0.1, 0.6);
+         const double ey = g(0.1, 0.6);
+         // box touching the cylinder on its -x and -y sides, then rotated about the axis
+         return std::pair{rotated_z(box({-r, -r, z0}, {r + ex, r + ey, z0 + 0.8}), angle), cylinder({0, 0, 0}, r, 2.0)};
+       }},
+      {"touch cylinder/cylinder",
+       [](Rng& g) {
+         const double r1 = g(0.3, 0.8);
+         const double r2 = g(0.2, 0.8);
+         const double angle = g(0.0, 2.0 * pi);
+         const double z0 = g(-0.8, 0.8);
+         const double d = r1 + r2;
+         return std::pair{cylinder({0, 0, 0}, r1, 2.0),
+                          cylinder({d * std::cos(angle), d * std::sin(angle), z0}, r2, 2.0)};
+       }},
+      {"touch sphere/cylinder",
+       [](Rng& g) {
+         const double r = g(0.3, 0.8);
+         const double rs = g(0.2, 0.6);
+         const double angle = g(0.0, 2.0 * pi);
+         const double z = g(0.7, 1.3);
+         const double inside = g(0.0, 1.0);
+         // sphere touching the side from outside, or from inside (rs < r)
+         const double rsi = 0.8 * std::min(rs, r);
+         const double d = inside < 0.5 ? r + rs : r - rsi;
+         return std::pair{cylinder({0, 0, 0}, r, 2.0),
+                          sphere({d * std::cos(angle), d * std::sin(angle), z}, inside < 0.5 ? rs : rsi)};
+       }},
   };
   return fams;
 }
@@ -186,7 +257,8 @@ int main(int argc, char** argv) {
           std::printf("%s #%d: open or inconsistently oriented result\n", fam.name, k);
           continue;
         }
-        const double vu = u.volume(1e-7), vi = i.volume(1e-7), vd = d.volume(1e-7);
+        const auto vol = [](const Shell& r) { return r.faces().empty() ? 0.0 : r.volume(1e-7); };
+        const double vu = vol(u), vi = vol(i), vd = vol(d);
         const double e1 = std::abs(vu + vi - va - vb) / (va + vb), e2 = std::abs(vd - (va - vi)) / va;
         worst = std::max({worst, e1, e2});
         if (e1 > 1e-5 || e2 > 1e-5 || vi < -1e-9) {

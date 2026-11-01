@@ -6,6 +6,7 @@
 
 #include "nurbforge/core/error.hpp"
 #include "nurbforge/geometry/primitives.hpp"
+#include "nurbforge/geometry/transform.hpp"
 #include "nurbforge/modeling/construct.hpp"
 #include "nurbforge/topology/boolean.hpp"
 
@@ -327,4 +328,31 @@ TEST_CASE("Booleans: cylinders touching along a line", "[boolean][tangent]") {
   const double a = pi * 0.49 * 2.0, b = pi * 0.25 * 2.0;
   check_contact(cylinder_shell(0.7, 0.0, 2.0),
                 offset_cylinder({1.2 * std::cos(0.4), 1.2 * std::sin(0.4), 0.5}, 0.5, 2.0), a + b, 0.0, a);
+}
+
+namespace {
+Shell rotated_z(const Shell& s, double angle) {
+  std::vector<TrimmedSurface> faces;
+  for (const auto& f : s.faces())
+    faces.emplace_back(f.surface().transformed(Transform::rotation({0, 0, 0}, {0, 0, 1}, angle)), f.outer(), f.holes());
+  return Shell::sew(std::move(faces));
+}
+}  // namespace
+
+TEST_CASE("Booleans: tilted box face touching a cylinder", "[boolean][tangent]") {
+  // the patch boundaries of the cylinder next to the contact line run just off the tilted plane:
+  // the curve/surface intersection subdivided them down to the size limit (minutes)
+  const double r = 0.7021256186899939, z0 = -0.21300335723297636, h = 1.2982978724505516, w = 0.67037666446677946;
+  const Shell b = rotated_z(box_shell({r, -1.0, z0}, {r + w, 1.0, z0 + h}), 5.1897199994457743);
+  const double cyl = pi * r * r * 2.0;
+  check_contact(cylinder_shell(r, 0.0, 2.0), b, cyl + 2.0 * w * h, 0.0, cyl);
+}
+
+TEST_CASE("Booleans: cylinder inside a tilted box touching two sides", "[boolean][tangent]") {
+  // the two ends of the intersection curve at a touching point overlap slightly (the position
+  // along the tangent is only determined to ~sqrt(2 r tol)) and must still be joined
+  const double r = 0.62334641101607957, z0 = 0.66660399501980083, ex = 0.24319203551411819, ey = 0.47548877062290407;
+  const Shell a = rotated_z(box_shell({-r, -r, z0}, {r + ex, r + ey, z0 + 0.8}), 4.8653577882165431);
+  const double box = (2 * r + ex) * (2 * r + ey) * 0.8, mid = pi * r * r * 0.8;
+  check_contact(a, cylinder_shell(r, 0.0, 2.0), box + pi * r * r * 2.0 - mid, mid, box - mid);
 }

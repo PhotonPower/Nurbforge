@@ -1,5 +1,10 @@
 # Nurbforge
 
+[![CI](https://github.com/PhotonPower/Nurbforge/actions/workflows/ci.yml/badge.svg)](https://github.com/PhotonPower/Nurbforge/actions/workflows/ci.yml)
+[![Wheels](https://github.com/PhotonPower/Nurbforge/actions/workflows/wheels.yml/badge.svg)](https://github.com/PhotonPower/Nurbforge/actions/workflows/wheels.yml)
+[![Docs](https://github.com/PhotonPower/Nurbforge/actions/workflows/docs.yml/badge.svg)](https://photonpower.github.io/Nurbforge/)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
 **Headless, NURBS-based CAD kernel for scientific software** – written in C++20 with a Python API.
 
 Nurbforge builds exact 2D/3D curves, surfaces and surface systems for downstream numerical
@@ -68,11 +73,25 @@ cmake --preset release && cmake --build --preset release && ctest --preset relea
 | AlmaLinux 10 | GCC 14, CMake ≥ 3.24, Python ≥ 3.10 | [docs/build/almalinux10.md](docs/build/almalinux10.md) |
 | Windows 11 | Visual Studio 2022 or 2026 (MSVC), CMake ≥ 3.24 (≥ 4.2 for VS 2026), Python ≥ 3.10 | [docs/build/windows11.md](docs/build/windows11.md) |
 
+## Binary wheels
+
+Wheels for Linux (`manylinux_2_28` x86_64 – installs on AlmaLinux/RHEL 8, 9 and 10) and Windows
+(`win_amd64`), CPython 3.10–3.13, are built by the [Wheels workflow](.github/workflows/wheels.yml)
+for every `v*` tag and can be downloaded from its run artifacts:
+
+```bash
+pip install nurbforge-0.1.0-cp312-cp312-win_amd64.whl   # no compiler needed
+```
+
 ## Documentation
+
+The documentation site – these pages plus the Python (autodoc) and C++ (Doxygen/Breathe) API
+references – is published at **<https://photonpower.github.io/Nurbforge/>**.
 
 - [Architecture](docs/architecture.md) – layers, modules, data flow
 - [NURBS fundamentals & conventions](docs/math/nurbs.md)
-- [Python API overview](docs/api/python.md)
+- [Python API overview](docs/api/python.md) · [C++ API overview](docs/api/cpp.md)
+- [Optical surfaces](docs/optics.md)
 - [Meshing with gmsh](docs/meshing.md)
 - [LLM interface (Ollama)](docs/llm.md)
 - [Roadmap](docs/roadmap.md) · [Architecture decisions](docs/adr/)
@@ -87,7 +106,7 @@ python/bindings/     pybind11 module  -> nurbforge._core
 python/nurbforge/    Python package (mesh/ = gmsh, llm/ = Ollama)
 tests/cpp|python/    Catch2 and pytest suites
 examples/            C++ and Python examples
-docs/                documentation, ADRs, Doxygen config
+docs/                documentation (Markdown), ADRs, Sphinx conf.py, Doxyfile
 ```
 
 ## License

@@ -5,6 +5,13 @@ versioning: [SemVer](https://semver.org).
 
 ## [Unreleased]
 ### Added
+- Binary wheels via cibuildwheel (`.github/workflows/wheels.yml`, `[tool.cibuildwheel]` in
+  `pyproject.toml`): manylinux_2_28 x86_64 and win_amd64, CPython 3.10–3.13, each wheel tested
+  with the pytest suite; sdist; built on `v*` tags, manually and on packaging PRs. PyPI
+  publishing is prepared (trusted publishing) but disabled.
+- Sphinx documentation site (`docs/conf.py`): furo theme, MyST for the existing Markdown pages,
+  autodoc Python reference, Breathe C++ reference from Doxygen XML (`build/docs/xml`); built by
+  `.github/workflows/docs.yml` and deployed to GitHub Pages from `main`.
 - Named tolerances `nf::tol::kLength`, `kParametric`, `kAngular` and the per-operation
   `nf::Tolerance` struct (`nurbforge/core/tolerance.hpp`, ADR 0005).
 - Build guides for AlmaLinux 10 and Windows 11 (`docs/build/`).

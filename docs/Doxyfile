@@ -1,12 +1,20 @@
+# Run from the repository root: doxygen docs/Doxyfile
+#   build/docs/html  standalone Doxygen HTML
+#   build/docs/xml   XML consumed by Breathe for the Sphinx site (docs/conf.py)
 PROJECT_NAME           = "Nurbforge"
 PROJECT_BRIEF          = "Headless NURBS CAD kernel"
 OUTPUT_DIRECTORY       = build/docs
 INPUT                  = include README.md docs/math/nurbs.md docs/architecture.md
 FILE_PATTERNS          = *.hpp *.md
 RECURSIVE              = YES
+STRIP_FROM_PATH        = .
+STRIP_FROM_INC_PATH    = include
 USE_MDFILE_AS_MAINPAGE = README.md
 EXTRACT_ALL            = YES
+GENERATE_HTML          = YES
 GENERATE_LATEX         = NO
 GENERATE_XML           = YES
+XML_OUTPUT             = xml
+XML_PROGRAMLISTING     = NO
 QUIET                  = YES
 WARN_IF_UNDOCUMENTED   = NO

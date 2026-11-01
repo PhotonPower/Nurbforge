@@ -23,7 +23,7 @@ from code (C++ or Python), from a local LLM (Ollama), and meshed with [gmsh](htt
 | Primitives | Point, line, polyline, exact arc and circle, bilinear patch, rectangle | Ellipse |
 | Optics | Exact conic surfaces, even/odd aspheres, Zernike (Fringe/Noll), XY polynomials, arbitrary sag functions – fitted to a tolerance | Trimmed circular apertures |
 | Fitting | Curve/surface interpolation (incl. end tangents), least-squares approximation, fit to a tolerance | Constrained fits, smoothing |
-| Construction | Extrusion, revolution (full/partial), ruled surface (auto degree/knot compatibility), loft/skinning, sweep (one/two rails, rotation-minimising frame, twist), Coons patches, Gordon surfaces, extrapolation (natural / linear), offset curves (planar) and surfaces with verified tolerance | Fillets |
+| Construction | Extrusion, revolution (full/partial), ruled surface (auto degree/knot compatibility), loft/skinning, sweep (one/two rails, rotation-minimising frame, twist), Coons patches, Gordon surfaces, extrapolation (natural / linear), offset curves (planar) and surfaces with verified tolerance, fillets (exact arcs between planar curves, rolling-ball fillets between surfaces with contact p-curves) | Variable-radius fillets, trimming of the filleted faces |
 | Transforms | Translate, rotate, scale, mirror, composition | – |
 | Arrays | Linear, grid, polar | Path arrays |
 | Analysis | Point, tangent, normal (incl. poles), partial derivatives of any order, global closest point / point inversion, curve–curve, curve–surface and surface–surface intersection, planar sections, curvature/torsion, Gaussian/mean/principal curvatures, arc length, area, sampling | Booleans |

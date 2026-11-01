@@ -13,9 +13,11 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--host", default=DEFAULT_HOST)
     ap.add_argument("--out", help="mesh all surfaces with gmsh and write to this file on exit")
     ap.add_argument("--mesh-size", type=float, default=None)
+    ap.add_argument("--verify-rounds", type=int, default=1,
+                    help="verification rounds after each answer (0 disables)")
     args = ap.parse_args(argv)
 
-    agent = GeometryAgent(OllamaClient(args.host, args.model))
+    agent = GeometryAgent(OllamaClient(args.host, args.model), verify_rounds=args.verify_rounds)
     print(f"Nurbforge LLM shell ({args.model} @ {args.host}). Empty line to quit.")
     while True:
         try:

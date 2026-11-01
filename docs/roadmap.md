@@ -21,7 +21,7 @@
 - Sweep (one and two rails) ✅
 - Coons and Gordon patches ✅
 - Offset curves/surfaces, fillets (rolling ball, approximate)
-- Optical surfaces: conics/aspheres (even/odd), Zernike, XY polynomials, freeforms → NURBS fit with error bound
+- Optical surfaces: conics (exact), aspheres (even/odd), Zernike, XY polynomials, freeform sag functions → NURBS fit with verified tolerance ✅
 
 ## 0.4 – Intersections & trimming
 - Curve–curve, curve–surface, surface–surface intersection (subdivision + marching)

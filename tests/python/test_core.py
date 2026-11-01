@@ -288,3 +288,24 @@ def test_coons_gordon():
     vc = [b.iso_curve_u(u) for u in (0.0, 0.4, 1.0)]
     g = nf.gordon(uc, vc)
     assert nf.distance(g(0.7, 0.2), b(0.7, 0.2)) < 1e-10
+
+
+def test_optics():
+    sphere = nf.Asphere(curvature=1 / 50.0)
+    s = nf.asphere_surface(sphere, 20.0)
+    p = s(0.3, 0.7)
+    assert abs(math.sqrt(p.x**2 + p.y**2 + (p.z - 50.0) ** 2) - 50.0) < 1e-12  # exact
+    asph = nf.Asphere(curvature=1 / 40.0, conic=-0.8, even=[1e-6, -2e-9])
+    a = nf.asphere_surface(asph, 15.0, tolerance=1e-8)
+    q = a(0.1, 0.55)
+    assert abs(q.z - asph.sag(math.hypot(q.x, q.y))) < 2e-8
+
+    assert abs(nf.zernike(4, nf.ZernikeIndexing.Fringe, 0.5, 0.0) - (2 * 0.25 - 1)) < 1e-15
+    assert nf.zernike_nm(11, nf.ZernikeIndexing.Noll) == (4, 0)
+    z = nf.ZernikeSag(base=sphere, norm_radius=10.0, coeffs=[0, 0.01, 0, 0.02])
+    zs = nf.zernike_surface(z, tolerance=1e-8)
+    assert abs(zs(3.0, -4.0).z - z.sag(3.0, -4.0)) < 2e-8
+    xy = nf.XYPolynomialSag(norm_radius=5.0, terms=[(2, 0, 0.1), (1, 2, 0.05)])
+    assert abs(nf.xy_polynomial_surface(xy)(1.0, 2.0).z - xy.sag(1.0, 2.0)) < 1e-13
+    g = nf.sag_surface(lambda x, y: math.sin(x) * math.cos(y), 0, 1, 0, 1, tolerance=1e-9)
+    assert abs(g(0.3, 0.6).z - math.sin(0.3) * math.cos(0.6)) < 2e-9

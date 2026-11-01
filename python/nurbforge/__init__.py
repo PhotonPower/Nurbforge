@@ -7,6 +7,7 @@ interface via Ollama (:mod:`nurbforge.llm`).
 from __future__ import annotations
 
 from ._core import (  # noqa: F401
+    Asphere,
     CurveEnd,
     CurvePoint,
     Extension,
@@ -22,12 +23,17 @@ from ._core import (  # noqa: F401
     Tolerance,
     Transform,
     Vec3,
+    XYPolynomialSag,
+    ZernikeIndexing,
+    ZernikeSag,
     __version__,
     approximate_curve,
     approximate_curve_tol,
     approximate_surface,
     arc_length,
     area,
+    asphere_profile,
+    asphere_surface,
     clamped_uniform_knots,
     closest_point,
     closest_point_local,
@@ -63,6 +69,7 @@ from ._core import (  # noqa: F401
     reparametrize,
     revolve,
     ruled,
+    sag_surface,
     surface_curvature,
     sweep,
     sweep2,
@@ -70,6 +77,10 @@ from ._core import (  # noqa: F401
     torsion,
     unique_knots,
     validate_knots,
+    xy_polynomial_surface,
+    zernike,
+    zernike_nm,
+    zernike_surface,
 )
 from .patterns import apply_pattern  # noqa: F401
 

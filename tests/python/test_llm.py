@@ -102,3 +102,11 @@ def test_coons_tool():
         call_tool(ws, "make_line", {"name": n, "p0": a, "p1": b})
     out = call_tool(ws, "coons", {"name": "patch", "c0": "c0", "c1": "c1", "d0": "d0", "d1": "d1"})
     assert out.startswith("stored patch")
+
+
+def test_asphere_tool():
+    ws = Workspace()
+    out = call_tool(ws, "asphere", {"name": "lens", "radius": 50, "conic": -1, "clear_radius": 10})
+    assert out.startswith("stored lens")
+    p = ws.get("lens")(0.2, 1.0)
+    assert abs(p.z - (p.x**2 + p.y**2) / 100.0) < 1e-12  # paraboloid

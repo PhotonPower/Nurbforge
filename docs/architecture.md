@@ -12,7 +12,8 @@
  │  nurbforge._core  (pybind11, python/bindings/module.cpp)     │
  ├──────────────────────────────────────────────────────────────┤
  │  C++ kernel  libnurbforge_core  (namespace nf)               │
- │   modeling/  construct (extrude, revolve, ruled), pattern    │
+ │   optics/    conics, aspheres, Zernike, XY polynomials       │
+ │   modeling/  construct, loft, sweep, Coons/Gordon, extend    │
  │   fitting/   interpolation, least-squares approximation      │
  │   analysis/  closest point, curvature, arc length, area      │
  │   geometry/  transform, primitives                           │

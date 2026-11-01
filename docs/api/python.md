@@ -30,6 +30,7 @@ import nurbforge as nf
 | Offsets | `offset_curve(curve, distance, plane_normal=(0, 0, 1), tolerance=1e-7)` (planar, cubic, parameters kept), `offset_surface(surface, distance, tolerance=1e-7)` (along the normal, quintic); raise `GeometryError` where the distance reaches a radius of curvature |
 | Optics | `Asphere(curvature, conic, even, odd)`, `asphere_surface(a, r_max, tolerance)`, `asphere_profile`, `ZernikeSag(base, norm_radius, indexing, coeffs)`, `zernike_surface`, `zernike(j, indexing, rho, theta)`, `zernike_nm`, `XYPolynomialSag(base, norm_radius, terms)`, `xy_polynomial_surface`, `sag_surface(f, x0, x1, y0, y1, degree, tolerance)` – see [optics.md](../optics.md) |
 | Trimming | `TrimmedSurface(surface[, outer, holes])` -> `contains`, `area`, `boundary_curves`, `with_hole`; `TrimLoop(curves)`, `rectangle_loop`, `circle_loop`, `polygon_loop`; `split(surface, cutter)` / `split(surface, pcurves)` |
+| Shells | `Shell.sew(faces, tolerance)` → `faces`, `vertices`, `edges` (`ShellEdge(curve, v0, v1, uses)`), `free_edges()`, `non_manifold_edges()`, `is_closed`, `is_consistently_oriented`, `oriented()`, `area()`, `volume()`; mesh: `add_shell`, `export_step(objects, path)` |
 | Integration | `integrate(f, a, b, rel_tol, breaks, abs_tol)` |
 | Joining | `join(a, b, tolerance)`, `join_u(a, b, tolerance)`, `join_v(a, b, tolerance)` |
 | Arrays | `linear_pattern`, `grid_pattern`, `polar_pattern`, `apply_pattern` |

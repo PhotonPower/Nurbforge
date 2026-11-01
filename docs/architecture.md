@@ -12,7 +12,7 @@
  │  nurbforge._core  (pybind11, python/bindings/module.cpp)     │
  ├──────────────────────────────────────────────────────────────┤
  │  C++ kernel  libnurbforge_core  (namespace nf)               │
- │   topology/  trimmed surfaces, split                         │
+ │   topology/  trimmed surfaces, split, shells (sewing)        │
  │   optics/    conics, aspheres, Zernike, XY polynomials       │
  │   modeling/  construct, loft, sweep, Coons/Gordon, extend,   │
  │              offset                                          │
@@ -53,7 +53,8 @@ embeddable into solver codes.
 | `Transform` | affine 3×4 matrix, row-major |
 
 `TrimmedSurface`: surface + closed parameter-space loops (outer CCW, holes CW).
-Planned: `Shell`/`Body` B-rep topology,
+`Shell`: trimmed faces sewn along shared edges (vertices, edges, coedges).
+Planned: `Body` (several shells, solids),
 tolerance context per model.
 
 ## Error handling

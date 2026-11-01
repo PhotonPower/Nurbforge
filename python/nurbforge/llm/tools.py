@@ -280,6 +280,19 @@ def _build_tools() -> list[Tool]:
             out.append(f"{name}_{i}: {'closed' if c.closed else 'open'}, length {nf.length(c.curve):.6g}")
         return "; ".join(out) if out else "no section"
 
+    @add("sew", "Sew surfaces (and trimmed surfaces) along shared edges into a shell; reports "
+         "whether it is closed and, if so, the enclosed volume.",
+         {"name": _NAME, "faces": {"type": "array", "items": _NAME, "minItems": 1}},
+         ["name", "faces"])
+    def _(ws, name, faces):
+        objs = [ws.get(f) for f in faces]
+        trimmed = [o if isinstance(o, nf.TrimmedSurface) else nf.TrimmedSurface(o) for o in objs]
+        shell = nf.Shell.sew(trimmed).oriented()
+        ws.put(name, shell)
+        if shell.is_closed:
+            return f"stored {name}: closed shell, volume {shell.volume(1e-7):.6g}"
+        return f"stored {name}: open shell with {len(shell.free_edges())} free edges"
+
     @add("measure", "Length of a curve or area of a surface.", {"name": _NAME}, ["name"])
     def _(ws, name):
         o = ws.get(name)
@@ -287,6 +300,9 @@ def _build_tools() -> list[Tool]:
             return f"length={nf.length(o):.10g}"
         if isinstance(o, nf.TrimmedSurface):
             return f"area={o.area(1e-8):.10g}"
+        if isinstance(o, nf.Shell):
+            v = f", volume={o.volume(1e-8):.10g}" if o.is_closed else ""
+            return f"area={o.area(1e-8):.10g}{v}"
         return f"area={nf.area(o):.10g}"
 
     @add("evaluate", "Evaluate a curve at u or a surface at (u, v).",

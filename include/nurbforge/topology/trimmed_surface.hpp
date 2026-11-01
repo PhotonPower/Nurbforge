@@ -3,6 +3,7 @@
 /// Trimmed surfaces: a NURBS surface restricted by closed loops in its parameter domain.
 
 #include <array>
+#include <functional>
 #include <vector>
 
 #include "nurbforge/core/tolerance.hpp"
@@ -45,6 +46,10 @@ class TrimmedSurface {
   [[nodiscard]] const TrimLoop& outer() const noexcept { return outer_; }
   [[nodiscard]] const std::vector<TrimLoop>& holes() const noexcept { return holes_; }
 
+  /// True if the region is the whole parameter domain (no holes, outer loop on the domain
+  /// boundary).
+  [[nodiscard]] bool is_untrimmed() const;
+
   /// True if (u, v) lies inside the trimmed region (on the boundary: either answer).
   [[nodiscard]] bool contains(double u, double v) const;
 
@@ -52,6 +57,16 @@ class TrimmedSurface {
   /// with F(u, v) = int |S_u x S_v| du, area = sum of the loop integrals of F dv (adaptive
   /// Gauss-Kronrod per knot span; holes, being clockwise, subtract).
   [[nodiscard]] double area(double rel_tol = 1e-9) const;
+
+  /// Integral of f(u, v) over the trimmed region of the parameter plane (Green's theorem as for
+  /// area(); include the area element |S_u x S_v| in f for surface integrals). `abs_tol` is the
+  /// absolute error target of the loop integrals (needed when f nearly cancels).
+  [[nodiscard]] double integrate(const std::function<double(double, double)>& f, double rel_tol,
+                                 double abs_tol) const;
+
+  /// The same surface with opposite orientation (u reversed: S'(u, v) = S(a + b - u, v)); the
+  /// loops are mirrored accordingly. The normal S_u x S_v flips.
+  [[nodiscard]] TrimmedSurface flipped() const;
 
   /// The boundary loops mapped to 3D: each trim curve composed with the surface, fitted to
   /// `tolerance` (cubic interpolation with adaptive refinement). Outer loop first.

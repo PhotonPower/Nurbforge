@@ -28,3 +28,4 @@
 #include "nurbforge/fitting/fit.hpp"
 #include "nurbforge/optics/surfaces.hpp"
 #include "nurbforge/topology/trimmed_surface.hpp"
+#include "nurbforge/topology/shell.hpp"

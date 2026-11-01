@@ -60,3 +60,37 @@ def test_trimmed_surface_mesh(tmp_path):
                 assert (x - 2) ** 2 + 4 * (y - 1) ** 2 <= 1 + 1e-3
     except OSError as exc:  # pragma: no cover - missing GL runtime libraries
         pytest.skip(f"gmsh runtime not available: {exc}")
+
+
+def test_shell_step_export_roundtrip(tmp_path):
+    R, H = 1.0, 2.0
+    side = nf.extrude(nf.make_circle((0, 0, 0), (0, 0, 1), R), (0, 0, H))
+    lid = [nf.TrimmedSurface(nf.make_rectangle((-R, -R, z), (2 * R, 0, 0), (0, 2 * R, 0)),
+                             nf.circle_loop(0.5, 0.5, 0.5)) for z in (0.0, H)]
+    shell = nf.Shell.sew([nf.TrimmedSurface(side), *lid]).oriented()
+    assert shell.is_closed
+    assert abs(shell.volume() - math.pi * R * R * H) < 1e-7
+    path = str(tmp_path / "cylinder.step")
+    try:
+        from nurbforge.mesh import export_step
+
+        export_step([shell], path)
+        with GmshSession() as g:
+            ents = g.gmsh.model.occ.importShapes(path)
+            g.gmsh.model.occ.synchronize()
+            vols = [t for d, t in ents if d == 3]
+            assert len(vols) == 1
+            assert len(g.gmsh.model.getEntities(2)) == 3
+            # volume of a tetrahedral mesh of the re-imported solid (OCC's getMass is only
+            # accurate to ~0.5% for these faces, the mesh is much closer)
+            g.gmsh.option.setNumber("Mesh.MeshSizeMax", 0.1)
+            g.gmsh.model.mesh.generate(3)
+            _, _, conn = g.gmsh.model.mesh.getElements(3)
+            ids, xyz, _ = g.gmsh.model.mesh.getNodes()
+            pos = dict(zip(ids, np.asarray(xyz).reshape(-1, 3)))
+            vol = 0.0
+            for a, b, c, d in np.asarray(conn[0]).reshape(-1, 4):
+                vol += abs(np.dot(pos[b] - pos[a], np.cross(pos[c] - pos[a], pos[d] - pos[a]))) / 6
+            assert abs(vol - math.pi * R * R * H) < 3e-3 * math.pi * R * R * H
+    except OSError as exc:  # pragma: no cover - missing GL runtime libraries
+        pytest.skip(f"gmsh runtime not available: {exc}")

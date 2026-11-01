@@ -14,6 +14,11 @@ versioning: [SemVer](https://semver.org).
   `nf.write_step(path, shell_or_shells, unit=...)`, `nf.to_step`; LLM tool `export_step`.
   Round trips through OpenCASCADE (gmsh) give one solid each, volumes within 4·10⁻⁴ of
   `Shell.volume()` (exact for planar faces).
+- LLM verification: tools `inspect` (measured properties and detected issues of an object) and
+  `check` (measured property vs. expected value, PASS/FAIL); `GeometryAgent` runs verification
+  rounds after the final answer (`verify_rounds`, default 1; CLI `--verify-rounds`): objects
+  created or changed for the request are measured, issues such as open shells or degenerate
+  geometry are flagged, and the model repairs or confirms. Module `nurbforge.llm.verify`.
 - Booleans with coincident faces: face pairs are classified by sampling (general / coincident /
   touching only), coincident faces are cut along each other's projected loops instead of being
   intersected, and common parts are classified "on" (same / opposite normal) – boxes sharing

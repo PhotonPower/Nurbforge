@@ -252,3 +252,14 @@ def test_extend():
     cyl = nf.extrude(nf.make_circle((0, 0, 0), (0, 0, 1), 1.0), (0, 0, 2))
     s = nf.extend(cyl, nf.SurfaceSide.VMax, 1.0)
     assert abs(s(0.2, s.domain_v[1]).z - 3.0) < 1e-12
+
+
+def test_loft():
+    secs = [nf.make_circle((0, 0, z), (0, 0, 1), 1.0 + 0.5 * z) for z in (0.0, 1.0, 2.0, 3.0)]
+    s = nf.loft(secs)
+    p = s(0.37, 0.61)
+    assert abs(math.hypot(p.x, p.y) - (1.0 + 0.5 * p.z)) < 1e-12  # exact cone
+    v = nf.loft_parameters(secs)
+    assert v[0] == 0.0 and v[-1] == 1.0
+    c = nf.make_compatible([nf.make_line((0, 0, 0), (1, 0, 0)), secs[0]])
+    assert c[0].degree == c[1].degree and list(c[0].knots) == list(c[1].knots)

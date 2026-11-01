@@ -2,6 +2,8 @@
 /// @file construct.hpp
 /// Surface construction from curves (extrusion, revolution, ruled surfaces).
 
+#include <vector>
+
 #include "nurbforge/nurbs/curve.hpp"
 #include "nurbforge/nurbs/surface.hpp"
 
@@ -26,6 +28,10 @@ namespace nf {
 /// (by elevating the lower one) and a common knot vector (by knot insertion). Shapes are
 /// unchanged.
 void make_compatible(NurbsCurve& a, NurbsCurve& b);
+
+/// Same for any number of curves: afterwards all are clamped on [0, 1], have the highest degree
+/// and identical knot vectors (union of all knots with maximal multiplicity).
+void make_compatible(std::vector<NurbsCurve>& curves);
 
 /// Linear reparametrisation of a curve to the domain [a, b].
 [[nodiscard]] NurbsCurve reparametrize(const NurbsCurve& c, double a, double b);

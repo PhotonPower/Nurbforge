@@ -77,3 +77,11 @@ def test_extend_tool():
     out = call_tool(ws, "extend", {"name": "l2", "source": "l", "where": "end", "length": 1.5})
     assert out.startswith("stored l2")
     assert abs(ws.get("l2")(ws.get("l2").domain[1]).x - 2.5) < 1e-12
+
+
+def test_loft_tool():
+    ws = Workspace()
+    for i, z in enumerate((0, 1, 2)):
+        call_tool(ws, "make_circle", {"name": f"c{i}", "center": [0, 0, z], "normal": [0, 0, 1], "radius": 1})
+    out = call_tool(ws, "loft", {"name": "tube", "sections": ["c0", "c1", "c2"]})
+    assert out.startswith("stored tube")

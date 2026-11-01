@@ -22,6 +22,9 @@ versioning: [SemVer](https://semver.org).
   branch and bound over Bézier pieces with safe lower bounds, safeguarded (projected) Newton;
   local variant with start value; Python `closest_point`, `closest_point_local`, `Tolerance`;
   LLM tool `closest_point`.
+- Loft / skinning through section curves (`modeling/loft.hpp`), incl. rational sections;
+  `make_compatible` for any number of curves; interpolation with explicit parameters and
+  averaged data parameters (`fitting`); LLM tool `loft`.
 - Extrapolation (`modeling/extend.hpp`): natural (C∞, conics stay exact) and linear (C1/G1)
   extension of curves at either end and of surfaces across any side by an arc length, keeping
   the original parameters; LLM tool `extend`.

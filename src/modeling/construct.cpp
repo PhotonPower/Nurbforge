@@ -1,5 +1,6 @@
 #include "nurbforge/modeling/construct.hpp"
 
+#include <algorithm>
 #include <cmath>
 #include <numbers>
 
@@ -88,20 +89,45 @@ NurbsCurve reparametrize(const NurbsCurve& c, double a, double b) {
 }
 
 void make_compatible(NurbsCurve& a, NurbsCurve& b) {
-  a = reparametrize(a.clamped(), 0.0, 1.0);
-  b = reparametrize(b.clamped(), 0.0, 1.0);
-  if (a.degree() < b.degree()) a = a.elevate_degree(b.degree() - a.degree());
-  if (b.degree() < a.degree()) b = b.elevate_degree(a.degree() - b.degree());
-  auto merge_into = [](NurbsCurve& target, const NurbsCurve& source) {
-    const auto [vals, mults] = unique_knots(source.knots());
-    for (std::size_t i = 0; i < vals.size(); ++i) {
-      const auto have = knot_multiplicity(target.knots(), vals[i]);
-      const auto need = static_cast<std::size_t>(mults[i]);
-      if (need > have) target = target.insert_knot(vals[i], need - have);
+  std::vector<NurbsCurve> v{a, b};
+  make_compatible(v);
+  a = std::move(v[0]);
+  b = std::move(v[1]);
+}
+
+void make_compatible(std::vector<NurbsCurve>& curves) {
+  if (curves.empty()) return;
+  std::size_t p = 0;
+  for (auto& c : curves) {
+    c = reparametrize(c.clamped(), 0.0, 1.0);
+    p = std::max(p, c.degree());
+  }
+  for (auto& c : curves)
+    if (c.degree() < p) c = c.elevate_degree(p - c.degree());
+  // union of all knot values with maximal multiplicity
+  std::vector<double> vals;
+  std::vector<std::size_t> mults;
+  for (const auto& c : curves) {
+    const auto [cv, cm] = unique_knots(c.knots());
+    for (std::size_t i = 0; i < cv.size(); ++i) {
+      std::size_t k = 0;
+      while (k < vals.size() && std::abs(vals[k] - cv[i]) >= tol::kParametric) ++k;
+      if (k == vals.size()) {
+        vals.push_back(cv[i]);
+        mults.push_back(0);
+      }
+      mults[k] = std::max(mults[k], static_cast<std::size_t>(cm[i]));
     }
-  };
-  merge_into(a, b);
-  merge_into(b, a);
+  }
+  for (auto& c : curves) {
+    std::vector<double> X;
+    for (std::size_t k = 0; k < vals.size(); ++k)
+      for (auto have = knot_multiplicity(c.knots(), vals[k]); have < mults[k]; ++have) X.push_back(vals[k]);
+    c = c.refine_knots(X);
+  }
+  // identical knot values (refinement snaps to existing knots, tiny differences may remain)
+  for (auto& c : curves)
+    c = NurbsCurve(c.degree(), curves.front().knots(), c.control_points(), c.weights());
 }
 
 NurbsSurface ruled(const NurbsCurve& c0, const NurbsCurve& c1) {

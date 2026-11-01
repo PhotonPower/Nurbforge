@@ -383,6 +383,20 @@ PYBIND11_MODULE(_core, m) {
         py::arg("surface"), py::arg("side"), py::arg("length"), py::arg("type") = Extension::Natural,
         "Extend a surface across one side; original parameters are kept.");
 
+  // ------------------------------------------------------------------ loft
+  m.def("loft_parameters", &loft_parameters, py::arg("sections"),
+        py::arg("method") = Parametrization::Centripetal);
+  m.def("loft", py::overload_cast<const std::vector<NurbsCurve>&, std::size_t, Parametrization>(&loft),
+        py::arg("sections"), py::arg("degree_v") = 3, py::arg("method") = Parametrization::Centripetal,
+        "Skinned surface through section curves (u along the sections, v across them).");
+  m.def("loft",
+        py::overload_cast<const std::vector<NurbsCurve>&, std::size_t, const std::vector<double>&>(&loft),
+        py::arg("sections"), py::arg("degree_v"), py::arg("v_params"));
+  m.def("make_compatible", [](std::vector<NurbsCurve> curves) {
+        make_compatible(curves);
+        return curves;
+      }, py::arg("curves"), "Common degree, knot vector and domain [0, 1] for all curves.");
+
   // ------------------------------------------------------------------ patterns
   m.def("linear_pattern", &linear_pattern, py::arg("step"), py::arg("count"));
   m.def("grid_pattern", &grid_pattern, py::arg("step_a"), py::arg("count_a"), py::arg("step_b"),

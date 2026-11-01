@@ -335,6 +335,27 @@ def _build_tools() -> list[Tool]:
             return f"stored {name}: closed shell, volume {res.volume(1e-7):.6g}"
         return f"stored {name}: shell with {len(res.free_edges())} free edges"
 
+    @add("export_step", "Write shells (from 'sew' or 'boolean'; surfaces are sewn into a shell "
+         "each) to a STEP file with the native writer. Closed shells become solids.",
+         {"objects": {"type": "array", "items": _NAME, "minItems": 1},
+          "path": {"type": "string", "description": "output file, e.g. part.step"},
+          "unit": {"type": "string", "enum": ["mm", "cm", "m", "inch"]}},
+         ["objects", "path"])
+    def _(ws, objects, path, unit="mm"):
+        shells = []
+        for n in objects:
+            o = ws.get(n)
+            if isinstance(o, nf.NurbsSurface):
+                o = nf.TrimmedSurface(o)
+            if isinstance(o, nf.TrimmedSurface):
+                o = nf.Shell.sew([o])
+            if not isinstance(o, nf.Shell):
+                raise TypeError(f"'{n}' is not a shell or surface")
+            shells.append(o)
+        nf.write_step(path, shells, unit=unit)
+        closed = sum(1 for s in shells if s.is_closed)
+        return f"wrote {path}: {len(shells)} shell(s), {closed} closed"
+
     @add("measure", "Length of a curve or area of a surface.", {"name": _NAME}, ["name"])
     def _(ws, name):
         o = ws.get(name)

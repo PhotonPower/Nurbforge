@@ -206,3 +206,15 @@ def test_boolean_tool():
     call_tool(ws, "sew", {"name": "b", "faces": ["s2"]})
     out = call_tool(ws, "boolean", {"name": "lens", "a": "a", "b": "b", "op": "intersection"})
     assert out.startswith("stored lens: closed shell, volume 1.30")
+
+
+def test_export_step_tool(tmp_path):
+    ws = Workspace()
+    call_tool(ws, "make_rectangle", {"name": "plate", "origin": [0, 0, 0], "edge_u": [1, 0, 0],
+                                     "edge_v": [0, 1, 0]})
+    path = tmp_path / "plate.step"
+    out = call_tool(ws, "export_step", {"objects": ["plate"], "path": str(path), "unit": "m"})
+    assert out == f"wrote {path}: 1 shell(s), 0 closed"
+    text = path.read_text()
+    assert "OPEN_SHELL" in text and "SI_UNIT($,.METRE.)" in text
+    assert call_tool(ws, "export_step", {"objects": ["nope"], "path": str(path)}).startswith("ERROR")

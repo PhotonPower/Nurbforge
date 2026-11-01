@@ -12,6 +12,7 @@
  │  nurbforge._core  (pybind11, python/bindings/module.cpp)     │
  ├──────────────────────────────────────────────────────────────┤
  │  C++ kernel  libnurbforge_core  (namespace nf)               │
+ │   io/        native STEP writer (AP214)                      │
  │   topology/  trimmed surfaces, split, shells (sewing)        │
  │   optics/    conics, aspheres, Zernike, XY polynomials       │
  │   modeling/  construct, loft, sweep, Coons/Gordon, extend,   │

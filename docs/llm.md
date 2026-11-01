@@ -32,7 +32,8 @@ Environment variables: `OLLAMA_HOST`, `NURBFORGE_LLM_MODEL`.
 
 `make_line`, `make_circle`, `make_arc`, `make_rectangle`, `revolve`, `extrude`, `ruled`,
 `translate`, `rotate`, `mirror`, `linear_array`, `polar_array`, `list_objects`, `evaluate`,
-`closest_point`, `measure`, `interpolate_points`, `extend`, `loft`, `sweep`, `coons`, `asphere`, `intersect`, `trim_circle`, `split`, `section`, `sew`, `boolean`.
+`closest_point`, `measure`, `interpolate_points`, `extend`, `loft`, `sweep`, `coons`, `asphere`, `intersect`, `trim_circle`, `split`, `section`, `sew`, `boolean`, `export_step` (native STEP writer; writes
+the file path given by the model).
 Angles are in **degrees** at this level (models handle degrees more reliably).
 
 ## Adding a tool

@@ -42,6 +42,9 @@ Note: OCC's `getMass` is only accurate to ~0.5 % for such faces; Nurbforge's own
 `volume()` are accurate to the requested tolerance (the volume of a fine tetrahedral mesh of the
 re-imported solid agrees).
 
+Without gmsh, `nf.write_step(path, shells)` writes STEP files with the kernel's native writer
+(shared edges kept, units selectable) – see [io.md](io.md).
+
 ## Implementation notes
 
 - Control-point indexing differs: Nurbforge is row-major with v fastest; gmsh expects u fastest.

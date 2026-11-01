@@ -41,4 +41,4 @@
 - ✅ Wheels via cibuildwheel (manylinux_2_28 for AlmaLinux 10 compatibility, win_amd64)
 - ✅ Sphinx site with Breathe (Doxygen) API docs on GitHub Pages
 - Benchmarks ✅ (`benchmarks/`, smoke-tested in CI); OpenMP parallelisation measured, not adopted (see benchmarks page)
-- LLM: geometry verification step ✅ (`inspect` / `check` tools, verification rounds); constraint reasoning
+- LLM: geometry verification step ✅ (`inspect` / `check` tools, verification rounds); constraint reasoning ✅ (`solve`: unknowns from measured targets)

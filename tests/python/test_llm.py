@@ -1,5 +1,8 @@
 """LLM tool loop tested against a scripted fake Ollama client (no server needed)."""
+import math
+
 import nurbforge as nf
+import pytest
 from nurbforge.llm import GeometryAgent, Workspace
 from nurbforge.llm.tools import TOOLS, call_tool
 
@@ -272,3 +275,43 @@ def test_no_verification_without_new_objects():
     agent = GeometryAgent(client=client)
     assert agent.ask("hello") == "Nothing to build."
     assert agent.verification is None
+
+
+def test_expression_evaluator_is_a_whitelist():
+    from nurbforge.llm.constraints import evaluate, substitute
+    assert evaluate("2*r + sqrt(9) - pi", {"r": 1.5}) == 6.0 - math.pi
+    assert abs(evaluate("sin(30)", {}) - 0.5) < 1e-15
+    assert substitute({"p1": [0, 0, "$h"], "r": "${h/2}", "name": "c"}, {"h": 4.0}) == \
+        {"p1": [0, 0, 4.0], "r": 2.0, "name": "c"}
+    for bad in ["__import__('os')", "r.__class__", "[x for x in ()]", "open('f')", "a if b else c"]:
+        with pytest.raises(ValueError):
+            evaluate(bad, {"r": 1.0})
+
+
+def test_solve_tool_finds_radius_and_height():
+    # a cylinder of height 4 whose lateral area is 50: r = 50 / (2 pi 4), h = 4
+    ws = Workspace()
+    recipe = [
+        {"tool": "make_line", "args": {"name": "gen", "p0": ["$r", 0, 0], "p1": ["$r", 0, "$h"]}},
+        {"tool": "revolve", "args": {"name": "cyl", "profile": "gen", "axis_point": [0, 0, 0],
+                                     "axis_dir": [0, 0, 1], "angle_deg": 360}},
+    ]
+    out = call_tool(ws, "solve", {
+        "recipe": recipe,
+        "unknowns": {"r": {"start": 1, "min": 0.01, "max": 10}, "h": {"start": 1, "min": 0.01, "max": 10}},
+        "targets": [{"name": "cyl", "property": "area", "value": 50},
+                    {"name": "cyl", "property": "bbox.max[2]", "value": 4}]})
+    assert out.startswith("solved"), out
+    r = 50 / (2 * math.pi * 4)
+    assert abs(nf.area(ws.get("cyl")) - 50) < 1e-6
+    p = ws.get("cyl")(0.3, 1.0)
+    assert abs(math.hypot(p.x, p.y) - r) < 1e-6 and abs(p.z - 4) < 1e-6
+
+
+def test_solve_tool_reports_infeasible_targets():
+    ws = Workspace()
+    recipe = [{"tool": "make_circle", "args": {"name": "c", "center": [0, 0, 0], "normal": [0, 0, 1],
+                                               "radius": "$r"}}]
+    out = call_tool(ws, "solve", {"recipe": recipe, "unknowns": {"r": {"start": 1, "min": 0.1, "max": 2}},
+                                  "targets": [{"name": "c", "property": "length", "value": 100}]})
+    assert out.startswith("NOT solved") and "c" not in ws.objects

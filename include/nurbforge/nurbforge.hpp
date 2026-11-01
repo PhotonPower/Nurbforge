@@ -30,3 +30,4 @@
 #include "nurbforge/optics/surfaces.hpp"
 #include "nurbforge/topology/trimmed_surface.hpp"
 #include "nurbforge/topology/shell.hpp"
+#include "nurbforge/topology/boolean.hpp"

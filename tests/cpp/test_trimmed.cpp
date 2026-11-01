@@ -113,3 +113,46 @@ TEST_CASE("split a plate by a sphere and a sphere by a plane", "[trim][ssi]") {
   CHECK(rel_close(c[0], 2 * pi * R * (R - h), 1e-5));
   CHECK(rel_close(c[1], 2 * pi * R * (R + h), 1e-5));
 }
+
+TEST_CASE("general split of trimmed faces (planar arrangement)", "[trim][arrangement]") {
+  const auto sq = make_rectangle({0, 0, 0}, {1, 0, 0}, {0, 1, 0});  // x = u, y = v
+  const auto areas = [](const std::vector<TrimmedSurface>& parts) {
+    std::vector<double> a;
+    for (const auto& p : parts) a.push_back(p.area(1e-9));
+    std::sort(a.begin(), a.end());
+    return a;
+  };
+  // crossing chords -> four quarters
+  auto a = areas(split(TrimmedSurface(sq), {make_line({0.5, -0.2, 0}, {0.5, 1.2, 0}), make_line({-0.2, 0.5, 0}, {1.2, 0.5, 0})}));
+  REQUIRE(a.size() == 4);
+  for (double x : a) CHECK(std::abs(x - 0.25) < 1e-9);
+
+  // disk with a chord sticking out of it: two circular segments
+  const TrimmedSurface disk(sq, circle_loop(0.5, 0.5, 0.4));
+  a = areas(split(disk, {make_line({0.7, -1, 0}, {0.7, 2, 0})}));
+  REQUIRE(a.size() == 2);
+  const double r = 0.4, d = 0.2, seg = r * r * std::acos(d / r) - d * std::sqrt(r * r - d * d);
+  CHECK(rel_close(a[0], seg, 1e-6));
+  CHECK(rel_close(a[1], pi * r * r - seg, 1e-6));
+
+  // square with a hole, cut through the hole: two halves with a notch each
+  const auto holed = TrimmedSurface(sq).with_hole(circle_loop(0.5, 0.5, 0.2));
+  a = areas(split(holed, {make_line({0.5, -0.5, 0}, {0.5, 1.5, 0})}));
+  REQUIRE(a.size() == 2);
+  for (double x : a) CHECK(rel_close(x, 0.5 * (1 - pi * 0.04), 1e-6));
+
+  // closed cut curve: inside and outside
+  a = areas(split(TrimmedSurface(sq), {make_circle({0.4, 0.6, 0}, {0, 0, 1}, 0.25)}));
+  REQUIRE(a.size() == 2);
+  CHECK(rel_close(a[0], pi * 0.0625, 1e-6));
+  CHECK(rel_close(a[1], 1 - pi * 0.0625, 1e-6));
+
+  // T-junction: a vertical cut from the top ends on a horizontal cut -> three regions
+  a = areas(split(TrimmedSurface(sq), {make_line({0, 0.4, 0}, {1, 0.4, 0}), make_line({0.3, 1, 0}, {0.3, 0.4, 0})}));
+  REQUIRE(a.size() == 3);
+  CHECK(std::abs(a[0] - 0.18) < 1e-9);
+  CHECK(std::abs(a[1] - 0.4) < 1e-9);
+  CHECK(std::abs(a[2] - 0.42) < 1e-9);
+  // a dangling cut (ends inside) changes nothing
+  CHECK(split(TrimmedSurface(sq), {make_line({0.2, 0.2, 0}, {0.6, 0.5, 0})}).size() == 1);
+}

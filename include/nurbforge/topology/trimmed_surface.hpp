@@ -91,6 +91,15 @@ class TrimmedSurface {
 [[nodiscard]] std::vector<TrimmedSurface> split(const NurbsSurface& surface, const NurbsSurface& cutter,
                                                 const Tolerance& tol = {});
 
+/// Splits a trimmed face along parameter-space curves (general planar arrangement): the cuts
+/// are clipped to the region, all curves are split at their mutual intersections, dangling
+/// pieces are removed, and the faces of the resulting graph are traced (next half-edge clockwise
+/// at every vertex). Counter-clockwise cycles inside the face become regions; clockwise cycles
+/// (component boundaries) become holes of the smallest region containing them. Cuts may end on
+/// the trim loops or on other cuts and may cross each other.
+[[nodiscard]] std::vector<TrimmedSurface> split(const TrimmedSurface& face, const std::vector<NurbsCurve>& cuts,
+                                                const Tolerance& tol = {});
+
 /// Splits `surface` into regions along the given parameter-space curves (same rules as above).
 [[nodiscard]] std::vector<TrimmedSurface> split(const NurbsSurface& surface,
                                                 const std::vector<NurbsCurve>& pcurves,

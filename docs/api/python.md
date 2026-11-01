@@ -32,6 +32,7 @@ import nurbforge as nf
 | Optics | `Asphere(curvature, conic, even, odd)`, `asphere_surface(a, r_max, tolerance)`, `asphere_profile`, `ZernikeSag(base, norm_radius, indexing, coeffs)`, `zernike_surface`, `zernike(j, indexing, rho, theta)`, `zernike_nm`, `XYPolynomialSag(base, norm_radius, terms)`, `xy_polynomial_surface`, `sag_surface(f, x0, x1, y0, y1, degree, tolerance)` – see [optics.md](../optics.md) |
 | Trimming | `TrimmedSurface(surface[, outer, holes])` -> `contains`, `area`, `boundary_curves`, `with_hole`; `TrimLoop(curves)`, `rectangle_loop`, `circle_loop`, `polygon_loop`; `split(surface, cutter)` / `split(surface, pcurves)` |
 | Shells | `Shell.sew(faces, tolerance)` → `faces`, `vertices`, `edges` (`ShellEdge(curve, v0, v1, uses)`), `free_edges()`, `non_manifold_edges()`, `is_closed`, `is_consistently_oriented`, `oriented()`, `area()`, `volume()`; mesh: `add_shell`, `export_step(objects, path)` |
+| Booleans | `boolean(a, b, BooleanOp.Union/Intersection/Difference)`, `point_in_shell(shell, point)`, `split(trimmed_surface, cuts)` |
 | Integration | `integrate(f, a, b, rel_tol, breaks, abs_tol)` |
 | Joining | `join(a, b, tolerance)`, `join_u(a, b, tolerance)`, `join_v(a, b, tolerance)` |
 | Arrays | `linear_pattern`, `grid_pattern`, `polar_pattern`, `apply_pattern` |

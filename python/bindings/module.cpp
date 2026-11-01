@@ -691,6 +691,16 @@ PYBIND11_MODULE(_core, m) {
                (s.is_closed() ? " closed>" : " open>");
       });
 
+  // ------------------------------------------------------------------ Booleans
+  py::enum_<BooleanOp>(m, "BooleanOp")
+      .value("Union", BooleanOp::Union)
+      .value("Intersection", BooleanOp::Intersection)
+      .value("Difference", BooleanOp::Difference);
+  m.def("point_in_shell", &point_in_shell, py::arg("shell"), py::arg("point"), py::arg("tolerance") = 1e-6,
+        "True if the point lies inside the closed shell (ray casting).");
+  m.def("boolean", &boolean, py::arg("a"), py::arg("b"), py::arg("op"), py::arg("tolerance") = 1e-6,
+        "Boolean union / intersection / difference of two closed shells.");
+
   // ------------------------------------------------------------------ patterns
   m.def("linear_pattern", &linear_pattern, py::arg("step"), py::arg("count"));
   m.def("grid_pattern", &grid_pattern, py::arg("step_a"), py::arg("count_a"), py::arg("step_b"),

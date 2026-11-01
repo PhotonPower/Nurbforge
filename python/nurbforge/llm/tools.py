@@ -321,6 +321,20 @@ def _build_tools() -> list[Tool]:
             return f"stored {name}: closed shell, volume {shell.volume(1e-7):.6g}"
         return f"stored {name}: open shell with {len(shell.free_edges())} free edges"
 
+    @add("boolean", "Boolean operation of two closed shells (from 'sew'): union, intersection or "
+         "difference (a minus b). Reports the volume of the result.",
+         {"name": _NAME, "a": _NAME, "b": _NAME,
+          "op": {"type": "string", "enum": ["union", "intersection", "difference"]}},
+         ["name", "a", "b", "op"])
+    def _(ws, name, a, b, op):
+        kind = {"union": nf.BooleanOp.Union, "intersection": nf.BooleanOp.Intersection,
+                "difference": nf.BooleanOp.Difference}[op]
+        res = nf.boolean(ws.get(a), ws.get(b), kind)
+        ws.put(name, res)
+        if res.is_closed:
+            return f"stored {name}: closed shell, volume {res.volume(1e-7):.6g}"
+        return f"stored {name}: shell with {len(res.free_edges())} free edges"
+
     @add("measure", "Length of a curve or area of a surface.", {"name": _NAME}, ["name"])
     def _(ws, name):
         o = ws.get(name)

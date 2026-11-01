@@ -53,12 +53,49 @@ Shell Shell::sew(std::vector<TrimmedSurface> faces, double tolerance) {
     sh.vertices_.push_back(p);
     return sh.vertices_.size() - 1;
   };
+  // all non-degenerate boundary curves in 3D
+  struct Piece {
+    NurbsCurve c;
+    std::size_t f, l, k;
+  };
+  std::vector<Piece> raw;
   for (std::size_t f = 0; f < sh.faces_.size(); ++f) {
     const auto loops = sh.faces_[f].boundary_curves(0.01 * tolerance);
     for (std::size_t l = 0; l < loops.size(); ++l)
-      for (std::size_t k = 0; k < loops[l].size(); ++k) {
-        const NurbsCurve& c = loops[l][k];
-        if (control_diagonal(c) <= tolerance) continue;  // degenerate (pole)
+      for (std::size_t k = 0; k < loops[l].size(); ++k)
+        if (control_diagonal(loops[l][k]) > tolerance) raw.push_back({loops[l][k], f, l, k});
+  }
+  // resolve T-junctions: split every curve at the end points of other curves lying on it (e.g.
+  // a circle split at different points on the two faces sharing it)
+  std::vector<Piece> pieces;
+  for (std::size_t i = 0; i < raw.size(); ++i) {
+    const NurbsCurve& c = raw[i].c;
+    const double a = c.domain_start(), b = c.domain_end();
+    std::vector<double> cuts;
+    for (std::size_t j = 0; j < raw.size(); ++j) {
+      if (j == i) continue;
+      for (const Vec3& q : {raw[j].c.evaluate(raw[j].c.domain_start()), raw[j].c.evaluate(raw[j].c.domain_end())}) {
+        const CurvePoint cp = closest_point(c, q);
+        const double margin = 1e-9 * (b - a);
+        if (cp.distance <= tolerance && cp.u > a + margin && cp.u < b - margin &&
+            distance(cp.point, c.evaluate(a)) > tolerance && distance(cp.point, c.evaluate(b)) > tolerance)
+          cuts.push_back(cp.u);
+      }
+    }
+    std::sort(cuts.begin(), cuts.end());
+    double from = a;
+    for (double t : cuts) {
+      if (t - from <= 1e-9 * (b - a)) continue;
+      pieces.push_back({c.sub_curve(from, t), raw[i].f, raw[i].l, raw[i].k});
+      from = t;
+    }
+    pieces.push_back({from == a ? c : c.sub_curve(from, b), raw[i].f, raw[i].l, raw[i].k});
+  }
+  for (const auto& pc : pieces) {
+    {
+      const NurbsCurve& c = pc.c;
+      const std::size_t f = pc.f, l = pc.l, k = pc.k;
+      {
         bool found = false;
         for (auto& e : sh.edges_)
           if (lies_on(c, e.curve, tolerance) && lies_on(e.curve, c, tolerance)) {
@@ -71,6 +108,7 @@ Shell Shell::sew(std::vector<TrimmedSurface> faces, double tolerance) {
         e.uses.push_back({f, l, k, false});
         sh.edges_.push_back(std::move(e));
       }
+    }
   }
   return sh;
 }

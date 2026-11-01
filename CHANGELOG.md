@@ -43,6 +43,10 @@ versioning: [SemVer](https://semver.org).
   branch and bound over Bézier pieces with safe lower bounds, safeguarded (projected) Newton;
   local variant with start value; Python `closest_point`, `closest_point_local`, `Tolerance`;
   LLM tool `closest_point`.
+- Boolean operations on closed shells (`topology/boolean.hpp`): face/face intersection clipped to
+  both trimmed faces, general face splitting by a planar arrangement in the parameter domain
+  (`split(TrimmedSurface, cuts)`), point-in-solid classification by ray casting; LLM tool
+  `boolean`. Sewing resolves T-junctions.
 - B-rep shells (`topology/shell.hpp`): sewing of trimmed faces along shared edges, free and
   non-manifold edges, watertightness, consistent orientation (`oriented()`), volume by the
   divergence theorem; `TrimmedSurface::integrate`, `flipped`, `is_untrimmed`; STEP export via

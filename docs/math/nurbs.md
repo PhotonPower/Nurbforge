@@ -159,7 +159,7 @@ parameter space of the B-spline surface (`addBSplineSurface(..., wireTags, wire3
 the sewing tolerance (7 samples, closest-point projection), in the same or opposite direction;
 closed curves may start at different points. Degenerate boundary pieces (poles) are not edges;
 the seam of a closed surface becomes an edge used twice by the same face. T-junctions
-(partially overlapping curves) are not split.
+(partially overlapping curves) are resolved by splitting at the other curves' end points.
 
 - `is_closed()`: every edge used exactly twice; `free_edges()`, `non_manifold_edges()`.
 - `is_consistently_oriented()`: both uses of every shared edge run in opposite directions.
@@ -170,6 +170,28 @@ the seam of a closed surface becomes an edge used twice by the same face. T-junc
 
 Trim curves are mapped to 3D piecewise between the knot lines of the surface they cross (the
 rational circle is only C1 there; a single cubic per trim curve would need thousands of points).
+
+## Boolean operations
+
+`boolean(A, B, op)` (`topology/boolean.hpp`) on closed shells:
+
+1. Every pair of faces with overlapping boxes is intersected (surface/surface intersection);
+   each intersection curve is clipped to the parameter intervals on which both p-curves lie in
+   their trimmed faces (3D curve and p-curves share the parameter).
+2. Every face is split along its cuts by a **planar arrangement** in its parameter domain
+   (`split(TrimmedSurface, cuts)`): cuts clipped to the region, all curves split at their mutual
+   intersections, dangling pieces removed, faces traced with "next half-edge clockwise" at every
+   vertex; counter-clockwise cycles inside the face become regions, clockwise cycles become
+   holes of the smallest enclosing region. Cuts may end on loops or other cuts and may cross.
+3. Each piece is classified by `point_in_shell` (ray casting against the trimmed faces, rays
+   that hit a boundary or graze a face are discarded, majority of three valid rays).
+4. Selection – union: A out + B out; intersection: A in + B in; difference: A out + B in
+   (flipped) – and sewing. The pieces keep the orientation of their outward-oriented shells, so
+   inner voids stay inward (no re-orientation of the result).
+
+Sewing splits boundary curves at the end points of other boundary curves lying on them
+(T-junctions), e.g. a hole circle split at different points on the two faces sharing it.
+Not handled: overlapping (coincident) faces and tangential contacts.
 
 ## Fitting
 

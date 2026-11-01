@@ -51,7 +51,9 @@ add_library(nurbforge_core STATIC
   src/fitting/fit.cpp
   src/optics/surfaces.cpp
   src/topology/trimmed_surface.cpp
-  src/topology/shell.cpp)
+  src/topology/shell.cpp
+  src/topology/arrangement.cpp
+  src/topology/boolean.cpp)
 add_library(Nurbforge::core ALIAS nurbforge_core)
 set_target_properties(nurbforge_core PROPERTIES EXPORT_NAME core)
 

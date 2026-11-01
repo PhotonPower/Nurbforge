@@ -157,6 +157,9 @@ std::array<double, N> gauss_newton(std::array<double, N> x, const std::array<dou
   return x;
 }
 
+// Number of grid start points tried by the leaf Gauss-Newton solves.
+constexpr std::size_t kStarts = 4;
+
 // ------------------------------------------------------------------ curve / curve
 
 struct CurveCurveSearch {
@@ -168,14 +171,13 @@ struct CurveCurveSearch {
 
   void leaf(const NurbsCurve& pa, const NurbsCurve& pb) {
     const double a0 = pa.domain_start(), a1 = pa.domain_end(), b0 = pb.domain_start(), b1 = pb.domain_end();
-    std::array<double, 2> x{a0, b0};
-    double best = std::numeric_limits<double>::max();
+    std::vector<std::pair<double, std::array<double, 2>>> starts;
     for (int i = 0; i <= 4; ++i)
       for (int j = 0; j <= 4; ++j) {
         const double s = a0 + (a1 - a0) * i / 4.0, t = b0 + (b1 - b0) * j / 4.0;
-        const double d = distance(a.evaluate(s), b.evaluate(t));
-        if (d < best) { best = d; x = {s, t}; }
+        starts.push_back({distance(a.evaluate(s), b.evaluate(t)), {s, t}});
       }
+    std::sort(starts.begin(), starts.end(), [](const auto& l, const auto& r) { return l.first < r.first; });
     const auto eval = [&](const std::array<double, 2>& p, std::array<Vec3, 2>* J) {
       if (!J) return a.evaluate(p[0]) - b.evaluate(p[1]);
       const auto da = a.derivatives(p[0], 1), db = b.derivatives(p[1], 1);
@@ -183,10 +185,17 @@ struct CurveCurveSearch {
       (*J)[1] = -db[1];
       return da[0] - db[0];
     };
-    x = gauss_newton<2>(x, {a0, b0}, {a1, b1}, eval);
-    const Vec3 pa_ = a.evaluate(x[0]), pb_ = b.evaluate(x[1]);
-    const double d = distance(pa_, pb_);
-    if (d <= tol.length) out.push_back({x[0], x[1], 0.5 * (pa_ + pb_), d});
+    // Gauss-Newton from the best grid points: from a single start the box-constrained iteration
+    // can stall on a bound when the pieces are large (e.g. separated cones at the first level)
+    for (std::size_t k = 0; k < std::min<std::size_t>(kStarts, starts.size()); ++k) {
+      const auto x = gauss_newton<2>(starts[k].second, {a0, b0}, {a1, b1}, eval);
+      const Vec3 pa_ = a.evaluate(x[0]), pb_ = b.evaluate(x[1]);
+      const double d = distance(pa_, pb_);
+      if (d <= tol.length) {
+        out.push_back({x[0], x[1], 0.5 * (pa_ + pb_), d});
+        return;
+      }
+    }
   }
 
   // Overlap: if the piece `p` lies on the whole curve `q` (5 samples within tolerance, local
@@ -250,18 +259,17 @@ struct CurveSurfaceSearch {
   void leaf(const NurbsCurve& pc, const NurbsSurface& ps) {
     const double t0 = pc.domain_start(), t1 = pc.domain_end();
     const auto ur = ps.domain_u(), vr = ps.domain_v();
-    std::array<double, 3> x{t0, ur[0], vr[0]};
-    double best = std::numeric_limits<double>::max();
+    std::vector<std::pair<double, std::array<double, 3>>> starts;
     for (int i = 0; i <= 4; ++i) {
       const double t = t0 + (t1 - t0) * i / 4.0;
       const Vec3 q = c.evaluate(t);
       for (int j = 0; j <= 4; ++j)
         for (int k = 0; k <= 4; ++k) {
           const double u = ur[0] + (ur[1] - ur[0]) * j / 4.0, v = vr[0] + (vr[1] - vr[0]) * k / 4.0;
-          const double d = distance(q, s.evaluate(u, v));
-          if (d < best) { best = d; x = {t, u, v}; }
+          starts.push_back({distance(q, s.evaluate(u, v)), {t, u, v}});
         }
     }
+    std::sort(starts.begin(), starts.end(), [](const auto& l, const auto& r) { return l.first < r.first; });
     const auto eval = [&](const std::array<double, 3>& p, std::array<Vec3, 3>* J) {
       if (!J) return c.evaluate(p[0]) - s.evaluate(p[1], p[2]);
       const auto dc = c.derivatives(p[0], 1);
@@ -271,10 +279,15 @@ struct CurveSurfaceSearch {
       (*J)[2] = -ds[2];
       return dc[0] - ds[0];
     };
-    x = gauss_newton<3>(x, {t0, ur[0], vr[0]}, {t1, ur[1], vr[1]}, eval);
-    const Vec3 pc_ = c.evaluate(x[0]), ps_ = s.evaluate(x[1], x[2]);
-    const double d = distance(pc_, ps_);
-    if (d <= tol.length) out.push_back({x[0], x[1], x[2], 0.5 * (pc_ + ps_), d});
+    for (std::size_t k = 0; k < std::min<std::size_t>(kStarts, starts.size()); ++k) {
+      const auto x = gauss_newton<3>(starts[k].second, {t0, ur[0], vr[0]}, {t1, ur[1], vr[1]}, eval);
+      const Vec3 pc_ = c.evaluate(x[0]), ps_ = s.evaluate(x[1], x[2]);
+      const double d = distance(pc_, ps_);
+      if (d <= tol.length) {
+        out.push_back({x[0], x[1], x[2], 0.5 * (pc_ + ps_), d});
+        return;
+      }
+    }
   }
 
   // Curve piece lying in the surface (5 samples within tolerance, local projections from the

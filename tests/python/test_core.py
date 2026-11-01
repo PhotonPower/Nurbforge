@@ -358,3 +358,16 @@ def test_planar_sections():
     assert len(slices) == 4
     hits = nf.intersect(nf.make_line((0, 0, -3), (0, 0, 3)), nf.Plane((0, 0, 0.5), (0, 0, 1)))
     assert len(hits) == 1 and abs(hits[0].point.z - 0.5) < 1e-12
+
+
+def test_shell():
+    faces = [nf.TrimmedSurface(nf.make_rectangle(o, a, b)) for o, a, b in [
+        ((0, 0, 0), (1, 0, 0), (0, 1, 0)), ((0, 0, 0), (1, 0, 0), (0, 0, 1)),
+        ((0, 1, 0), (0, 0, 1), (1, 0, 0)), ((0, 0, 0), (0, 1, 0), (0, 0, 1)),
+        ((1, 0, 0), (0, 0, 1), (0, 1, 0)), ((0, 0, 1), (0, 1, 0), (1, 0, 0))]]
+    cube = nf.Shell.sew(faces).oriented()
+    assert cube.is_closed and cube.is_consistently_oriented
+    assert len(cube.edges) == 12 and len(cube.vertices) == 8
+    assert abs(cube.volume() - 1.0) < 1e-10
+    open_box = nf.Shell.sew(faces[:5])
+    assert len(open_box.free_edges()) == 4

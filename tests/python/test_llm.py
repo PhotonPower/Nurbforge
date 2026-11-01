@@ -147,3 +147,15 @@ def test_section_tool():
     call_tool(ws, "extrude", {"name": "cyl", "profile": "c", "direction": [0, 0, 2]})
     out = call_tool(ws, "section", {"name": "cut", "surface": "cyl", "point": [0, 0, 1], "normal": [0, 0, 1]})
     assert "cut_1" in out
+
+
+def test_sew_tool():
+    ws = Workspace()
+    corners = [((0, 0, 0), (1, 0, 0), (0, 1, 0)), ((0, 0, 0), (1, 0, 0), (0, 0, 1)),
+               ((0, 1, 0), (0, 0, 1), (1, 0, 0)), ((0, 0, 0), (0, 1, 0), (0, 0, 1)),
+               ((1, 0, 0), (0, 0, 1), (0, 1, 0)), ((0, 0, 1), (0, 1, 0), (1, 0, 0))]
+    for i, (o, a, b) in enumerate(corners):
+        call_tool(ws, "make_rectangle", {"name": f"f{i}", "origin": list(o), "edge_u": list(a),
+                                         "edge_v": list(b)})
+    out = call_tool(ws, "sew", {"name": "cube", "faces": [f"f{i}" for i in range(6)]})
+    assert "closed shell, volume 1" in out

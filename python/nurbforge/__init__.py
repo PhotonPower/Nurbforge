@@ -19,6 +19,7 @@ from ._core import (  # noqa: F401
     NurbsSurface,
     Parametrization,
     Plane,
+    Shell,
     SurfaceCurvature,
     SurfaceIntersection,
     SurfaceIntersectionOptions,

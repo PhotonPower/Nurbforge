@@ -577,6 +577,7 @@ PYBIND11_MODULE(_core, m) {
       .def_property_readonly("surface", &TrimmedSurface::surface)
       .def_property_readonly("outer", &TrimmedSurface::outer)
       .def_property_readonly("holes", &TrimmedSurface::holes)
+      .def_property_readonly("is_untrimmed", &TrimmedSurface::is_untrimmed)
       .def("contains", &TrimmedSurface::contains, py::arg("u"), py::arg("v"))
       .def("area", &TrimmedSurface::area, py::arg("rel_tol") = 1e-9)
       .def("boundary_curves", &TrimmedSurface::boundary_curves, py::arg("tolerance") = 1e-7)
@@ -594,6 +595,34 @@ PYBIND11_MODULE(_core, m) {
   m.def("integrate", &integrate, py::arg("f"), py::arg("a"), py::arg("b"),
         py::arg("rel_tol") = kIntegrationRelTol, py::arg("breaks") = std::vector<double>{},
         py::arg("abs_tol") = 0.0, "Globally adaptive Gauss-Kronrod integral of f over [a, b].");
+
+  // ------------------------------------------------------------------ B-rep shells
+  py::class_<Coedge>(m, "Coedge")
+      .def_readonly("face", &Coedge::face)
+      .def_readonly("loop", &Coedge::loop)
+      .def_readonly("index", &Coedge::index)
+      .def_readonly("reversed", &Coedge::reversed);
+  py::class_<ShellEdge>(m, "ShellEdge")
+      .def_readonly("curve", &ShellEdge::curve)
+      .def_readonly("v0", &ShellEdge::v0)
+      .def_readonly("v1", &ShellEdge::v1)
+      .def_readonly("uses", &ShellEdge::uses);
+  py::class_<Shell>(m, "Shell", "Trimmed faces sewn along shared edges.")
+      .def_static("sew", &Shell::sew, py::arg("faces"), py::arg("tolerance") = 1e-6)
+      .def_property_readonly("faces", &Shell::faces)
+      .def_property_readonly("vertices", &Shell::vertices)
+      .def_property_readonly("edges", &Shell::edges)
+      .def("free_edges", &Shell::free_edges)
+      .def("non_manifold_edges", &Shell::non_manifold_edges)
+      .def_property_readonly("is_closed", &Shell::is_closed)
+      .def_property_readonly("is_consistently_oriented", &Shell::is_consistently_oriented)
+      .def("oriented", &Shell::oriented)
+      .def("area", &Shell::area, py::arg("rel_tol") = 1e-8)
+      .def("volume", &Shell::volume, py::arg("rel_tol") = 1e-8)
+      .def("__repr__", [](const Shell& s) {
+        return "<Shell faces=" + std::to_string(s.faces().size()) + " edges=" + std::to_string(s.edges().size()) +
+               (s.is_closed() ? " closed>" : " open>");
+      });
 
   // ------------------------------------------------------------------ patterns
   m.def("linear_pattern", &linear_pattern, py::arg("step"), py::arg("count"));

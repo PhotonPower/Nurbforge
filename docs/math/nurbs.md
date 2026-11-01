@@ -152,6 +152,25 @@ clockwise. Helpers: `rectangle_loop`, `circle_loop` (exact), `polygon_loop`.
 gmsh receives trimmed surfaces exactly: the loops are passed as B-spline wires in the
 parameter space of the B-spline surface (`addBSplineSurface(..., wireTags, wire3D=False)`).
 
+## Shells (B-rep)
+
+`Shell::sew(faces, tol)` (`topology/shell.hpp`) maps the boundary loops of the trimmed faces to
+3D and matches them: two boundary curves form the same edge if each lies on the other within
+the sewing tolerance (7 samples, closest-point projection), in the same or opposite direction;
+closed curves may start at different points. Degenerate boundary pieces (poles) are not edges;
+the seam of a closed surface becomes an edge used twice by the same face. T-junctions
+(partially overlapping curves) are not split.
+
+- `is_closed()`: every edge used exactly twice; `free_edges()`, `non_manifold_edges()`.
+- `is_consistently_oriented()`: both uses of every shared edge run in opposite directions.
+- `oriented()`: flips faces by breadth-first propagation over shared edges (throws for
+  non-orientable configurations); closed shells end up with outward normals.
+- `volume()`: divergence theorem, V = 1/3 Σ ∬ S·(S_u × S_v) du dv over the trimmed faces, with
+  the same Green's-theorem integration as the trimmed area.
+
+Trim curves are mapped to 3D piecewise between the knot lines of the surface they cross (the
+rational circle is only C1 there; a single cubic per trim curve would need thousands of points).
+
 ## Fitting
 
 | Algorithm | Function |

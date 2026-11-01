@@ -13,7 +13,7 @@ from code (C++ or Python), from a local LLM (Ollama), and meshed with [gmsh](htt
 
 > **Status: 0.5.0 – early, API not yet stable.** NURBS core and toolbox (refinement, fitting, loft,
 > sweep, Coons/Gordon, offsets, fillets), freeform optical surfaces, intersections, trimming,
-> B-rep shells and Boolean operations, gmsh transfer, STEP export and the Ollama tool interface
+> B-rep shells and Boolean operations, gmsh transfer, STEP export and import and the Ollama tool interface
 > work and are tested. Next steps are on the [roadmap](docs/roadmap.md).
 
 ## Features
@@ -28,7 +28,7 @@ from code (C++ or Python), from a local LLM (Ollama), and meshed with [gmsh](htt
 | Transforms | Translate, rotate, scale, mirror, composition | – |
 | Arrays | Linear, grid, polar | Path arrays |
 | Analysis | Point, tangent, normal (incl. poles), partial derivatives of any order, global closest point / point inversion, curve–curve, curve–surface and surface–surface intersection, planar sections, curvature/torsion, Gaussian/mean/principal curvatures, arc length, area, sampling | Booleans |
-| Topology | Trimmed surfaces (parameter-space loops, exact circles), split along surface intersections, area by Green's theorem, exact gmsh export; B-rep shells (sewing, watertightness, orientation, volume), STEP export (native AP214 writer, or via gmsh/OCC), Boolean union/intersection/difference (incl. coincident faces), point-in-solid | Multi-shell bodies |
+| Topology | Trimmed surfaces (parameter-space loops, exact circles), split along surface intersections, area by Green's theorem, exact gmsh export; B-rep shells (sewing, watertightness, orientation, volume), STEP export (native AP214 writer, or via gmsh/OCC) and import (native reader: B-spline and analytic faces), Boolean union/intersection/difference (incl. coincident faces), point-in-solid | Multi-shell bodies |
 | Meshing | Exact NURBS transfer to gmsh (OCC), 2D meshing, high order, `.msh/.vtk/.stl/.step` | Physical groups, size fields, BEM-ready closed shells |
 | LLM | Ollama tool-calling agent with whitelisted geometry tools, CLI | Constraint-aware planning, verification loop |
 

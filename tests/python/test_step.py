@@ -101,3 +101,115 @@ def test_step_roundtrip_units(tmp_path):
         assert abs(gmsh.model.occ.getMass(3, ents[0][1]) - 8e9) < 1e-3
     finally:
         gmsh.finalize()
+
+
+# ---------------------------------------------------------------------------- reading
+
+
+def _vol(shell):
+    return abs(shell.volume(1e-7) if shell.is_consistently_oriented else shell.oriented().volume(1e-7))
+
+
+@pytest.mark.parametrize("name", ["cube", "sphere", "cylinder", "void", "open"])
+def test_read_step_roundtrip(tmp_path, name):
+    def open_box():
+        return nf.Shell.sew(list(box().faces)[:5])
+
+    shell = {"cube": box, "sphere": lambda: sphere((0.5, 0, 1), 2.0), "cylinder": lambda: cylinder(0.5, 0, 2),
+             "void": lambda: nf.boolean(box(), sphere((0.1, -0.1, 0.2), 0.5), nf.BooleanOp.Difference),
+             "open": open_box}[name]()
+    path = tmp_path / f"{name}.step"
+    nf.write_step(path, shell)
+    shells = nf.read_step(path)
+    assert len(shells) == 1
+    s = shells[0]
+    assert len(s.faces) == len(shell.faces)
+    assert s.is_closed == shell.is_closed
+    assert s.area(1e-7) == pytest.approx(shell.area(1e-7), rel=1e-6)
+    if shell.is_closed:
+        assert s.volume(1e-7) == pytest.approx(_vol(shell), rel=1e-6)
+
+
+def test_from_step_units_and_errors():
+    text = nf.to_step(box(), unit="m")
+    (s,) = nf.from_step(text)
+    assert s.volume(1e-7) == pytest.approx(8e9, rel=1e-9)
+    (s,) = nf.from_step(text, unit="m")
+    assert s.volume(1e-7) == pytest.approx(8.0, rel=1e-9)
+    assert nf.from_step(nf.to_step(box(), unit="inch"), unit="inch")[0].volume(1e-7) == pytest.approx(8.0)
+    with pytest.raises(ValueError):
+        nf.from_step(text, unit="furlong")
+    with pytest.raises(nf.GeometryError):
+        nf.from_step("ISO-10303-21;\nDATA;\n#1=FOO(;\n")
+    bad = text.replace("B_SPLINE_SURFACE_WITH_KNOTS(''", "OFFSET_SURFACE(''", 1)
+    with pytest.raises(nf.GeometryError, match="OFFSET_SURFACE"):
+        nf.from_step(bad)
+    with pytest.warns(UserWarning, match="OFFSET_SURFACE"):
+        (s,) = nf.from_step(bad, skip_unsupported=True)
+    assert len(s.faces) == 5 and not s.is_closed
+
+
+def _occ_shape(name):
+    """Builds a shape with gmsh's OpenCASCADE kernel; returns its exact volume (None: unknown)."""
+    occ, pi = gmsh.model.occ, math.pi
+    if name == "box":
+        occ.addBox(0, 0, 0, 10, 20, 30)
+        return 6000.0
+    if name == "cylinder":
+        occ.addCylinder(0, 0, 0, 0, 0, 20, 5)
+        return pi * 25 * 20
+    if name == "sphere":
+        occ.addSphere(1, 2, 3, 4)
+        return 4 / 3 * pi * 64
+    if name == "cone":  # frustum
+        occ.addCone(0, 0, 0, 0, 0, 10, 10, 3)
+        return pi * 10 / 3 * (100 + 30 + 9)
+    if name == "torus":
+        occ.addTorus(0, 0, 0, 20, 5)
+        return 2 * pi * pi * 20 * 25
+    if name == "drilled":  # partial cylindrical faces, holes in planar faces
+        occ.cut([(3, occ.addBox(0, 0, 0, 10, 10, 10))], [(3, occ.addCylinder(5, 5, -1, 0, 0, 12, 3))])
+        return 1000 - pi * 9 * 10
+    if name == "fillet":  # rounded box: partial cylinders, spheres
+        b = occ.addBox(0, 0, 0, 10, 10, 10)
+        occ.synchronize()
+        occ.fillet([b], [t for _, t in gmsh.model.getEntities(1)], [2.0])
+        return None
+    if name == "hyperbola":  # cone cut parallel to its axis: HYPERBOLA edges
+        occ.cut([(3, occ.addCone(0, 0, 0, 0, 0, 6, 3, 1))], [(3, occ.addBox(-1, -1, 2, 5, 5, 2))])
+        return None
+    if name == "meridian":  # sphere cut through its poles: boundary through the poles
+        occ.cut([(3, occ.addSphere(0, 0, 0, 3))], [(3, occ.addBox(-4, -4, -4, 4, 8, 8))])
+        return 2 / 3 * pi * 27
+    if name == "void":  # BREP_WITH_VOIDS
+        occ.cut([(3, occ.addBox(0, 0, 0, 10, 10, 10))], [(3, occ.addSphere(5, 5, 5, 2))])
+        return 1000 - 4 / 3 * pi * 8
+    raise ValueError(name)
+
+
+@needs_gmsh
+@pytest.mark.parametrize("name", ["box", "cylinder", "sphere", "cone", "torus", "drilled", "fillet", "hyperbola",
+                                  "meridian", "void"])
+def test_read_step_occ(tmp_path, name):
+    """Files written by gmsh / OpenCASCADE (analytic surfaces, SURFACE_CURVE / SEAM_CURVE edges)."""
+    path = str(tmp_path / f"{name}.step")
+    gmsh.initialize()
+    try:
+        gmsh.option.setNumber("General.Terminal", 0)
+        gmsh.model.add(name)
+        exact = _occ_shape(name)
+        gmsh.model.occ.synchronize()
+        vols = gmsh.model.getEntities(3)
+        occ_volume = sum(gmsh.model.occ.getMass(3, t) for _, t in vols)
+        gmsh.write(path)
+    except OSError as exc:  # pragma: no cover - missing runtime libraries
+        pytest.skip(f"gmsh runtime not available: {exc}")
+    finally:
+        gmsh.finalize()
+    shells = nf.read_step(path)
+    assert len(shells) == len(vols)
+    for s in shells:
+        assert s.is_closed and s.is_consistently_oriented
+    vol = sum(s.volume(1e-7) for s in shells)
+    # OCC integrates the analytic faces of these models accurately
+    assert vol == pytest.approx(exact if exact is not None else occ_volume, rel=1e-6)

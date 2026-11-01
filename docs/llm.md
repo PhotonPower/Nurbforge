@@ -91,7 +91,8 @@ recipe executed` (exact: r = 50 / (8π) = 1.9894368).
 `make_line`, `make_circle`, `make_arc`, `make_rectangle`, `revolve`, `extrude`, `ruled`,
 `translate`, `rotate`, `mirror`, `linear_array`, `polar_array`, `list_objects`, `evaluate`,
 `closest_point`, `measure`, `interpolate_points`, `extend`, `loft`, `sweep`, `coons`, `asphere`, `intersect`, `trim_circle`, `split`, `section`, `sew`, `boolean`, `inspect`, `check`, `solve`,
-`export_step` (native STEP writer; writes the file path given by the model).
+`export_step` (native STEP writer; writes the file path given by the model),
+`import_step` (native STEP reader; stores the shells as `name`, `name_1`, ...).
 Angles are in **degrees** at this level (models handle degrees more reliably).
 
 ## Adding a tool

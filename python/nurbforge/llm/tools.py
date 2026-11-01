@@ -357,6 +357,26 @@ def _build_tools() -> list[Tool]:
         closed = sum(1 for s in shells if s.is_closed)
         return f"wrote {path}: {len(shells)} shell(s), {closed} closed"
 
+    @add("import_step", "Read the solids and surface models of a STEP file with the native "
+         "reader. The shells are stored as name, name_1, name_2, ... (one per solid / shell).",
+         {"name": _NAME,
+          "path": {"type": "string", "description": "input file, e.g. part.step"},
+          "unit": {"type": "string", "enum": ["mm", "cm", "m", "inch"],
+                   "description": "unit to convert to (default mm)"}},
+         ["name", "path"])
+    def _(ws, name, path, unit="mm"):
+        shells = nf.read_step(path, unit=unit)
+        if not shells:
+            return f"no solids or surface models in {path}"
+        out = []
+        for i, s in enumerate(shells):
+            key = name if i == 0 else f"{name}_{i}"
+            ws.put(key, s)
+            desc = (f"closed, volume {s.volume(1e-7):.6g}" if s.is_closed
+                    else f"open, {len(s.free_edges())} free edges")
+            out.append(f"{key}: {len(s.faces)} faces, {desc}")
+        return f"read {path}: " + "; ".join(out)
+
     @add("solve", "Find unknown dimensions from measured targets. 'recipe' is a list of tool "
          "calls {tool, args} whose numeric arguments may be \"$name\" or \"${expression}\" "
          "(+ - * / **, pi, sqrt, sin/cos/tan in degrees); 'unknowns' maps each name to "

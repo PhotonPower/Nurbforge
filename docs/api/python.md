@@ -34,6 +34,7 @@ import nurbforge as nf
 | Shells | `Shell.sew(faces, tolerance)` → `faces`, `vertices`, `edges` (`ShellEdge(curve, v0, v1, uses)`), `free_edges()`, `non_manifold_edges()`, `is_closed`, `is_consistently_oriented`, `oriented()`, `area()`, `volume()`; mesh: `add_shell`, `export_step(objects, path)` |
 | Booleans | `boolean(a, b, BooleanOp.Union/Intersection/Difference)`, `point_in_shell(shell, point)`, `split(trimmed_surface, cuts)` |
 | STEP export | `write_step(path, shell_or_shells, unit="mm", name="nurbforge", author="", organization="", timestamp="", uncertainty=1e-6)` (native AP214 writer: closed shells → solids, open shells → surface models; `unit` in `"mm"`, `"cm"`, `"m"`, `"inch"`), `to_step(shell_or_shells, ...)` → file contents as `str` – see [io.md](../io.md) |
+| STEP import | `read_step(path, *, unit="mm", tolerance=1e-6, skip_unsupported=False)` → `list[Shell]` (native reader: one shell per solid / surface-model shell, converted to `unit`; analytic faces become exact NURBS; unsupported entities raise `GeometryError`, or are skipped with a `UserWarning`), `from_step(text, ...)` for file contents – see [io.md](../io.md#reading-step) |
 | Integration | `integrate(f, a, b, rel_tol, breaks, abs_tol)` |
 | Joining | `join(a, b, tolerance)`, `join_u(a, b, tolerance)`, `join_v(a, b, tolerance)` |
 | Arrays | `linear_pattern`, `grid_pattern`, `polar_pattern`, `apply_pattern` |

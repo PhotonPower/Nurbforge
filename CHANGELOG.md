@@ -17,6 +17,20 @@ versioning: [SemVer](https://semver.org).
   predicted parameter change.
 
 ### Added
+- Native STEP reader: `read_step(path)` / `from_step(text)` (C++ `io/step.hpp`, Python
+  `nf.read_step(path, unit=...)`, LLM tool `import_step`) return one `Shell` per
+  `MANIFOLD_SOLID_BREP` / `BREP_WITH_VOIDS` / surface-model shell. Part 21 parser (complex
+  instances, typed parameters, comments); B-spline curves and surfaces (also rational, Bézier,
+  (quasi-)uniform); `PLANE`, `CYLINDRICAL_SURFACE`, `CONICAL_SURFACE`, `SPHERICAL_SURFACE`,
+  `TOROIDAL_SURFACE` as exact NURBS patches covering the face; `LINE`, `CIRCLE`, `ELLIPSE`,
+  `HYPERBOLA`, `PARABOLA`, `POLYLINE` edges (also via `SURFACE_CURVE` / `SEAM_CURVE` /
+  `TRIMMED_CURVE`). Trim loops are rebuilt in each face's parameter space (exact for planes,
+  otherwise projection + interpolation verified to tolerance / 10, with seams, poles and loops
+  around closed surfaces). Length units (SI prefixes, inch) are converted to the requested unit.
+  Round trips of the writer's output reproduce volumes to < 1e-6; OCC-written boxes, cylinders,
+  cones, spheres, tori, drilled and filleted boxes match the exact volumes.
+- `Shell::sew` rejects curve pairs by control-point bounding boxes before projecting (sewing the
+  26 faces of a filleted box: 7.7 s → 0.4 s).
 - Boolean stress test `nf_stress` (seven surface families, volume-identity oracle; ctest
   `stress_smoke`).
 - Surface/surface intersection: the boundary seeds of the leaf patch pairs (90 % of the time)

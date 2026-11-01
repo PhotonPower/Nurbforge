@@ -5,6 +5,11 @@ versioning: [SemVer](https://semver.org).
 
 ## [Unreleased]
 ### Fixed (found by the new Boolean stress test, `benchmarks/stress.cpp`)
+- `split` (face arrangement) dropped regions thinner than 1e-4 of the parameter domain (its
+  region probe was nudged by a fixed 1e-4): a box face overlapping a cylinder by 1e-5 gave open
+  Boolean results. The probe is now the midpoint of an inward ray to the first crossing of the
+  cycle. Touching runs of intersection curves along a face boundary are recognised within the
+  tolerance instead of 10 tolerances (a 1e-5 circle segment was taken for a touching run).
 - `TrimmedSurface::contains` decided near curved trim loops by the loop's polygon (a trim circle
   deviates from its 64-gon by 6e-4): intersection curves ending on a trim circle were clipped
   short, their cuts did not reach the loop and the face was not split (e.g. a box cutting a
@@ -25,6 +30,9 @@ versioning: [SemVer](https://semver.org).
   contact between curved surfaces) and joins curves that touch a domain edge; the Boolean
   classifies touching faces at an interior point clear of the contact and ignores intersection
   curves that only touch a face boundary.
+- Booleans: overlaps thinner than the tolerance count as contacts (the face pair is not cut when
+  its intersection curves bound a lens thinner than the tolerance), e.g. two spheres
+  overlapping by 1e-7 give two touching lumps and an empty intersection.
 - Native STEP reader: `read_step(path)` / `from_step(text)` (C++ `io/step.hpp`, Python
   `nf.read_step(path, unit=...)`, LLM tool `import_step`) return one `Shell` per
   `MANIFOLD_SOLID_BREP` / `BREP_WITH_VOIDS` / surface-model shell. Part 21 parser (complex

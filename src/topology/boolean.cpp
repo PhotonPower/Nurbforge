@@ -99,7 +99,7 @@ double distance_to_loops(const TrimmedSurface& f, double u, double v) {
 // Parameter intervals of an intersection curve on which both p-curves lie inside their faces.
 // Where the curve touches a face boundary tangentially (e.g. a circle touching a box edge), it
 // runs within the fit accuracy of the boundary over a short stretch and the in/out test flips
-// arbitrarily there: short runs that stay within 10 tolerances of either face's boundary are
+// arbitrarily there: short runs that stay within the tolerance of either face's boundary are
 // taken as touching – inside runs are dropped, gaps between inside runs are closed.
 std::vector<std::pair<double, double>> shared_intervals(const IntersectionCurve& c, const TrimmedSurface& fa,
                                                         const TrimmedSurface& fb, double tolerance) {
@@ -134,7 +134,7 @@ std::vector<std::pair<double, double>> shared_intervals(const IntersectionCurve&
   const double tiny = 1e-9 * (t1 - t0);
   out.erase(std::remove_if(out.begin(), out.end(), [&](const auto& iv) { return iv.second - iv.first <= tiny; }),
             out.end());
-  // touching runs (short, and within 10 tolerances of a face boundary at their samples)
+  // touching runs (short, and within the tolerance of a face boundary at their samples)
   std::vector<NurbsCurve> bounds;
   const auto touching = [&](double lo, double hi) {
     if (hi - lo > 0.05 * (t1 - t0)) return false;
@@ -146,7 +146,7 @@ std::vector<std::pair<double, double>> shared_intervals(const IntersectionCurve&
       const Vec3 P = c.curve.evaluate(lo + s * (hi - lo));
       double d = 1e300;
       for (const auto& b : bounds) d = std::min(d, closest_point(b, P).distance);
-      if (d > 10.0 * tolerance) return false;
+      if (d > tolerance) return false;
     }
     return true;
   };
@@ -312,6 +312,30 @@ std::vector<NurbsCurve> prune_cuts(const TrimmedSurface& face, std::vector<Nurbs
 // Position of a face piece relative to the other shell.
 enum class Where { Out, In, OnSame, OnOpposite };
 
+// Intersection curves of two faces that only bound an overlap thinner than the tolerance (two
+// spheres overlapping by 1e-7: a small loop along which the normals are nearly parallel). The
+// lens between the surfaces is at most about extent * angle / 4 thick (extent of the curves,
+// largest angle between the normals on them); such an overlap is treated as a contact – cutting
+// it would leave slivers that cannot be classified.
+bool thin_overlap(const SurfaceIntersection& res, const NurbsSurface& a, const NurbsSurface& b, double tolerance) {
+  if (res.curves.empty()) return false;
+  Box3 box;
+  double angle = 0.0;
+  for (const auto& c : res.curves)
+    for (const auto& p : c.points) {
+      box.add(p.point);
+      Vec3 na, nb;
+      try {
+        na = a.normal(p.u1, p.v1);
+        nb = b.normal(p.u2, p.v2);
+      } catch (const GeometryError&) {
+        return false;
+      }
+      angle = std::max(angle, std::asin(std::min(1.0, norm(cross(na, nb)))));
+    }
+  return 0.25 * distance(box.lo, box.hi) * angle <= tolerance;
+}
+
 }  // namespace
 
 bool point_in_shell(const Shell& shell, const Vec3& p, double tolerance) {
@@ -378,10 +402,12 @@ Shell boolean(const Shell& a_in, const Shell& b_in, BooleanOp op, double toleran
         continue;
       }
       const auto res = intersect(FA[i].surface(), FB[j].surface(), opt);
-      if (!res.points.empty()) {  // tangential contact (not cut)
+      const bool thin = thin_overlap(res, FA[i].surface(), FB[j].surface(), tolerance);
+      if (!res.points.empty() || thin) {  // tangential contact (not cut)
         touching_a[i].push_back(j);
         touching_b[j].push_back(i);
       }
+      if (thin) continue;  // an overlap thinner than the tolerance counts as a contact
       for (const auto& c : res.curves)
         for (const auto& [t0, t1] : shared_intervals(c, FA[i], FB[j], tolerance)) {
           cuts_a[i].push_back(c.pcurve1.sub_curve(t0, t1));

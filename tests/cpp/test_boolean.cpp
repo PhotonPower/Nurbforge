@@ -328,3 +328,30 @@ TEST_CASE("Booleans: cylinders touching along a line", "[boolean][tangent]") {
   check_contact(cylinder_shell(0.7, 0.0, 2.0),
                 offset_cylinder({1.2 * std::cos(0.4), 1.2 * std::sin(0.4), 0.5}, 0.5, 2.0), a + b, 0.0, a);
 }
+
+TEST_CASE("Booleans: overlaps thinner than the tolerance count as contacts", "[boolean][tangent]") {
+  // a lens of 1e-7 cannot be classified reliably; it is treated like a touching point / line
+  const double cyl = pi * 0.49 * 2.0;
+  check_contact(sphere_shell({0, 0, 0}, 1.0), sphere_shell({1.5 - 1e-7, 0, 0}, 0.5), unit_ball * 1.125, 0.0, unit_ball);
+  check_contact(sphere_shell({0, 0, 0}, 1.0), sphere_shell({0.6 + 1e-7, 0, 0}, 0.4), unit_ball, unit_ball * 0.064,
+                unit_ball * (1 - 0.064));
+  check_contact(cylinder_shell(0.7, 0.0, 2.0), box_shell({0.7 - 1e-7, -1, 0.5}, {1.5, 1, 1.5}), cyl + 1.6, 0.0, cyl);
+}
+
+TEST_CASE("Booleans: thin overlap above the tolerance", "[boolean][tangent]") {
+  // a box face 1e-5 inside a cylinder: the cut regions of the box lids are circle segments
+  // 7.5e-3 wide and 1e-5 high (the arrangement's region probe used a fixed nudge of 1e-4)
+  const double h = 1e-5, r = 0.7, x0 = r - h;
+  const double seg = r * r * std::acos((r - h) / r) - (r - h) * std::sqrt(2 * r * h - h * h);  // segment area
+  const double cyl = pi * r * r * 2.0, box = (1.5 - x0) * 2.0;
+  const Shell a = cylinder_shell(r, 0.0, 2.0), b = box_shell({x0, -1, 0.5}, {1.5, 1, 1.5});
+  const Shell u = boolean(a, b, BooleanOp::Union), i = boolean(a, b, BooleanOp::Intersection),
+              d = boolean(a, b, BooleanOp::Difference);
+  for (const Shell* x : {&u, &i, &d}) {
+    REQUIRE(x->is_closed());
+    CHECK(x->is_consistently_oriented());
+  }
+  CHECK(std::abs(i.volume(1e-7) - seg) < 1e-10);
+  CHECK(std::abs(u.volume(1e-7) - (cyl + box - seg)) < 1e-9);
+  CHECK(std::abs(d.volume(1e-7) - (cyl - seg)) < 1e-9);
+}

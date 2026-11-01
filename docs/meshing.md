@@ -17,6 +17,19 @@ with GmshSession(verbose=False) as g:
 
 Inside the session the full gmsh API (`g.gmsh`) is available, e.g. for physical groups or size fields.
 
+Trimmed surfaces are transferred exactly as well - the trim loops become B-spline wires in the
+parameter space of the surface:
+
+```python
+aperture = nf.TrimmedSurface(zernike_surface, nf.circle_loop(0.0, 0.0, 10.0))  # u = x, v = y
+with GmshSession() as g:
+    g.add_surface(aperture)        # TrimmedSurface or NurbsSurface
+    g.mesh(dim=2, size=0.5)
+```
+
+Mesh nodes on trimmed edges follow OCC's own 3D approximation of the trim curve
+(deviation ~1e-4 in our tests).
+
 ## Implementation notes
 
 - Control-point indexing differs: Nurbforge is row-major with v fastest; gmsh expects u fastest.

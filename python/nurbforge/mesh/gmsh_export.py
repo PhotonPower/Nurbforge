@@ -17,7 +17,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 
-from .._core import NurbsCurve, NurbsSurface, unique_knots
+from .._core import NurbsCurve, NurbsSurface, TrimmedSurface, unique_knots
 
 
 def _gmsh():
@@ -50,11 +50,13 @@ def add_curve(curve: NurbsCurve) -> int:
     return tag
 
 
-def add_surface(surface: NurbsSurface) -> int:
+def add_surface(surface: NurbsSurface, wire_tags: list[int] | None = None) -> int:
     """Add a NURBS surface to the current gmsh OCC model. Returns the surface tag.
 
     gmsh expects control points with the u index running fastest, while Nurbforge
-    stores them row-major with v fastest, hence the reordering below.
+    stores them row-major with v fastest, hence the reordering below. ``wire_tags``
+    (outer contour first, then holes) trims the surface with wires defined in its
+    parameter space.
     """
     gmsh = _gmsh()
     occ = gmsh.model.occ
@@ -72,8 +74,26 @@ def add_surface(surface: NurbsSurface) -> int:
     tag = occ.addBSplineSurface(
         tags, nu, degreeU=surface.degree_u, degreeV=surface.degree_v, weights=weights,
         knotsU=ku, knotsV=kv, multiplicitiesU=mu, multiplicitiesV=mv,
+        wireTags=wire_tags or [], wire3D=False,
     )
     _remove_control_points(occ, tags)
+    return tag
+
+
+def add_trimmed_surface(trimmed: TrimmedSurface) -> int:
+    """Add a trimmed NURBS surface: the trim loops are passed exactly as B-spline wires in
+    the parameter space of the surface (outer contour first, then holes). Returns the tag."""
+    gmsh = _gmsh()
+    occ = gmsh.model.occ
+    curve_tags: list[int] = []
+    wires: list[int] = []
+    for loop in [trimmed.outer, *trimmed.holes]:
+        tags = [add_curve(c) for c in loop.curves]
+        curve_tags += tags
+        wires.append(occ.addWire(tags))
+    tag = add_surface(trimmed.surface, wires)
+    # the parameter-space curves are only construction helpers
+    occ.remove([(1, t) for t in curve_tags], recursive=True)
     return tag
 
 
@@ -99,7 +119,9 @@ class GmshSession:
     def add_curve(self, curve: NurbsCurve) -> int:
         return add_curve(curve)
 
-    def add_surface(self, surface: NurbsSurface) -> int:
+    def add_surface(self, surface: NurbsSurface | TrimmedSurface) -> int:
+        if isinstance(surface, TrimmedSurface):
+            return add_trimmed_surface(surface)
         return add_surface(surface)
 
     def mesh(self, dim: int = 2, size: float | None = None, order: int = 1,
@@ -121,7 +143,8 @@ class GmshSession:
         self.gmsh.write(path)
 
 
-def mesh_surfaces(surfaces: Iterable[NurbsSurface], path: str, size: float | None = None,
+def mesh_surfaces(surfaces: Iterable[NurbsSurface | TrimmedSurface], path: str,
+                  size: float | None = None,
                   order: int = 1) -> None:
     """One-shot helper: add surfaces, mesh in 2D and write to ``path``."""
     with GmshSession() as g:

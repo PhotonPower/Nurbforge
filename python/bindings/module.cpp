@@ -544,6 +544,42 @@ PYBIND11_MODULE(_core, m) {
   m.def("xy_polynomial_surface", &xy_polynomial_surface, py::arg("poly"), py::arg("half_width") = 0.0,
         py::arg("tolerance") = 1e-7);
 
+  // ------------------------------------------------------------------ trimmed surfaces
+  py::class_<TrimLoop>(m, "TrimLoop", "Closed loop of parameter-space curves (x = u, y = v, z = 0).")
+      .def(py::init([](std::vector<NurbsCurve> curves) { return TrimLoop{std::move(curves)}; }),
+           py::arg("curves"))
+      .def_readonly("curves", &TrimLoop::curves)
+      .def("signed_area", &TrimLoop::signed_area)
+      .def("reversed", &TrimLoop::reversed)
+      .def("polyline", &TrimLoop::polyline, py::arg("samples_per_span") = 16);
+  m.def("rectangle_loop", &rectangle_loop, py::arg("u0"), py::arg("u1"), py::arg("v0"), py::arg("v1"));
+  m.def("circle_loop", &circle_loop, py::arg("cu"), py::arg("cv"), py::arg("r"));
+  m.def("polygon_loop", &polygon_loop, py::arg("points"));
+  py::class_<TrimmedSurface>(m, "TrimmedSurface")
+      .def(py::init<NurbsSurface>(), py::arg("surface"))
+      .def(py::init<NurbsSurface, TrimLoop, std::vector<TrimLoop>, const Tolerance&>(), py::arg("surface"),
+           py::arg("outer"), py::arg("holes") = std::vector<TrimLoop>{}, py::arg("tolerance") = Tolerance{})
+      .def_property_readonly("surface", &TrimmedSurface::surface)
+      .def_property_readonly("outer", &TrimmedSurface::outer)
+      .def_property_readonly("holes", &TrimmedSurface::holes)
+      .def("contains", &TrimmedSurface::contains, py::arg("u"), py::arg("v"))
+      .def("area", &TrimmedSurface::area, py::arg("rel_tol") = 1e-9)
+      .def("boundary_curves", &TrimmedSurface::boundary_curves, py::arg("tolerance") = 1e-7)
+      .def("with_hole", &TrimmedSurface::with_hole, py::arg("hole"))
+      .def("__repr__", [](const TrimmedSurface& t) {
+        return "<TrimmedSurface holes=" + std::to_string(t.holes().size()) + ">";
+      });
+  m.def("split", py::overload_cast<const NurbsSurface&, const NurbsSurface&, const Tolerance&>(&split),
+        py::arg("surface"), py::arg("cutter"), py::arg("tolerance") = Tolerance{},
+        "Split a surface along its intersection curves with another surface into trimmed regions.");
+  m.def("split",
+        py::overload_cast<const NurbsSurface&, const std::vector<NurbsCurve>&, const Tolerance&>(&split),
+        py::arg("surface"), py::arg("pcurves"), py::arg("tolerance") = Tolerance{},
+        "Split a surface into trimmed regions along parameter-space curves.");
+  m.def("integrate", &integrate, py::arg("f"), py::arg("a"), py::arg("b"),
+        py::arg("rel_tol") = kIntegrationRelTol, py::arg("breaks") = std::vector<double>{},
+        py::arg("abs_tol") = 0.0, "Globally adaptive Gauss-Kronrod integral of f over [a, b].");
+
   // ------------------------------------------------------------------ patterns
   m.def("linear_pattern", &linear_pattern, py::arg("step"), py::arg("count"));
   m.def("grid_pattern", &grid_pattern, py::arg("step_a"), py::arg("count_a"), py::arg("step_b"),

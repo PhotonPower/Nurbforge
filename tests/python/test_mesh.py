@@ -40,3 +40,23 @@ def test_sphere_mesh_nodes_on_surface(tmp_path):
         g.write(str(tmp_path / "sphere.msh"))
     assert np.allclose(np.linalg.norm(nodes, axis=1), 1.0, atol=1e-9)
     assert (tmp_path / "sphere.msh").exists()
+
+
+def test_trimmed_surface_mesh(tmp_path):
+    plate = nf.make_rectangle((0, 0, 0), (4, 0, 0), (0, 2, 0))
+    disk = nf.TrimmedSurface(plate, nf.circle_loop(0.5, 0.5, 0.25))  # ellipse, area pi/2
+    try:
+        with GmshSession() as g:
+            tag = g.add_surface(disk)
+            g.gmsh.model.occ.synchronize()
+            assert abs(g.gmsh.model.occ.getMass(2, tag) - math.pi / 2) < 1e-2
+            g.mesh(dim=2, size=0.1)
+            g.write(str(tmp_path / "disk.msh"))
+            # every mesh node lies inside the ellipse (x-2)^2 + 4 (y-1)^2 <= 1, up to the
+            # tolerance of OCC's own 3D approximation of the trimmed edge (~1e-4)
+            _, coords, _ = gmsh.model.mesh.getNodes()
+            for i in range(0, len(coords), 3):
+                x, y = coords[i], coords[i + 1]
+                assert (x - 2) ** 2 + 4 * (y - 1) ** 2 <= 1 + 1e-3
+    except OSError as exc:  # pragma: no cover - missing GL runtime libraries
+        pytest.skip(f"gmsh runtime not available: {exc}")

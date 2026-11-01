@@ -105,6 +105,21 @@ in homogeneous space – the interpolation is linear in the data, so w·P and w 
 separately with identical knots. Linear data are reproduced exactly (equal circles → cylinder,
 linearly growing circles → cone).
 
+## Sweep
+
+- `sweep_translational` is exact: tensor product with P_ij = P_i + Q_j − T(v0), w_ij = w_i w_j.
+- `sweep` moves the profile (given at the trajectory start) with the **rotation-minimising
+  frame**, computed by the double reflection method (Wang, Jüttler, Zheng, Liu 2008) on a table
+  of 4096 steps plus one step to the query parameter; optional linear twist about the tangent.
+- `sweep2` places the profile between two rails: translation with rail1, rotation so that the
+  rail-to-rail direction is followed (orientation from rail1's tangent), uniform scaling by the
+  rail distance.
+- The swept surfaces are skinned (`loft`) through exactly placed profile copies. Because guide
+  curves are only C1/C2 at their knots (e.g. the rational circle), the skin is built piecewise
+  between the distinct knots of the guide curves – otherwise cubic skinning converges like h²
+  instead of h⁴ – and the pieces are joined. Per piece the number of copies is doubled until the
+  deviation from the ideal sweep at the midpoints is below `SweepOptions::tolerance`.
+
 ## Extrapolation
 
 - **Natural:** the boundary span is made a Bézier piece (knot insertion), its homogeneous control

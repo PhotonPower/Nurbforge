@@ -22,6 +22,9 @@ versioning: [SemVer](https://semver.org).
   branch and bound over Bézier pieces with safe lower bounds, safeguarded (projected) Newton;
   local variant with start value; Python `closest_point`, `closest_point_local`, `Tolerance`;
   LLM tool `closest_point`.
+- Sweep (`modeling/sweep.hpp`): exact translational sweep, sweep along a trajectory with
+  rotation-minimising frame (double reflection) and optional twist, two-rail sweep with uniform
+  scaling; adaptive piecewise skinning to a tolerance; LLM tool `sweep`.
 - Loft / skinning through section curves (`modeling/loft.hpp`), incl. rational sections;
   `make_compatible` for any number of curves; interpolation with explicit parameters and
   averaged data parameters (`fitting`); LLM tool `loft`.

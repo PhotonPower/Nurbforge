@@ -9,6 +9,7 @@ from typing import Any
 import numpy as np
 
 from .. import _core as nf
+from . import verify
 
 Vec = list[float]
 
@@ -334,6 +335,22 @@ def _build_tools() -> list[Tool]:
         if res.is_closed:
             return f"stored {name}: closed shell, volume {res.volume(1e-7):.6g}"
         return f"stored {name}: shell with {len(res.free_edges())} free edges"
+
+    @add("inspect", "Measured properties of an object (type, bounding box, length / area / "
+         "volume, closed, free edges, ...) and detected issues. Use it to verify results.",
+         {"name": _NAME}, ["name"])
+    def _(ws, name):
+        return verify.describe(name, ws.get(name))
+
+    @add("check", "Verify a measured property of an object against an expected value, e.g. "
+         "property 'volume', 'area', 'length', 'closed', 'bbox.min', 'bbox.max', 'faces'. "
+         "Returns PASS or FAIL with the measured value.",
+         {"name": _NAME, "property": {"type": "string"},
+          "expected": {"description": "number, list of numbers, boolean or string"},
+          "tolerance": {"type": "number", "description": "absolute; default 1e-6 relative"}},
+         ["name", "property", "expected"])
+    def _(ws, name, property, expected, tolerance=None):
+        return verify.check(ws.get(name), property, expected, tolerance)
 
     @add("measure", "Length of a curve or area of a surface.", {"name": _NAME}, ["name"])
     def _(ws, name):

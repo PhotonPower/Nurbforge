@@ -11,6 +11,7 @@ class FakeClient:
 
     def chat(self, messages, tools=None, temperature=0.0):
         self.seen_tools = tools
+        self.seen_messages = list(messages)
         return self.script.pop(0)
 
 
@@ -33,10 +34,12 @@ def test_agent_builds_cylinder():
                   axis_dir=[0, 0, 1], angle_deg=360),
         ]},
         {"role": "assistant", "content": "Created cylinder 'cyl'."},
+        {"role": "assistant", "content": "VERIFIED: cylinder 'cyl' r=2, h=5."},
     ]
     agent = GeometryAgent(client=FakeClient(script))
     answer = agent.ask("Make a cylinder r=2, h=5")
-    assert "cyl" in answer
+    assert answer.startswith("VERIFIED") and "cyl" in answer
+    assert "cyl: type=surface" in agent.verification and "bbox=" in agent.verification
     cyl = agent.workspace.get("cyl")
     assert isinstance(cyl, nf.NurbsSurface)
     p = cyl(0.3, 1.0)
@@ -206,3 +209,54 @@ def test_boolean_tool():
     call_tool(ws, "sew", {"name": "b", "faces": ["s2"]})
     out = call_tool(ws, "boolean", {"name": "lens", "a": "a", "b": "b", "op": "intersection"})
     assert out.startswith("stored lens: closed shell, volume 1.30")
+
+
+def test_inspect_and_check_tools():
+    ws = Workspace()
+    for name, lo, d1, d2 in [("b0", [0, 0, 0], [2, 0, 0], [0, 3, 0]), ("b1", [0, 0, 4], [2, 0, 0], [0, 3, 0]),
+                             ("s0", [0, 0, 0], [2, 0, 0], [0, 0, 4]), ("s1", [0, 3, 0], [2, 0, 0], [0, 0, 4]),
+                             ("s2", [0, 0, 0], [0, 3, 0], [0, 0, 4]), ("s3", [2, 0, 0], [0, 3, 0], [0, 0, 4])]:
+        ws.put(name, nf.make_rectangle(lo, d1, d2))
+    call_tool(ws, "sew", {"name": "box", "faces": ["b0", "b1", "s0", "s1", "s2", "s3"]})
+    out = call_tool(ws, "inspect", {"name": "box"})
+    assert "type=shell" in out and "closed=True" in out and "volume=24" in out and "ISSUES" not in out
+    assert call_tool(ws, "check", {"name": "box", "property": "volume", "expected": 24}).startswith("PASS")
+    assert call_tool(ws, "check", {"name": "box", "property": "bbox.max",
+                                   "expected": [2, 3, 4]}).startswith("PASS")
+    assert call_tool(ws, "check", {"name": "box", "property": "volume", "expected": 25}).startswith("FAIL")
+    assert call_tool(ws, "check", {"name": "box", "property": "closed", "expected": True}).startswith("PASS")
+    assert call_tool(ws, "check", {"name": "box", "property": "colour", "expected": 1}).startswith("ERROR")
+
+    call_tool(ws, "sew", {"name": "lid", "faces": ["b0"]})
+    assert "ISSUES: shell is open (4 free edges)" in call_tool(ws, "inspect", {"name": "lid"})
+
+
+def test_verification_round_lets_the_model_fix_a_result():
+    script = [
+        # first attempt: a degenerate edge (p0 == p1)
+        {"role": "assistant", "content": "", "tool_calls": [
+            _call("make_line", name="edge", p0=[1, 0, 0], p1=[1, 0, 0])]},
+        {"role": "assistant", "content": "Created 'edge'."},
+        # verification: the report flags the issue, the model repairs the line
+        {"role": "assistant", "content": "", "tool_calls": [
+            _call("make_line", name="edge", p0=[0, 0, 0], p1=[1, 0, 0])]},
+        {"role": "assistant", "content": "Fixed 'edge' (length 1)."},
+        # second verification round: confirmed without tool calls
+        {"role": "assistant", "content": "VERIFIED: 'edge' has length 1."},
+    ]
+    client = FakeClient(script)
+    agent = GeometryAgent(client=client, verify_rounds=2)
+    answer = agent.ask("Make a line of length 1 along x")
+    assert answer.startswith("VERIFIED")
+    assert not client.script
+    first_report = [m["content"] for m in agent.messages if m["role"] == "user"][1]
+    assert "ISSUES: degenerate curve (zero length)" in first_report
+    assert "length=1" in agent.verification and "ISSUES" not in agent.verification
+    assert abs(nf.length(agent.workspace.get("edge")) - 1.0) < 1e-12
+
+
+def test_no_verification_without_new_objects():
+    client = FakeClient([{"role": "assistant", "content": "Nothing to build."}])
+    agent = GeometryAgent(client=client)
+    assert agent.ask("hello") == "Nothing to build."
+    assert agent.verification is None

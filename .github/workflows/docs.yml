@@ -41,7 +41,9 @@ jobs:
       - name: Python package (compiled _core for autodoc) and Sphinx
         run: python -m pip install ".[docs]"
       - name: Doxygen XML
-        run: doxygen docs/Doxyfile
+        run: |
+          mkdir -p build/docs   # doxygen does not create nested output directories
+          doxygen docs/Doxyfile
       - name: Sphinx
         run: |
           sphinx-build -b html --keep-going -w build/sphinx-warnings.log docs build/sphinx/html

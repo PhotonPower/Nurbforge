@@ -90,3 +90,20 @@ TEST_CASE("Boolean input checks", "[boolean]") {
   Shell open = Shell::sew({TrimmedSurface(make_rectangle({0, 0, 0}, {1, 0, 0}, {0, 1, 0}))});
   CHECK_THROWS_AS(boolean(open, box_shell(1.0), BooleanOp::Union), GeometryError);
 }
+
+TEST_CASE("Booleans with a closed intersection curve away from the seams", "[boolean]") {
+  // found by a stress test: the intersection circle crosses neither sphere's seam, so splitting
+  // produces a closed cut curve (hole assignment of its clockwise twin cycle)
+  const double r1 = 0.797, r2 = 1.277;
+  const Vec3 c2{-1.013, 0.967, -1.294};
+  const double d = norm(c2);
+  const double h1 = (r2 - r1 + d) * (r2 + r1 - d) / (2 * d), h2 = (r1 - r2 + d) * (r1 + r2 - d) / (2 * d);
+  const double lens = pi * h1 * h1 * (3 * r1 - h1) / 3 + pi * h2 * h2 * (3 * r2 - h2) / 3;
+  const Shell a = sphere_shell({0, 0, 0}, r1), b = sphere_shell(c2, r2);
+  const Shell i = boolean(a, b, BooleanOp::Intersection);
+  REQUIRE(i.is_closed());
+  CHECK(rel_close(i.volume(1e-7), lens, 1e-5));
+  const Shell m = boolean(b, a, BooleanOp::Difference);
+  REQUIRE(m.is_closed());
+  CHECK(rel_close(m.volume(1e-7), 4.0 / 3.0 * pi * r2 * r2 * r2 - lens, 1e-5));
+}

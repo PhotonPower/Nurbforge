@@ -28,7 +28,8 @@ evaluate the surfaces at additional random points and find errors within 1.5–2
 For a stricter bound, pass a smaller tolerance.
 
 Zernike and XY surfaces are graphs over a square (default `[-norm_radius, norm_radius]²`);
-cutting them to a circular aperture needs trimming (roadmap 0.4). For steep conic bases the
+cut them to a circular aperture with `TrimmedSurface(surface, circle_loop(0, 0, radius))`
+(u = x, v = y), which is also meshed exactly by gmsh. For steep conic bases the
 square's corners may lie outside the conic's domain – `sag_surface` then reports the undefined
 sag; reduce the half width.
 

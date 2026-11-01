@@ -247,11 +247,46 @@ def _build_tools() -> list[Tool]:
             return "no intersection"
         return "; ".join(f"({h.point.x:.6g}, {h.point.y:.6g}, {h.point.z:.6g})" for h in hits)
 
+    @add("trim_circle", "Restrict a surface to a circular region of its parameter domain "
+         "(e.g. a circular aperture of an optical surface: for sag/graph surfaces u = x, v = y).",
+         {"name": _NAME, "source": _NAME, "center_u": {"type": "number"},
+          "center_v": {"type": "number"}, "radius": {"type": "number"}},
+         ["name", "source", "center_u", "center_v", "radius"])
+    def _(ws, name, source, center_u, center_v, radius):
+        s = ws.get(source)
+        return ws.put(name, nf.TrimmedSurface(s, nf.circle_loop(center_u, center_v, radius)))
+
+    @add("split", "Split a surface along its intersection with another surface; the pieces "
+         "are stored as name_1, name_2, ...",
+         {"name": {"type": "string"}, "surface": _NAME, "cutter": _NAME},
+         ["name", "surface", "cutter"])
+    def _(ws, name, surface, cutter):
+        parts = nf.split(ws.get(surface), ws.get(cutter))
+        out = []
+        for i, p in enumerate(parts, 1):
+            ws.put(f"{name}_{i}", p)
+            out.append(f"{name}_{i}: area {p.area(1e-7):.6g}")
+        return "; ".join(out)
+
+    @add("section", "Cut a surface with a plane (point and normal); the section curves are "
+         "stored as name_1, name_2, ...",
+         {"name": {"type": "string"}, "surface": _NAME, "point": _VEC, "normal": _VEC},
+         ["name", "surface", "point", "normal"])
+    def _(ws, name, surface, point, normal):
+        res = nf.planar_section(ws.get(surface), nf.Plane(point, normal))
+        out = []
+        for i, c in enumerate(res.curves, 1):
+            ws.put(f"{name}_{i}", c.curve)
+            out.append(f"{name}_{i}: {'closed' if c.closed else 'open'}, length {nf.length(c.curve):.6g}")
+        return "; ".join(out) if out else "no section"
+
     @add("measure", "Length of a curve or area of a surface.", {"name": _NAME}, ["name"])
     def _(ws, name):
         o = ws.get(name)
         if isinstance(o, nf.NurbsCurve):
             return f"length={nf.length(o):.10g}"
+        if isinstance(o, nf.TrimmedSurface):
+            return f"area={o.area(1e-8):.10g}"
         return f"area={nf.area(o):.10g}"
 
     @add("evaluate", "Evaluate a curve at u or a surface at (u, v).",

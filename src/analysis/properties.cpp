@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <queue>
 #include <string>
 #include <vector>
 
@@ -59,14 +60,40 @@ double gk15(const F& f, double a, double b, double& err) {
   return h * K;
 }
 
-// Adaptive bisection; `density` is the accepted error per unit parameter length.
+// Globally adaptive integration (QUADPACK qag strategy): the interval with the largest error
+// estimate is bisected until the summed estimate is below `abs_tol` or the interval budget is
+// used up. Unlike local recursive bisection this cannot explode when the integrand is
+// dominated by rounding noise (e.g. a nearly vanishing factor), and the work stays bounded.
 template <class F>
-double integrate_1d(const F& f, double a, double b, double density, int depth = 0) {
-  double err = 0.0;
-  const double K = gk15(f, a, b, err);
-  if (err <= density * std::abs(b - a) || depth >= 50) return K;
-  const double m = 0.5 * (a + b);
-  return integrate_1d(f, a, m, density, depth + 1) + integrate_1d(f, m, b, density, depth + 1);
+double adaptive_1d(const F& f, const std::vector<double>& x, double abs_tol, std::size_t budget = 4000) {
+  struct Interval {
+    double a, b, value, error;
+  };
+  const auto less = [](const Interval& p, const Interval& q) { return p.error < q.error; };
+  std::priority_queue<Interval, std::vector<Interval>, decltype(less)> heap(less);
+  double total = 0.0, error = 0.0, magnitude = 0.0;
+  for (std::size_t i = 0; i + 1 < x.size(); ++i) {
+    double e = 0.0;
+    const double v = gk15(f, x[i], x[i + 1], e);
+    heap.push({x[i], x[i + 1], v, e});
+    total += v;
+    error += e;
+    magnitude += std::abs(v);
+  }
+  abs_tol = std::max(abs_tol, 1e-14 * magnitude);  // rounding floor
+  while (error > abs_tol && heap.size() < budget) {
+    const Interval w = heap.top();
+    const double m = 0.5 * (w.a + w.b);
+    if (!(m > w.a && m < w.b)) break;  // interval cannot be split further
+    heap.pop();
+    double e1 = 0.0, e2 = 0.0;
+    const double v1 = gk15(f, w.a, m, e1), v2 = gk15(f, m, w.b, e2);
+    heap.push({w.a, m, v1, e1});
+    heap.push({m, w.b, v2, e2});
+    total += v1 + v2 - w.value;
+    error += e1 + e2 - w.error;
+  }
+  return total;
 }
 
 template <class F>
@@ -84,17 +111,43 @@ double gk15_2d(const F& f, double ua, double ub, double va, double vb, double& e
   return hu * hv * K;
 }
 
+// Globally adaptive 2D integration over the cells of the grid xu x xv (cells split into four).
 template <class F>
-double integrate_2d(const F& f, double ua, double ub, double va, double vb, double density,
-                    int depth = 0) {
-  double err = 0.0;
-  const double K = gk15_2d(f, ua, ub, va, vb, err);
-  if (err <= density * std::abs((ub - ua) * (vb - va)) || depth >= 12) return K;
-  const double um = 0.5 * (ua + ub), vm = 0.5 * (va + vb);
-  return integrate_2d(f, ua, um, va, vm, density, depth + 1) +
-         integrate_2d(f, um, ub, va, vm, density, depth + 1) +
-         integrate_2d(f, ua, um, vm, vb, density, depth + 1) +
-         integrate_2d(f, um, ub, vm, vb, density, depth + 1);
+double adaptive_2d(const F& f, const std::vector<double>& xu, const std::vector<double>& xv,
+                   double abs_tol, std::size_t budget = 2000) {
+  struct Cell {
+    double ua, ub, va, vb, value, error;
+  };
+  const auto less = [](const Cell& p, const Cell& q) { return p.error < q.error; };
+  std::priority_queue<Cell, std::vector<Cell>, decltype(less)> heap(less);
+  double total = 0.0, error = 0.0, magnitude = 0.0;
+  for (std::size_t i = 0; i + 1 < xu.size(); ++i)
+    for (std::size_t j = 0; j + 1 < xv.size(); ++j) {
+      double e = 0.0;
+      const double v = gk15_2d(f, xu[i], xu[i + 1], xv[j], xv[j + 1], e);
+      heap.push({xu[i], xu[i + 1], xv[j], xv[j + 1], v, e});
+      total += v;
+      error += e;
+      magnitude += std::abs(v);
+    }
+  abs_tol = std::max(abs_tol, 1e-14 * magnitude);
+  while (error > abs_tol && heap.size() < budget) {
+    const Cell w = heap.top();
+    const double um = 0.5 * (w.ua + w.ub), vm = 0.5 * (w.va + w.vb);
+    if (!(um > w.ua && um < w.ub && vm > w.va && vm < w.vb)) break;
+    heap.pop();
+    total -= w.value;
+    error -= w.error;
+    for (const auto& [a0, a1, b0, b1] : {std::array<double, 4>{w.ua, um, w.va, vm}, std::array<double, 4>{um, w.ub, w.va, vm},
+                                         std::array<double, 4>{w.ua, um, vm, w.vb}, std::array<double, 4>{um, w.ub, vm, w.vb}}) {
+      double e = 0.0;
+      const double v = gk15_2d(f, a0, a1, b0, b1, e);
+      heap.push({a0, a1, b0, b1, v, e});
+      total += v;
+      error += e;
+    }
+  }
+  return total;
 }
 
 // Break points of [a, b]: a, interior distinct knots, b.
@@ -107,6 +160,20 @@ std::vector<double> breaks(const KnotVector& U, double a, double b) {
 }
 
 }  // namespace
+
+double integrate(const std::function<double(double)>& f, double a, double b, double rel_tol,
+                 const std::vector<double>& breaks, double abs_tol) {
+  if (a == b) return 0.0;
+  if (a > b) return -integrate(f, b, a, rel_tol, breaks, abs_tol);
+  std::vector<double> x{a};
+  for (double k : breaks)
+    if (k > a && k < b) x.push_back(k);
+  std::sort(x.begin() + 1, x.end());
+  x.push_back(b);
+  double estimate = 0.0, err = 0.0;
+  for (std::size_t i = 0; i + 1 < x.size(); ++i) estimate += std::abs(gk15(f, x[i], x[i + 1], err));
+  return adaptive_1d(f, x, std::max(rel_tol * estimate, abs_tol));
+}
 
 // ------------------------------------------------------------------ curves
 
@@ -139,10 +206,7 @@ double arc_length(const NurbsCurve& c, double u0, double u1, double rel_tol) {
   // coarse estimate sets the absolute error budget
   double estimate = 0.0, err = 0.0;
   for (std::size_t i = 0; i + 1 < x.size(); ++i) estimate += gk15(speed, x[i], x[i + 1], err);
-  const double density = rel_tol * std::max(estimate, tol::kLength) / (u1 - u0);
-  double total = 0.0;
-  for (std::size_t i = 0; i + 1 < x.size(); ++i) total += integrate_1d(speed, x[i], x[i + 1], density);
-  return total;
+  return adaptive_1d(speed, x, rel_tol * std::max(estimate, tol::kLength));
 }
 
 double arc_length(const NurbsCurve& c, double rel_tol) {
@@ -265,12 +329,7 @@ double area(const NurbsSurface& s, double u0, double u1, double v0, double v1, d
   for (std::size_t i = 0; i + 1 < xu.size(); ++i)
     for (std::size_t j = 0; j + 1 < xv.size(); ++j)
       estimate += gk15_2d(dA, xu[i], xu[i + 1], xv[j], xv[j + 1], err);
-  const double density = rel_tol * std::max(estimate, tol::kLength) / ((u1 - u0) * (v1 - v0));
-  double total = 0.0;
-  for (std::size_t i = 0; i + 1 < xu.size(); ++i)
-    for (std::size_t j = 0; j + 1 < xv.size(); ++j)
-      total += integrate_2d(dA, xu[i], xu[i + 1], xv[j], xv[j + 1], density);
-  return total;
+  return adaptive_2d(dA, xu, xv, rel_tol * std::max(estimate, tol::kLength));
 }
 
 double area(const NurbsSurface& s, double rel_tol) {

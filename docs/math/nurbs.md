@@ -123,6 +123,35 @@ Curve portions lying in the other surface (e.g. an edge in a plane) are detected
 in the curve/curve and curve/surface intersections, which keeps such symmetric configurations
 fast (plane through the middle of a torus along its knot lines: 0.4 s).
 
+### Planar sections
+
+`planar_section(surface, plane)` (`analysis/section.hpp`) intersects the surface with a
+rectangle in the plane that covers the projection of the control points (plus margin), so no
+section curve is missed; `pcurve2` and `u2, v2` are re-expressed in the plane's own orthonormal
+(s, t) coordinates with origin at `plane.point`. `planar_sections` slices at equal spacing,
+`intersect(curve, plane)` returns the crossing points of a curve.
+
+## Trimmed surfaces
+
+`TrimmedSurface` (`topology/trimmed_surface.hpp`) = surface + closed loops of curves in its
+parameter domain (x = u, y = v, z = 0); the outer loop is oriented counter-clockwise, holes
+clockwise. Helpers: `rectangle_loop`, `circle_loop` (exact), `polygon_loop`.
+
+- `contains(u, v)`: even-odd test on dense polylines of the loops.
+- `area()`: Green's theorem in the parameter plane - with F(u, v) = int |S_u x S_v| du the area
+  is the sum of the loop integrals of F dv (holes subtract by orientation). Both integrals use
+  the globally adaptive Gauss-Kronrod integrator with a bounded interval budget; the outer one
+  has an absolute target, because along curves of constant v the integrand is rounding noise.
+- `boundary_curves()`: trim curves mapped to 3D (cubic fit with verified tolerance, piecewise
+  per trim-curve span).
+- `split(surface, cutter)`: the p-curves of the surface/surface intersection cut the domain.
+  Open curves (boundary to boundary - seams count as boundary) act as non-crossing chords of
+  the parameter rectangle, giving #chords + 1 regions (traversal along the perimeter); closed
+  curves become holes of the region around them and outer loops of new regions, also nested.
+
+gmsh receives trimmed surfaces exactly: the loops are passed as B-spline wires in the
+parameter space of the B-spline surface (`addBSplineSurface(..., wireTags, wire3D=False)`).
+
 ## Fitting
 
 | Algorithm | Function |

@@ -1,0 +1,82 @@
+name: Docs
+
+# Builds the documentation site (Doxygen XML -> Breathe, Markdown via MyST, Python autodoc)
+# and deploys it to GitHub Pages from main. Warnings are reported but not fatal yet.
+# One-time repository setting: Settings -> Pages -> Source: "GitHub Actions".
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    paths:
+      - docs/**
+      - include/**
+      - python/nurbforge/**
+      - README.md
+      - pyproject.toml
+      - .github/workflows/docs.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build documentation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Doxygen
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends doxygen
+          doxygen --version
+      - name: Python package (compiled _core for autodoc) and Sphinx
+        run: python -m pip install ".[docs]"
+      - name: Doxygen XML
+        run: |
+          mkdir -p build/docs   # doxygen does not create nested output directories
+          doxygen docs/Doxyfile
+      - name: Sphinx
+        run: |
+          sphinx-build -b html --keep-going -w build/sphinx-warnings.log docs build/sphinx/html
+      - name: Warning summary
+        if: always()
+        run: |
+          if [ -s build/sphinx-warnings.log ]; then
+            echo "::warning::Sphinx reported $(wc -l < build/sphinx-warnings.log) warning line(s)"
+            {
+              echo '### Sphinx warnings'
+              echo '```'
+              head -n 200 build/sphinx-warnings.log
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: build/sphinx/html
+
+  deploy:
+    name: Deploy to GitHub Pages
+    needs: build
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    concurrency:
+      group: pages
+      cancel-in-progress: false
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

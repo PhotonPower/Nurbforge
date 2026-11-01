@@ -24,10 +24,13 @@ import nurbforge as nf
 | Properties | `curvature(curve, u)`, `torsion(curve, u)`, `length(curve)`, `arc_length(curve, u0, u1)`, `parameter_at_length(curve, s)`, `surface_curvature(surface, u, v)` → `SurfaceCurvature(gaussian, mean, k1, k2, normal, dir1, dir2)`, `area(surface[, u0, u1, v0, v1])` |
 | Fitting | `interpolate_curve(points, degree=3, method=Parametrization.Centripetal, end_derivatives=None)`, `approximate_curve(points, degree, n_ctrl)`, `approximate_curve_tol(points, degree, tolerance)`, `interpolate_surface(grid (nu,nv,3), degree_u, degree_v)`, `approximate_surface(grid, degree_u, degree_v, ctrl_u, ctrl_v)`, `data_parameters(points, method)` |
 | Intersections | `intersect(curve, curve)` → `[CurveCurveIntersection(s, t, point, distance)]`, `intersect(curve, surface)` → `[CurveSurfaceIntersection(t, u, v, point, distance)]`, `intersect(surface, surface, SurfaceIntersectionOptions(tolerance, chord_tolerance, fit_tolerance))` → `SurfaceIntersection(curves=[IntersectionCurve(points, closed, curve, pcurve1, pcurve2)], points)` |
+| Sections | `Plane(point, normal)`, `planar_section(surface, plane)` → `SurfaceIntersection` (pcurve2 in in-plane coordinates), `planar_sections(surface, plane, spacing, count)`, `intersect(curve, plane)` |
 | Tolerances | `Tolerance(length=1e-10, parametric=1e-10, angular=1e-9)` |
 | Extrapolation | `extend(curve, CurveEnd.Start/End, length, Extension.Natural/Linear)`, `extend(surface, SurfaceSide.UMin/UMax/VMin/VMax, length, type)` |
 | Offsets | `offset_curve(curve, distance, plane_normal=(0, 0, 1), tolerance=1e-7)` (planar, cubic, parameters kept), `offset_surface(surface, distance, tolerance=1e-7)` (along the normal, quintic); raise `GeometryError` where the distance reaches a radius of curvature |
 | Optics | `Asphere(curvature, conic, even, odd)`, `asphere_surface(a, r_max, tolerance)`, `asphere_profile`, `ZernikeSag(base, norm_radius, indexing, coeffs)`, `zernike_surface`, `zernike(j, indexing, rho, theta)`, `zernike_nm`, `XYPolynomialSag(base, norm_radius, terms)`, `xy_polynomial_surface`, `sag_surface(f, x0, x1, y0, y1, degree, tolerance)` – see [optics.md](../optics.md) |
+| Trimming | `TrimmedSurface(surface[, outer, holes])` -> `contains`, `area`, `boundary_curves`, `with_hole`; `TrimLoop(curves)`, `rectangle_loop`, `circle_loop`, `polygon_loop`; `split(surface, cutter)` / `split(surface, pcurves)` |
+| Integration | `integrate(f, a, b, rel_tol, breaks, abs_tol)` |
 | Joining | `join(a, b, tolerance)`, `join_u(a, b, tolerance)`, `join_v(a, b, tolerance)` |
 | Arrays | `linear_pattern`, `grid_pattern`, `polar_pattern`, `apply_pattern` |
 | Knots | `clamped_uniform_knots`, `unique_knots`, `validate_knots` |

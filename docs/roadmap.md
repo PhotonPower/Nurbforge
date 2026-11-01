@@ -27,8 +27,9 @@
 ## 0.4 – Intersections & trimming
 - Curve–curve, curve–surface intersection ✅
 - Surface–surface intersection (subdivision + marching) ✅
-- Trimmed surfaces (parameter-space loops), surface systems with shared edges
-- Planar sections / cuts
+- Trimmed surfaces (parameter-space loops) ✅, split along intersections ✅, exact gmsh export ✅
+- Surface systems with shared edges
+- Planar sections / cuts ✅
 
 ## 0.5 – Topology & Booleans
 - B-rep (vertex/edge/loop/face/shell/body), watertightness checks
@@ -36,7 +37,7 @@
 - STEP / IGES export (via OCC or native writer)
 
 ## Infrastructure
-- Wheels via cibuildwheel (manylinux_2_28 for AlmaLinux 10 compatibility, win_amd64)
-- Sphinx site with Breathe (Doxygen) API docs on GitHub Pages
+- ✅ Wheels via cibuildwheel (manylinux_2_28 for AlmaLinux 10 compatibility, win_amd64)
+- ✅ Sphinx site with Breathe (Doxygen) API docs on GitHub Pages
 - Benchmarks; optional OpenMP parallel sampling
 - LLM: geometry verification step (agent checks results), constraint reasoning

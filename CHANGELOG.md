@@ -11,6 +11,13 @@ versioning: [SemVer](https://semver.org).
   lines of the input as break lines, curvature and crease checks); both keep the parameter
   correspondence and verify the tolerance at dense check points; Python `offset_curve`,
   `offset_surface`; LLM tool `offset`.
+- Binary wheels via cibuildwheel (`.github/workflows/wheels.yml`, `[tool.cibuildwheel]` in
+  `pyproject.toml`): manylinux_2_28 x86_64 and win_amd64, CPython 3.10–3.13, each wheel tested
+  with the pytest suite; sdist; built on `v*` tags, manually and on packaging PRs. PyPI
+  publishing is prepared (trusted publishing) but disabled.
+- Sphinx documentation site (`docs/conf.py`): furo theme, MyST for the existing Markdown pages,
+  autodoc Python reference, Breathe C++ reference from Doxygen XML (`build/docs/xml`); built by
+  `.github/workflows/docs.yml` and deployed to GitHub Pages from `main`.
 - Named tolerances `nf::tol::kLength`, `kParametric`, `kAngular` and the per-operation
   `nf::Tolerance` struct (`nurbforge/core/tolerance.hpp`, ADR 0005).
 - Build guides for AlmaLinux 10 and Windows 11 (`docs/build/`).
@@ -28,6 +35,13 @@ versioning: [SemVer](https://semver.org).
   branch and bound over Bézier pieces with safe lower bounds, safeguarded (projected) Newton;
   local variant with start value; Python `closest_point`, `closest_point_local`, `Tolerance`;
   LLM tool `closest_point`.
+- Planar sections (`analysis/section.hpp`): `Plane`, `planar_section`, `planar_sections`,
+  `intersect(curve, plane)`; LLM tool `section`.
+- Trimmed surfaces (`topology/trimmed_surface.hpp`): loops in the parameter domain, `contains`,
+  area by Green's theorem, 3D boundary curves, `split` along surface intersections (chords and
+  nested loops); exact gmsh export of trimmed surfaces (`add_trimmed_surface`); LLM tools
+  `trim_circle`, `split`.
+- Public globally adaptive integrator `integrate` (bounded interval budget, absolute target).
 - Surface–surface intersection (`analysis/surface_intersect.hpp`): subdivision seeds with normal-cone loop test,
   predictor–corrector marching with 3D and parameter-space step control, exact knot-line and
   boundary points, verified fit of 3D curves and p-curves, seam/pole-aware de-duplication.
@@ -67,6 +81,8 @@ versioning: [SemVer](https://semver.org).
 - All tolerance literals in `src/` replaced by the named constants; angular comparisons now
   uniformly use 1e-9.
 ### Fixed
+- Adaptive quadrature (arc length, area, `integrate`) could explode on noise-dominated
+  integrands (local recursive bisection to depth 50); now globally adaptive with a budget.
 - `NurbsSurface::normal` returns the limit normal at poles and collapsed edges instead of throwing
   (e.g. at the poles of revolved spheres – relevant for BEM meshes).
 - `ruled` / `make_compatible` now handle curves of different degree (previously

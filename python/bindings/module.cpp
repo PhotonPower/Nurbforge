@@ -286,6 +286,39 @@ PYBIND11_MODULE(_core, m) {
         py::arg("curve"), py::arg("surface"), py::arg("tolerance") = Tolerance{},
         "All intersection points of a curve and a surface, sorted by the curve parameter.");
 
+  py::class_<SurfaceSurfacePoint>(m, "SurfaceSurfacePoint")
+      .def_readonly("point", &SurfaceSurfacePoint::point)
+      .def_readonly("u1", &SurfaceSurfacePoint::u1)
+      .def_readonly("v1", &SurfaceSurfacePoint::v1)
+      .def_readonly("u2", &SurfaceSurfacePoint::u2)
+      .def_readonly("v2", &SurfaceSurfacePoint::v2);
+  py::class_<IntersectionCurve>(m, "IntersectionCurve")
+      .def_readonly("points", &IntersectionCurve::points)
+      .def_readonly("closed", &IntersectionCurve::closed)
+      .def_readonly("curve", &IntersectionCurve::curve)
+      .def_readonly("pcurve1", &IntersectionCurve::pcurve1)
+      .def_readonly("pcurve2", &IntersectionCurve::pcurve2)
+      .def("__repr__", [](const IntersectionCurve& c) {
+        return "<IntersectionCurve points=" + std::to_string(c.points.size()) +
+               (c.closed ? " closed>" : " open>");
+      });
+  py::class_<SurfaceIntersection>(m, "SurfaceIntersection")
+      .def_readonly("curves", &SurfaceIntersection::curves)
+      .def_readonly("points", &SurfaceIntersection::points);
+  py::class_<SurfaceIntersectionOptions>(m, "SurfaceIntersectionOptions")
+      .def(py::init([](Tolerance tol, double chord, double fit) {
+             return SurfaceIntersectionOptions{tol, chord, fit};
+           }),
+           py::arg("tolerance") = Tolerance{}, py::arg("chord_tolerance") = 0.0,
+           py::arg("fit_tolerance") = 0.0)
+      .def_readwrite("tolerance", &SurfaceIntersectionOptions::tol)
+      .def_readwrite("chord_tolerance", &SurfaceIntersectionOptions::chord_tolerance)
+      .def_readwrite("fit_tolerance", &SurfaceIntersectionOptions::fit_tolerance);
+  m.def("intersect",
+        py::overload_cast<const NurbsSurface&, const NurbsSurface&, const SurfaceIntersectionOptions&>(&intersect),
+        py::arg("a"), py::arg("b"), py::arg("options") = SurfaceIntersectionOptions{},
+        "Surface/surface intersection: curves (3D + p-curves on both surfaces) and touching points.");
+
   // ------------------------------------------------------------------ properties
   m.def("curvature", py::overload_cast<const NurbsCurve&, double>(&curvature), py::arg("curve"),
         py::arg("u"), "Curvature |C' x C''| / |C'|^3.");

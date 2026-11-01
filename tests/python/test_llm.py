@@ -117,3 +117,13 @@ def test_intersect_tool():
     call_tool(ws, "make_line", {"name": "a", "p0": [0, 0, 0], "p1": [2, 2, 0]})
     call_tool(ws, "make_line", {"name": "b", "p0": [0, 2, 0], "p1": [2, 0, 0]})
     assert call_tool(ws, "intersect", {"a": "a", "b": "b"}) == "(1, 1, 0)"
+
+
+def test_intersect_tool_surfaces():
+    ws = Workspace()
+    call_tool(ws, "make_rectangle", {"name": "p", "origin": [-2, -2, 0.5], "edge_u": [4, 0, 0],
+                                     "edge_v": [0, 4, 0]})
+    call_tool(ws, "make_circle", {"name": "c", "center": [0, 0, 0], "normal": [0, 0, 1], "radius": 1})
+    call_tool(ws, "extrude", {"name": "cyl", "profile": "c", "direction": [0, 0, 1]})
+    out = call_tool(ws, "intersect", {"a": "cyl", "b": "p"})
+    assert "cut_1" in out and "length" in out

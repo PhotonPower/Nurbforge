@@ -22,5 +22,6 @@
 #include "nurbforge/analysis/closest_point.hpp"
 #include "nurbforge/analysis/properties.hpp"
 #include "nurbforge/analysis/intersect.hpp"
+#include "nurbforge/analysis/surface_intersect.hpp"
 #include "nurbforge/fitting/fit.hpp"
 #include "nurbforge/optics/surfaces.hpp"

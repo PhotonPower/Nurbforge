@@ -11,11 +11,12 @@ namespace nf {
 
 namespace {
 
-// ------------------------------------------------------------------ dense LU (partial pivoting)
+// ------------------------------------------------------------------ linear systems
 
-class LU {
+// Dense LU with partial pivoting (fallback).
+class DenseLU {
  public:
-  LU(std::vector<double> a, std::size_t n) : a_(std::move(a)), piv_(n), n_(n) {
+  DenseLU(std::vector<double> a, std::size_t n) : a_(std::move(a)), piv_(n), n_(n) {
     double amax = 0.0;
     for (double x : a_) amax = std::max(amax, std::abs(x));
     for (std::size_t k = 0; k < n_; ++k) {
@@ -53,13 +54,76 @@ class LU {
   std::size_t n_;
 };
 
-// Full row (N_0(u), ..., N_{n_ctrl-1}(u)).
-std::vector<double> basis_row(std::size_t p, const KnotVector& U, std::size_t n_ctrl, double u) {
-  std::vector<double> row(n_ctrl, 0.0);
+// Sparse matrix row: values for the columns first, first+1, ...
+struct Row {
+  std::size_t first{0};
+  std::vector<double> v;
+  [[nodiscard]] double at(std::size_t j) const {
+    return j >= first && j < first + v.size() ? v[j - first] : 0.0;
+  }
+};
+
+// Banded LU without pivoting - stable for B-spline collocation matrices (totally positive,
+// de Boor) and for SPD normal equations; O(n (kl + ku)^2). Falls back to dense LU with partial
+// pivoting if a pivot becomes tiny (e.g. derivative rows).
+class LinearSystem {
+ public:
+  LinearSystem(std::size_t n, const std::vector<Row>& rows) : n_(n) {
+    for (std::size_t i = 0; i < n; ++i) {
+      if (rows[i].v.empty()) continue;
+      if (rows[i].first < i) kl_ = std::max(kl_, i - rows[i].first);
+      const std::size_t last = rows[i].first + rows[i].v.size() - 1;
+      if (last > i) ku_ = std::max(ku_, last - i);
+    }
+    w_ = kl_ + ku_ + 1;
+    band_.assign(n * w_, 0.0);
+    double amax = 0.0;
+    for (std::size_t i = 0; i < n; ++i)
+      for (std::size_t q = 0; q < rows[i].v.size(); ++q) {
+        at(i, rows[i].first + q) = rows[i].v[q];
+        amax = std::max(amax, std::abs(rows[i].v[q]));
+      }
+    for (std::size_t k = 0; k < n; ++k) {
+      const double piv = at(k, k);
+      if (std::abs(piv) <= 1e-12 * amax) {  // needs pivoting: dense fallback
+        std::vector<double> A(n * n, 0.0);
+        for (std::size_t i = 0; i < n; ++i)
+          for (std::size_t q = 0; q < rows[i].v.size(); ++q) A[i * n + rows[i].first + q] = rows[i].v[q];
+        dense_.emplace(std::move(A), n);
+        band_.clear();
+        return;
+      }
+      for (std::size_t i = k + 1; i <= std::min(n - 1, k + kl_); ++i) {
+        const double f = at(i, k) / piv;
+        at(i, k) = f;
+        for (std::size_t j = k + 1; j <= std::min(n - 1, k + ku_); ++j) at(i, j) -= f * at(k, j);
+      }
+    }
+  }
+
+  [[nodiscard]] std::vector<Vec3> solve(std::vector<Vec3> b) const {
+    if (dense_) return dense_->solve(std::move(b));
+    for (std::size_t i = 1; i < n_; ++i)
+      for (std::size_t j = i > kl_ ? i - kl_ : 0; j < i; ++j) b[i] -= at(i, j) * b[j];
+    for (std::size_t i = n_; i-- > 0;) {
+      for (std::size_t j = i + 1; j <= std::min(n_ - 1, i + ku_); ++j) b[i] -= at(i, j) * b[j];
+      b[i] = b[i] / at(i, i);
+    }
+    return b;
+  }
+
+ private:
+  double& at(std::size_t i, std::size_t j) { return band_[i * w_ + (j + kl_ - i)]; }
+  [[nodiscard]] double at(std::size_t i, std::size_t j) const { return band_[i * w_ + (j + kl_ - i)]; }
+  std::size_t n_, kl_{0}, ku_{0}, w_{1};
+  std::vector<double> band_;
+  std::optional<DenseLU> dense_;
+};
+
+// Non-zero basis functions at u as a sparse row (columns span-p .. span).
+Row basis_row(std::size_t p, const KnotVector& U, std::size_t n_ctrl, double u) {
   const std::size_t span = find_span(n_ctrl - 1, p, u, U);
-  const auto N = basis_functions(span, u, p, U);
-  for (std::size_t j = 0; j <= p; ++j) row[span - p + j] = N[j];
-  return row;
+  return {span - p, basis_functions(span, u, p, U)};
 }
 
 // Raw parameters; empty if the points are all equal (degenerate row).
@@ -116,12 +180,24 @@ class LeastSquares {
     const std::size_t m = ub.size() - 1, n = n_ctrl - 1;
     for (std::size_t k = 1; k < m; ++k) rows_.push_back(basis_row(p, U_, n_ctrl, ub[k]));
     if (n >= 2) {
+      // normal equations for the interior control points 1..n-1 (banded, half width p)
       const std::size_t sz = n - 1;
-      std::vector<double> A(sz * sz, 0.0);
+      std::vector<Row> A(sz);
+      for (std::size_t i = 0; i < sz; ++i) {
+        A[i].first = i >= p ? i - p : 0;
+        A[i].v.assign(std::min(sz - 1, i + p) - A[i].first + 1, 0.0);
+      }
       for (const auto& r : rows_)
-        for (std::size_t i = 1; i < n; ++i)
-          for (std::size_t j = 1; j < n; ++j) A[(i - 1) * sz + (j - 1)] += r[i] * r[j];
-      lu_.emplace(std::move(A), sz);
+        for (std::size_t a = 0; a < r.v.size(); ++a) {
+          const std::size_t i = r.first + a;
+          if (i < 1 || i >= n) continue;
+          for (std::size_t b = 0; b < r.v.size(); ++b) {
+            const std::size_t j = r.first + b;
+            if (j < 1 || j >= n) continue;
+            A[i - 1].v[(j - 1) - A[i - 1].first] += r.v[a] * r.v[b];
+          }
+        }
+      lu_.emplace(sz, A);
     }
   }
 
@@ -134,8 +210,11 @@ class LeastSquares {
     std::vector<Vec3> b(n - 1);
     for (std::size_t k = 1; k < m; ++k) {
       const auto& r = rows_[k - 1];
-      const Vec3 Rk = Q[k] - r[0] * Q.front() - r[n] * Q.back();
-      for (std::size_t i = 1; i < n; ++i) b[i - 1] += r[i] * Rk;
+      const Vec3 Rk = Q[k] - r.at(0) * Q.front() - r.at(n) * Q.back();
+      for (std::size_t a = 0; a < r.v.size(); ++a) {
+        const std::size_t i = r.first + a;
+        if (i >= 1 && i < n) b[i - 1] += r.v[a] * Rk;
+      }
     }
     const auto X = lu_->solve(std::move(b));
     std::copy(X.begin(), X.end(), P.begin() + 1);
@@ -147,19 +226,16 @@ class LeastSquares {
  private:
   KnotVector U_;
   std::size_t n_ctrl_;
-  std::vector<std::vector<double>> rows_;
-  std::optional<LU> lu_;
+  std::vector<Row> rows_;
+  std::optional<LinearSystem> lu_;
 };
 
-LU interpolation_matrix(std::size_t p, const KnotVector& U, const std::vector<double>& ub) {
+LinearSystem interpolation_matrix(std::size_t p, const KnotVector& U, const std::vector<double>& ub) {
   const std::size_t n = ub.size();
-  std::vector<double> A;
-  A.reserve(n * n);
-  for (double u : ub) {
-    const auto r = basis_row(p, U, n, u);
-    A.insert(A.end(), r.begin(), r.end());
-  }
-  return {std::move(A), n};
+  std::vector<Row> rows;
+  rows.reserve(n);
+  for (double u : ub) rows.push_back(basis_row(p, U, n, u));
+  return {n, rows};
 }
 
 // Averaged parameters over several point sequences, skipping degenerate ones.
@@ -259,21 +335,22 @@ NurbsCurve interpolate_curve(const std::vector<Vec3>& Q, std::size_t p, Parametr
     for (std::size_t i = j; i < j + p; ++i) s += ub[i];
     U[j + p + 1] = s / static_cast<double>(p);
   }
-  std::vector<double> A;
+  // rows ordered so that the system stays banded: P0, D0, Q1..Q(n-1), Dn, Qn
+  std::vector<Row> rows;
   std::vector<Vec3> b;
-  const auto add_row = [&](std::vector<double> r, const Vec3& rhs) {
-    A.insert(A.end(), r.begin(), r.end());
-    b.push_back(rhs);
-  };
-  for (std::size_t k = 0; k <= n; ++k) add_row(basis_row(p, U, nc, ub[k]), Q[k]);
-  std::vector<double> d0(nc, 0.0), d1(nc, 0.0);
-  d0[0] = -1.0;
-  d0[1] = 1.0;
-  d1[nc - 2] = -1.0;
-  d1[nc - 1] = 1.0;
-  add_row(d0, (U[p + 1] / static_cast<double>(p)) * end_derivatives->first);
-  add_row(d1, ((1.0 - U[nc - 1]) / static_cast<double>(p)) * end_derivatives->second);
-  return {p, U, LU(std::move(A), nc).solve(std::move(b))};
+  rows.push_back(basis_row(p, U, nc, ub[0]));
+  b.push_back(Q[0]);
+  rows.push_back({0, {-1.0, 1.0}});
+  b.push_back((U[p + 1] / static_cast<double>(p)) * end_derivatives->first);
+  for (std::size_t k = 1; k < n; ++k) {
+    rows.push_back(basis_row(p, U, nc, ub[k]));
+    b.push_back(Q[k]);
+  }
+  rows.push_back({nc - 2, {-1.0, 1.0}});
+  b.push_back(((1.0 - U[nc - 1]) / static_cast<double>(p)) * end_derivatives->second);
+  rows.push_back(basis_row(p, U, nc, ub[n]));
+  b.push_back(Q[n]);
+  return {p, U, LinearSystem(nc, rows).solve(std::move(b))};
 }
 
 NurbsCurve approximate_curve(const std::vector<Vec3>& Q, std::size_t p, std::size_t n_ctrl,
@@ -339,7 +416,7 @@ NurbsSurface interpolate_surface(const std::vector<Vec3>& Q, std::size_t nu, std
   const auto ub = averaged_parameters(cols, method);
   const auto vb = averaged_parameters(rows(Q, nu, nv), method);
   const KnotVector U = interpolation_knots(ub, pu), V = interpolation_knots(vb, pv);
-  const LU Au = interpolation_matrix(pu, U, ub), Av = interpolation_matrix(pv, V, vb);
+  const LinearSystem Au = interpolation_matrix(pu, U, ub), Av = interpolation_matrix(pv, V, vb);
   // through the columns (along u), then through the rows of the intermediate net (along v)
   std::vector<std::vector<Vec3>> R(nv);
   for (std::size_t j = 0; j < nv; ++j) R[j] = Au.solve(cols[j]);

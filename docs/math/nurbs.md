@@ -96,6 +96,33 @@ c(t) − S(u, v) = 0 converges quadratically for zero residuals. Candidates are 
 are close or if the curve point at their parameter midpoint is still within tolerance (a
 tangential contact keeps the gap below tol over a short stretch).
 
+### Surface–surface intersection
+
+`intersect(surface, surface)` (`analysis/surface_intersect.hpp`):
+
+1. **Seeds.** Pairs of Bézier patches with overlapping boxes are subdivided. When their normal
+   cones are separated, the pair contains no closed loop (Sederberg), so every intersection
+   curve crosses the pair's boundary: the boundary iso-curves of each patch are intersected
+   with the other patch (curve/surface intersection). Tangential regions stop at a size limit
+   and seed by minimum-norm Gauss–Newton.
+2. **Marching** along n1 × n2 (limit normals at poles): predictor in parameter space, corrector
+   (S1 = S2 and the plane through the predicted point normal to the tangent), step control by
+   the chord tolerance in 3D **and** in both parameter spaces (corrected vs. linear parameter
+   midpoint). Branches end exactly on the domain boundary (one parameter fixed), close into
+   loops (3D *and* parameters near the start – on closed surfaces the seam returns to the same
+   3D point), or stop at tangential points.
+3. **Knot lines.** Points are inserted exactly where a step crosses a knot line of either
+   surface; curve and p-curves are interpolated piecewise between them (the parametrisation is
+   only C1 there, e.g. the rational circle).
+4. **Verified fit.** Between all fit points |S_i(pcurve_i(t)) − curve(t)| ≤ fit tolerance is
+   checked and exact points are added where needed (near poles the p-curves vary quickly).
+5. Seeds already on a traced curve are skipped – compared in 3D and in parameter distance
+   weighted by |S_u|, |S_v| (seams: far apart; poles: u irrelevant).
+
+Curve portions lying in the other surface (e.g. an edge in a plane) are detected as overlaps
+in the curve/curve and curve/surface intersections, which keeps such symmetric configurations
+fast (plane through the middle of a torus along its knot lines: 0.4 s).
+
 ## Fitting
 
 | Algorithm | Function |

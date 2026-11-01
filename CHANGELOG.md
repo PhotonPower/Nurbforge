@@ -22,6 +22,12 @@ versioning: [SemVer](https://semver.org).
   branch and bound over Bézier pieces with safe lower bounds, safeguarded (projected) Newton;
   local variant with start value; Python `closest_point`, `closest_point_local`, `Tolerance`;
   LLM tool `closest_point`.
+- Surface–surface intersection (`analysis/surface_intersect.hpp`): subdivision seeds with normal-cone loop test,
+  predictor–corrector marching with 3D and parameter-space step control, exact knot-line and
+  boundary points, verified fit of 3D curves and p-curves, seam/pole-aware de-duplication.
+- Banded LU solver for interpolation and least squares (`fitting`), dense fallback.
+- Curve–curve and curve–surface intersection: overlapping (coincident) portions detected by local
+  projections instead of deep subdivision.
 - Curve–curve and curve–surface intersection (`analysis/intersect.hpp`): subdivision with
   tangent/normal-cone leaf tests, box-constrained Gauss–Newton, merging of tangential contact
   clusters; LLM tool `intersect`.

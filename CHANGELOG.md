@@ -5,6 +5,10 @@ versioning: [SemVer](https://semver.org).
 
 ## [Unreleased]
 ### Added
+- Surface/surface intersection: the boundary seeds of the leaf patch pairs (90 % of the time)
+  are computed on all hardware threads and merged in sequential order (identical results);
+  two spheres 174 → 77 ms, two-sphere Boolean 351 → 240 ms. The core library links
+  `Threads::Threads`.
 - Bodies with several shells: `Shell::components()` (Python `Shell.components()`); `oriented()`
   orients closed components by nesting depth, so voids keep inward normals (hollow solids have
   the correct volume and work as Boolean inputs; lumps of a Boolean result are separate

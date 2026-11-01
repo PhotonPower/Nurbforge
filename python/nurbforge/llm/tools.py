@@ -255,6 +255,18 @@ def _build_tools() -> list[Tool]:
             out.append(f"{name}_{i}: area {p.area(1e-7):.6g}")
         return "; ".join(out)
 
+    @add("section", "Cut a surface with a plane (point and normal); the section curves are "
+         "stored as name_1, name_2, ...",
+         {"name": {"type": "string"}, "surface": _NAME, "point": _VEC, "normal": _VEC},
+         ["name", "surface", "point", "normal"])
+    def _(ws, name, surface, point, normal):
+        res = nf.planar_section(ws.get(surface), nf.Plane(point, normal))
+        out = []
+        for i, c in enumerate(res.curves, 1):
+            ws.put(f"{name}_{i}", c.curve)
+            out.append(f"{name}_{i}: {'closed' if c.closed else 'open'}, length {nf.length(c.curve):.6g}")
+        return "; ".join(out) if out else "no section"
+
     @add("measure", "Length of a curve or area of a surface.", {"name": _NAME}, ["name"])
     def _(ws, name):
         o = ws.get(name)

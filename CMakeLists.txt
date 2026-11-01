@@ -45,6 +45,7 @@ add_library(nurbforge_core STATIC
   src/analysis/properties.cpp
   src/analysis/intersect.cpp
   src/analysis/surface_intersect.cpp
+  src/analysis/section.cpp
   src/fitting/fit.cpp
   src/optics/surfaces.cpp
   src/topology/trimmed_surface.cpp)

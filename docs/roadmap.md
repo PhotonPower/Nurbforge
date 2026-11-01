@@ -28,7 +28,7 @@
 - Surface–surface intersection (subdivision + marching) ✅
 - Trimmed surfaces (parameter-space loops) ✅, split along intersections ✅, exact gmsh export ✅
 - Surface systems with shared edges
-- Planar sections / cuts
+- Planar sections / cuts ✅
 
 ## 0.5 – Topology & Booleans
 - B-rep (vertex/edge/loop/face/shell/body), watertightness checks

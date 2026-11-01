@@ -419,6 +419,13 @@ PYBIND11_MODULE(_core, m) {
   m.def("sweep2", &sweep2, py::arg("profile"), py::arg("rail1"), py::arg("rail2"),
         py::arg("options") = SweepOptions{}, "Two-rail sweep with uniform scaling.");
 
+  // ------------------------------------------------------------------ Coons / Gordon
+  m.def("coons", &coons, py::arg("c0"), py::arg("c1"), py::arg("d0"), py::arg("d1"),
+        py::arg("tolerance") = 1e-7,
+        "Coons patch: S(u,0)=c0, S(u,1)=c1, S(0,v)=d0, S(1,v)=d1 (orientations fixed automatically).");
+  m.def("gordon", &gordon, py::arg("u_curves"), py::arg("v_curves"), py::arg("tolerance") = 1e-7,
+        "Gordon surface through a consistent curve network.");
+
   // ------------------------------------------------------------------ patterns
   m.def("linear_pattern", &linear_pattern, py::arg("step"), py::arg("count"));
   m.def("grid_pattern", &grid_pattern, py::arg("step_a"), py::arg("count_a"), py::arg("step_b"),

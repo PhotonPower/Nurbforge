@@ -19,7 +19,7 @@
 ## 0.3 – Surface construction
 - Loft / skinning ✅
 - Sweep (one and two rails) ✅
-- Coons and Gordon patches
+- Coons and Gordon patches ✅
 - Offset curves/surfaces, fillets (rolling ball, approximate)
 - Optical surfaces: conics/aspheres (even/odd), Zernike, XY polynomials, freeforms → NURBS fit with error bound
 

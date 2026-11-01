@@ -120,6 +120,18 @@ linearly growing circles → cone).
   instead of h⁴ – and the pieces are joined. Per piece the number of copies is doubled until the
   deviation from the ideal sweep at the midpoints is below `SweepOptions::tolerance`.
 
+## Coons patches and Gordon surfaces
+
+Both are Boolean sums S = L1 + L2 − T (P&T section 10.5): L1 skins the u-curves across v, L2
+the v-curves across u, T interpolates the intersection points; all three are brought to common
+degrees and knots and P = P1 + P2 − P3. The sum interpolates every network curve exactly, which
+requires a **consistent network**: C_k(u_l) = D_l(v_k) with common intersection parameters
+(determined by curve–curve intersection via alternating closest-point projection and checked).
+A Coons patch is the 2 + 2 case (linear blending); its boundary orientations are fixed
+automatically. The sum is only exact for non-rational curves, so rational curves are first
+replaced by cubic interpolants at their original parameters, piecewise per knot span, within the
+tolerance (quarter-cylinder test: radius error < 2·tol).
+
 ## Extrapolation
 
 - **Natural:** the boundary span is made a Bézier piece (knot insertion), its homogeneous control

@@ -93,3 +93,12 @@ def test_sweep_tool():
     call_tool(ws, "make_line", {"name": "path", "p0": [0, 0, 0], "p1": [0, 0, 4]})
     out = call_tool(ws, "sweep", {"name": "pipe", "profile": "p", "path": "path", "twist_deg": 90})
     assert out.startswith("stored pipe")
+
+
+def test_coons_tool():
+    ws = Workspace()
+    for n, a, b in (("c0", [0, 0, 0], [1, 0, 0]), ("c1", [0, 1, 0], [1, 1, 0]),
+                    ("d0", [0, 0, 0], [0, 1, 0]), ("d1", [1, 0, 0], [1, 1, 0])):
+        call_tool(ws, "make_line", {"name": n, "p0": a, "p1": b})
+    out = call_tool(ws, "coons", {"name": "patch", "c0": "c0", "c1": "c1", "d0": "d0", "d1": "d1"})
+    assert out.startswith("stored patch")

@@ -4,9 +4,11 @@
 #include <cmath>
 #include <optional>
 
+#include "nurbforge/analysis/closest_point.hpp"
 #include "nurbforge/analysis/intersect.hpp"
 #include "nurbforge/analysis/surface_intersect.hpp"
 #include "nurbforge/core/error.hpp"
+#include "nurbforge/fitting/fit.hpp"
 #include "nurbforge/geometry/primitives.hpp"
 
 namespace nf {
@@ -131,6 +133,146 @@ std::vector<std::pair<double, double>> shared_intervals(const IntersectionCurve&
   return out;
 }
 
+// How two surfaces relate, from samples of each projected onto the other. Samples whose foot
+// point lies on the boundary of the other surface's domain say nothing (the point is beyond its
+// extent); if every other sample lies on the other surface, the surfaces coincide where they
+// overlap (Coincident), if there are no such samples at all they only touch along their domain
+// boundaries (Disjoint) – both are degenerate for the surface/surface intersection.
+enum class Relation { General, Coincident, Disjoint };
+
+Relation relation(const NurbsSurface& a, const NurbsSurface& b, double tol) {
+  int interior = 0;
+  for (int dir = 0; dir < 2; ++dir) {
+    const NurbsSurface& p = dir == 0 ? b : a;  // sampled
+    const NurbsSurface& q = dir == 0 ? a : b;  // projected onto
+    const auto pu = p.domain_u(), pv = p.domain_v(), qu = q.domain_u(), qv = q.domain_v();
+    const double eu = 1e-7 * (qu[1] - qu[0]), ev = 1e-7 * (qv[1] - qv[0]);
+    for (int i = 0; i <= 8; ++i)
+      for (int j = 0; j <= 8; ++j) {
+        const Vec3 P = p.evaluate(pu[0] + (pu[1] - pu[0]) * i / 8.0, pv[0] + (pv[1] - pv[0]) * j / 8.0);
+        const SurfacePoint f = closest_point(q, P);
+        if (f.u <= qu[0] + eu || f.u >= qu[1] - eu || f.v <= qv[0] + ev || f.v >= qv[1] - ev) continue;
+        if (f.distance > tol) return Relation::General;
+        ++interior;
+      }
+  }
+  return interior > 0 ? Relation::Coincident : Relation::Disjoint;
+}
+
+// Parameter-space curves on `onto` of those parts of the loops of face `from` that lie on the
+// surface `onto` (coincident faces: the other face's boundary becomes a cut). The 3D loop is
+// S_from(pc(t)); runs of samples within tolerance of `onto` are located (end points by
+// bisection), and each run is interpolated through its projections at the loop parameter,
+// doubling the samples until the midpoint error is below 1e-9 of the parameter domain.
+std::vector<NurbsCurve> projected_loops(const TrimmedSurface& from, const NurbsSurface& onto, double tol) {
+  const auto ou = onto.domain_u(), ov = onto.domain_v();
+  const double psize = std::max(ou[1] - ou[0], ov[1] - ov[0]);
+  std::vector<NurbsCurve> out;
+  const auto handle = [&](const NurbsCurve& pc) {
+    const auto X = [&](double t) {
+      const Vec3 w = pc.evaluate(t);
+      return from.surface().evaluate(w.x, w.y);
+    };
+    // within tolerance of `onto`; a foot point clamped to the domain boundary only counts if it is
+    // (nearly) exact – otherwise runs would reach a tolerance band beyond the surface's edge,
+    // where the projection is constant and the parameter curve has a kink
+    const double eu = 1e-12 * (ou[1] - ou[0]), ev = 1e-12 * (ov[1] - ov[0]);
+    const auto on = [&](double t) {
+      const SurfacePoint f = closest_point(onto, X(t));
+      if (f.distance > tol) return false;
+      const bool clamped = f.u <= ou[0] + eu || f.u >= ou[1] - eu || f.v <= ov[0] + ev || f.v >= ov[1] - ev;
+      return !clamped || f.distance <= 1e-3 * tol;
+    };
+    const double t0 = pc.domain_start(), t1 = pc.domain_end();
+    const std::size_t spans = std::max<std::size_t>(1, pc.knots().size() - 2 * (pc.degree() + 1) + 1);
+    const int n = static_cast<int>(std::min<std::size_t>(512, 32 * spans));
+    std::vector<std::pair<double, double>> runs;
+    bool prev = on(t0);
+    double start = t0, tp = t0;
+    const auto edge = [&](double lo, double hi, bool lo_on) {
+      for (int it = 0; it < 50; ++it) {
+        const double m = 0.5 * (lo + hi);
+        (on(m) == lo_on ? lo : hi) = m;
+      }
+      return 0.5 * (lo + hi);
+    };
+    for (int i = 1; i <= n; ++i) {
+      const double t = t0 + (t1 - t0) * i / n;
+      const bool cur = on(t);
+      if (cur != prev) {
+        const double e = edge(tp, t, prev);
+        if (prev) runs.emplace_back(start, e);
+        else start = e;
+        prev = cur;
+      }
+      tp = t;
+    }
+    if (prev) runs.emplace_back(start, t1);
+    for (const auto& [r0, r1] : runs) {
+      if (r1 - r0 <= 1e-9 * (t1 - t0)) continue;
+      for (std::size_t N = 5;; N = 2 * N - 1) {
+        std::vector<double> ts(N);
+        std::vector<Vec3> P(N);
+        for (std::size_t k = 0; k < N; ++k) {
+          ts[k] = k + 1 == N ? r1 : r0 + (r1 - r0) * static_cast<double>(k) / static_cast<double>(N - 1);
+          const SurfacePoint f = closest_point(onto, X(ts[k]));
+          P[k] = {f.u, f.v, 0.0};
+        }
+        const NurbsCurve fit = interpolate_curve(P, 3, ts);
+        double err = 0.0;
+        for (std::size_t k = 0; k + 1 < N; ++k) {
+          const double tm = 0.5 * (ts[k] + ts[k + 1]);
+          const SurfacePoint f = closest_point(onto, X(tm));
+          err = std::max(err, distance(fit.evaluate(tm), Vec3{f.u, f.v, 0.0}));
+        }
+        if (err <= 1e-8 * psize || N > 1025) {
+          out.push_back(fit);
+          break;
+        }
+      }
+    }
+  };
+  for (const auto& c : from.outer().curves) handle(c);
+  for (const auto& h : from.holes())
+    for (const auto& c : h.curves) handle(c);
+  return out;
+}
+
+// Drops cuts that run along the face's loops or along an earlier cut (9 samples within 1e-6 of
+// the parameter domain): the same boundary often arrives twice – as the projected loop of a
+// coincident face and as an intersection curve with an adjacent face – with slightly different
+// fits. Nearly coincident curves would make the curve/curve intersection in the arrangement
+// subdivide down to its size limit everywhere.
+std::vector<NurbsCurve> prune_cuts(const TrimmedSurface& face, std::vector<NurbsCurve> cuts) {
+  const auto du = face.surface().domain_u(), dv = face.surface().domain_v();
+  const double eps = 1e-6 * std::max(du[1] - du[0], dv[1] - dv[0]);
+  std::vector<const NurbsCurve*> ref;
+  for (const auto& c : face.outer().curves) ref.push_back(&c);
+  for (const auto& h : face.holes())
+    for (const auto& c : h.curves) ref.push_back(&c);
+  std::vector<NurbsCurve> kept;
+  for (auto& c : cuts) {
+    bool redundant = true;
+    for (int k = 0; k <= 8 && redundant; ++k) {
+      const Vec3 p = c.evaluate(c.domain_start() + (c.domain_end() - c.domain_start()) * k / 8.0);
+      bool near = false;
+      for (const NurbsCurve* r : ref)
+        if (closest_point(*r, p).distance <= eps) {
+          near = true;
+          break;
+        }
+      for (const auto& q : kept)
+        if (!near && closest_point(q, p).distance <= eps) near = true;
+      redundant = near;
+    }
+    if (!redundant) kept.push_back(std::move(c));
+  }
+  return kept;
+}
+
+// Position of a face piece relative to the other shell.
+enum class Where { Out, In, OnSame, OnOpposite };
+
 }  // namespace
 
 bool point_in_shell(const Shell& shell, const Vec3& p, double tolerance) {
@@ -179,11 +321,22 @@ Shell boolean(const Shell& a_in, const Shell& b_in, BooleanOp op, double toleran
   const auto& FA = A.faces();
   const auto& FB = B.faces();
   std::vector<std::vector<NurbsCurve>> cuts_a(FA.size()), cuts_b(FB.size());
+  std::vector<std::vector<std::size_t>> partners_a(FA.size()), partners_b(FB.size());  // coincident faces
   SurfaceIntersectionOptions opt;
   opt.tol.length = 1e-3 * tolerance;
   for (std::size_t i = 0; i < FA.size(); ++i)
     for (std::size_t j = 0; j < FB.size(); ++j) {
       if (!face_box(FA[i]).overlaps(face_box(FB[j]), tolerance)) continue;
+      const Relation rel = relation(FA[i].surface(), FB[j].surface(), tolerance);
+      if (rel == Relation::Disjoint) continue;
+      if (rel == Relation::Coincident) {
+        // each face is cut along the other's boundary; the common part is classified "on"
+        for (auto& c : projected_loops(FB[j], FA[i].surface(), tolerance)) cuts_a[i].push_back(std::move(c));
+        for (auto& c : projected_loops(FA[i], FB[j].surface(), tolerance)) cuts_b[j].push_back(std::move(c));
+        partners_a[i].push_back(j);
+        partners_b[j].push_back(i);
+        continue;
+      }
       const auto res = intersect(FA[i].surface(), FB[j].surface(), opt);
       for (const auto& c : res.curves)
         for (const auto& [t0, t1] : shared_intervals(c, FA[i], FB[j])) {
@@ -191,30 +344,42 @@ Shell boolean(const Shell& a_in, const Shell& b_in, BooleanOp op, double toleran
           cuts_b[j].push_back(c.pcurve2.sub_curve(t0, t1));
         }
     }
-  const auto pieces = [&](const std::vector<TrimmedSurface>& faces, const std::vector<std::vector<NurbsCurve>>& cuts) {
-    std::vector<TrimmedSurface> out;
-    for (std::size_t i = 0; i < faces.size(); ++i) {
-      const auto parts = split(faces[i], cuts[i]);
-      out.insert(out.end(), parts.begin(), parts.end());
-    }
-    return out;
-  };
-  const auto inside_of = [&](const TrimmedSurface& piece, const Shell& other) {
+  // classification of a piece of `face` against the other shell: "on" if its interior point lies
+  // on a coincident face of the other shell (same or opposite outward normal), else ray casting
+  const auto where = [&](const TrimmedSurface& piece, const std::vector<std::size_t>& partners,
+                         const std::vector<TrimmedSurface>& other_faces, const Shell& other) {
     const auto q = interior_point(piece);
     if (!q) throw GeometryError("boolean: cannot find an interior point of a face piece");
-    return point_in_shell(other, piece.surface().evaluate((*q)[0], (*q)[1]), tolerance);
+    const Vec3 P = piece.surface().evaluate((*q)[0], (*q)[1]);
+    for (std::size_t j : partners) {
+      const TrimmedSurface& g = other_faces[j];
+      const SurfacePoint f = closest_point(g.surface(), P);
+      if (f.distance <= 10.0 * tolerance && g.contains(f.u, f.v)) {
+        const double c = dot(piece.surface().normal((*q)[0], (*q)[1]), g.surface().normal(f.u, f.v));
+        return c > 0.0 ? Where::OnSame : Where::OnOpposite;
+      }
+    }
+    return point_in_shell(other, P, tolerance) ? Where::In : Where::Out;
   };
   std::vector<TrimmedSurface> result;
-  for (const auto& p : pieces(FA, cuts_a)) {
-    const bool in = inside_of(p, B);
-    if ((op == BooleanOp::Intersection) == in) result.push_back(p);
-  }
-  for (const auto& p : pieces(FB, cuts_b)) {
-    const bool in = inside_of(p, A);
-    if (op == BooleanOp::Union && !in) result.push_back(p);
-    if (op == BooleanOp::Intersection && in) result.push_back(p);
-    if (op == BooleanOp::Difference && in) result.push_back(p.flipped());
-  }
+  for (std::size_t i = 0; i < FA.size(); ++i)
+    for (const auto& p : split(FA[i], prune_cuts(FA[i], std::move(cuts_a[i])))) {
+      const Where w = where(p, partners_a[i], FB, B);
+      const bool keep = op == BooleanOp::Union          ? (w == Where::Out || w == Where::OnSame)
+                        : op == BooleanOp::Intersection ? (w == Where::In || w == Where::OnSame)
+                                                        : (w == Where::Out || w == Where::OnOpposite);
+      if (keep) result.push_back(p);
+    }
+  // B pieces on A are never taken: a common face with the same orientation is already taken from
+  // A (union, intersection), all other "on" cases drop out
+  for (std::size_t j = 0; j < FB.size(); ++j)
+    for (const auto& p : split(FB[j], prune_cuts(FB[j], std::move(cuts_b[j])))) {
+      const Where w = where(p, partners_b[j], FA, A);
+      if (op == BooleanOp::Union && w == Where::Out) result.push_back(p);
+      if (op == BooleanOp::Intersection && w == Where::In) result.push_back(p);
+      if (op == BooleanOp::Difference && w == Where::In) result.push_back(p.flipped());
+    }
+  if (result.empty()) return Shell{};
   // the pieces keep the orientation of their (outward oriented) shells; difference pieces of B
   // are flipped – re-orienting here would turn inner voids outwards
   return Shell::sew(std::move(result), tolerance);

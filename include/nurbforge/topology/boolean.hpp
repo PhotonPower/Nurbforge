@@ -20,8 +20,13 @@ enum class BooleanOp { Union, Intersection, Difference };
 ///   Union:        A outside B + B outside A
 ///   Intersection: A inside B  + B inside A
 ///   Difference:   A outside B + (B inside A, flipped)
-/// The inputs are oriented outwards first. Limitations: overlapping (coincident) faces and
-/// tangential contacts are not handled. Throws GeometryError for open input shells.
+/// Coincident faces (detected by sampling before the surface/surface intersection) are cut along
+/// each other's boundary; their common part is classified "on" with the same or the opposite
+/// outward normal: kept once for union and intersection if the normals agree, kept from A for a
+/// difference if they are opposite, dropped otherwise. An empty result is an empty shell.
+/// The inputs are oriented outwards first. Limitations: tangential contacts, coincident faces
+/// whose common part crosses the seam of a closed surface. Throws GeometryError for open input
+/// shells.
 [[nodiscard]] Shell boolean(const Shell& a, const Shell& b, BooleanOp op, double tolerance = 1e-6);
 
 }  // namespace nf

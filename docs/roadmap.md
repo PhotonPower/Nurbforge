@@ -33,7 +33,7 @@
 
 ## 0.5 – Topology & Booleans
 - B-rep shells (vertex/edge/coedge/face/shell) ✅, watertightness and orientation checks ✅, volume ✅; bodies with several shells
-- Boolean union / intersection / difference on trimmed NURBS shells ✅ (coincident faces open)
+- Boolean union / intersection / difference on trimmed NURBS shells ✅ (incl. coincident faces)
 - STEP / IGES export via OCC ✅ (native writer open)
 
 ## Infrastructure

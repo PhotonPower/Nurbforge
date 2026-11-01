@@ -191,7 +191,28 @@ rational circle is only C1 there; a single cubic per trim curve would need thous
 
 Sewing splits boundary curves at the end points of other boundary curves lying on them
 (T-junctions), e.g. a hole circle split at different points on the two faces sharing it.
-Not handled: overlapping (coincident) faces and tangential contacts.
+**Coincident faces.** Before intersecting, each pair of faces is sampled (9×9 points of each
+surface projected onto the other). Samples whose foot point lies on the other domain's boundary
+are beyond its extent and ignored; if all remaining samples lie on the other surface, the faces
+are *coincident* (if there are none, they only touch along their edges and are skipped). For
+coincident faces the surface/surface intersection is degenerate and is not called: instead each
+face is cut along the other face's loops, projected into its parameter domain (runs of the loop
+within tolerance of the surface, end points by bisection, interpolated until the parameter error
+is below 1e-8 of the domain). Cuts running along a loop or an earlier cut are dropped (the same
+boundary often arrives twice, e.g. as a projected loop and as an intersection curve). A piece
+whose interior point lies on a coincident face of the other shell is classified **on**, with the
+same or the opposite outward normal:
+
+| piece | union | intersection | difference A − B |
+|---|---|---|---|
+| A, on, same normal | keep | keep | drop |
+| A, on, opposite normal | drop | drop | keep |
+| B, on (either) | drop | drop | drop |
+
+So two boxes sharing a face fuse into one solid, identical solids give themselves (union,
+intersection) or nothing (difference), and an empty result is an empty shell.
+Not handled: tangential contacts and coincident faces whose common part crosses the seam of a
+closed surface (the projected loop would jump in the parameter domain).
 
 ## Fitting
 

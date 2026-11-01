@@ -8,10 +8,12 @@ on:
   push:
     tags: ["v*"]
   workflow_dispatch:
+  # Only packaging changes trigger wheel builds on PRs. Source changes (incl. CMakeLists.txt,
+  # which nearly every feature PR touches) are built and tested on both platforms by ci.yml;
+  # wheels are built for tags and on demand (workflow_dispatch).
   pull_request:
     paths:
       - pyproject.toml
-      - CMakeLists.txt
       - .github/workflows/wheels.yml
 
 permissions:

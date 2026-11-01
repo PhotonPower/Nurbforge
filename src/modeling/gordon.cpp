@@ -6,6 +6,7 @@
 #include <numeric>
 #include <optional>
 #include <string>
+#include <utility>
 
 #include "nurbforge/analysis/closest_point.hpp"
 #include "nurbforge/core/error.hpp"
@@ -187,6 +188,13 @@ NurbsSurface coons(const NurbsCurve& c0, const NurbsCurve& c1_in, const NurbsCur
   const auto start = [](const NurbsCurve& c) { return c.evaluate(c.domain_start()); };
   const auto end = [](const NurbsCurve& c) { return c.evaluate(c.domain_end()); };
   NurbsCurve c1 = c1_in, d0 = d0_in, d1 = d1_in;
+  // d0 is the side curve through c0's start: swap the side curves if they were passed the
+  // other way round
+  const auto near_end = [&](const NurbsCurve& c, const Vec3& p) {
+    return std::min(distance(start(c), p), distance(end(c), p));
+  };
+  if (near_end(d1, start(c0)) + near_end(d0, end(c0)) < near_end(d0, start(c0)) + near_end(d1, end(c0)))
+    std::swap(d0, d1);
   // c1 runs like c0 (decided by the opposite corners)
   if (distance(start(c0), start(c1)) + distance(end(c0), end(c1)) >
       distance(start(c0), end(c1)) + distance(end(c0), start(c1)))

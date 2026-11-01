@@ -715,9 +715,11 @@ class Ssi {
       const double gap = distance(pa.point, pb.point);
       if (gap <= 10.0 * tol_.length) return true;  // the ends coincide (they may overlap slightly)
       if (gap > 1e-3 * size_) return false;
+      // the ends may also overlap: where the curve touches the boundary, its position along the
+      // tangent is only determined to ~sqrt(2 r tol)
       const Vec3 c = (pb.point - pa.point) / gap;
       const auto ta = end_tangent(a, true), tb = end_tangent(b, false);
-      if (!ta || !tb || dot(*ta, c) <= 0.0 || dot(*tb, c) <= 0.0) return false;
+      if (!ta || !tb || dot(*ta, *tb) < 0.999) return false;
       return gap * std::max(norm(cross(*ta, c)), norm(cross(*tb, c))) <= 100.0 * tol_.length;
     };
     const auto reverse = [&](std::size_t i) {
@@ -739,11 +741,17 @@ class Ssi {
             if (!joinable(i, j)) continue;
             auto& a = raw_[i];
             const auto& b = raw_[j];
-            const bool same = distance(a.pts.back().point, b.pts.front().point) <= 10.0 * tol_.length;
-            const auto from = static_cast<std::ptrdiff_t>(same ? 1 : 0);
-            a.pts.insert(a.pts.end(), b.pts.begin() + from, b.pts.end());
-            if (!same) a.brk.push_back(false);
-            a.brk.insert(a.brk.end(), b.brk.begin() + 1, b.brk.end());
+            // points of b behind the end of a (overlap) or coinciding with it are skipped
+            const Vec3 pa = a.pts.back().point;
+            const auto ta = end_tangent(a.pts, true);
+            std::size_t from = 0;
+            while (from + 1 < b.pts.size() &&
+                   (distance(b.pts[from].point, pa) <= 10.0 * tol_.length ||
+                    (ta && dot(b.pts[from].point - pa, *ta) <= 0.0)))
+              ++from;
+            a.pts.insert(a.pts.end(), b.pts.begin() + static_cast<std::ptrdiff_t>(from), b.pts.end());
+            a.brk.push_back(false);
+            a.brk.insert(a.brk.end(), b.brk.begin() + static_cast<std::ptrdiff_t>(from) + 1, b.brk.end());
             const bool closed = distance(a.pts.front().point, a.pts.back().point) <= 10.0 * tol_.length &&
                                 params_near(a.pts.front(), a.pts.back());
             if (closed) a.pts.back() = a.pts.front();

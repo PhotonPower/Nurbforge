@@ -38,6 +38,7 @@ optics
 meshing
 io
 llm
+benchmarks
 build/almalinux10
 build/windows11
 ```

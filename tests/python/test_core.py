@@ -319,3 +319,16 @@ def test_intersections():
     sphere = nf.revolve(meridian, (0, 0, 0), (0, 0, 1), 2 * math.pi)
     sh = nf.intersect(nf.make_line((0, 0, -3), (0, 0, 3)), sphere)
     assert [round(h.point.z, 12) for h in sh] == [-2.0, 2.0]
+
+
+def test_surface_surface_intersection():
+    meridian = nf.make_arc((0, 0, 0), (0, 0, -1), (1, 0, 0), 2.0, 0.0, math.pi)
+    sphere = nf.revolve(meridian, (0, 0, 0), (0, 0, 1), 2 * math.pi)
+    plane = nf.make_rectangle((-3, -3, 0.8), (6, 0, 0), (0, 6, 0))
+    res = nf.intersect(sphere, plane)
+    total = sum(nf.length(c.curve) for c in res.curves)
+    assert abs(total - 2 * math.pi * math.sqrt(4 - 0.64)) < 1e-5
+    c = res.curves[0]
+    w = c.pcurve1(0.5 * sum(c.curve.domain))
+    assert abs(sphere(w.x, w.y).z - 0.8) < 1e-6
+    assert res.points == []

@@ -189,6 +189,28 @@ struct CurveCurveSearch {
     if (d <= tol.length) out.push_back({x[0], x[1], 0.5 * (pa_ + pb_), d});
   }
 
+  // Overlap: if the piece `p` lies on the whole curve `q` (5 samples within tolerance, local
+  // projections started at `guess` and continued from sample to sample), its end points are
+  // reported and the pair is not subdivided further (otherwise coincident curves would be
+  // subdivided down to the size limit everywhere). A failed local projection only means more
+  // subdivision, never a wrong result.
+  bool covered(const NurbsCurve& p, const NurbsCurve& q, bool p_is_b, double guess) {
+    std::array<CurvePoint, 5> cp{};
+    for (int i = 0; i <= 4; ++i) {
+      const double t = p.domain_start() + (p.domain_end() - p.domain_start()) * i / 4.0;
+      cp[static_cast<std::size_t>(i)] = closest_point_local(q, p.evaluate(t), guess, tol);
+      guess = cp[static_cast<std::size_t>(i)].u;
+      if (cp[static_cast<std::size_t>(i)].distance > tol.length) return false;
+    }
+    for (int i : {0, 4}) {
+      const double tp = i == 0 ? p.domain_start() : p.domain_end();
+      const auto& c = cp[static_cast<std::size_t>(i)];
+      const double s_ = p_is_b ? c.u : tp, t_ = p_is_b ? tp : c.u;
+      out.push_back({s_, t_, 0.5 * (a.evaluate(s_) + b.evaluate(t_)), c.distance});
+    }
+    return true;
+  }
+
   void process(const NurbsCurve& pa, const NurbsCurve& pb, int depth) {
     const auto& A = pa.control_points();
     const auto& B = pb.control_points();
@@ -201,6 +223,9 @@ struct CurveCurveSearch {
       leaf(pa, pb);
       return;
     }
+    const double mid_a = 0.5 * (pa.domain_start() + pa.domain_end());
+    const double mid_b = 0.5 * (pb.domain_start() + pb.domain_end());
+    if (covered(pa, b, false, mid_b) || covered(pb, a, true, mid_a)) return;
     if (da >= db) {
       const auto [l, r] = pa.split(0.5 * (pa.domain_start() + pa.domain_end()));
       process(l, pb, depth + 1);
@@ -252,6 +277,28 @@ struct CurveSurfaceSearch {
     if (d <= tol.length) out.push_back({x[0], x[1], x[2], 0.5 * (pc_ + ps_), d});
   }
 
+  // Curve piece lying in the surface (5 samples within tolerance, local projections from the
+  // piece's centre): report its end points instead of subdividing a coincident configuration
+  // down to the size limit.
+  bool covered(const NurbsCurve& pc, const NurbsSurface& ps) {
+    const auto ur = ps.domain_u(), vr = ps.domain_v();
+    double gu = 0.5 * (ur[0] + ur[1]), gv = 0.5 * (vr[0] + vr[1]);
+    std::array<SurfacePoint, 5> sp{};
+    for (int i = 0; i <= 4; ++i) {
+      const double t = pc.domain_start() + (pc.domain_end() - pc.domain_start()) * i / 4.0;
+      sp[static_cast<std::size_t>(i)] = closest_point_local(s, pc.evaluate(t), gu, gv, tol);
+      gu = sp[static_cast<std::size_t>(i)].u;
+      gv = sp[static_cast<std::size_t>(i)].v;
+      if (sp[static_cast<std::size_t>(i)].distance > tol.length) return false;
+    }
+    for (int i : {0, 4}) {
+      const double t = i == 0 ? pc.domain_start() : pc.domain_end();
+      const auto& q = sp[static_cast<std::size_t>(i)];
+      out.push_back({t, q.u, q.v, 0.5 * (c.evaluate(t) + s.evaluate(q.u, q.v)), q.distance});
+    }
+    return true;
+  }
+
   void process(const NurbsCurve& pc, const NurbsSurface& ps, int depth) {
     const auto& C = pc.control_points();
     const auto& S = ps.control_points();
@@ -267,6 +314,7 @@ struct CurveSurfaceSearch {
       leaf(pc, ps);
       return;
     }
+    if (covered(pc, ps)) return;
     if (dc >= dsz) {
       const auto [l, r] = pc.split(0.5 * (pc.domain_start() + pc.domain_end()));
       process(l, ps, depth + 1);

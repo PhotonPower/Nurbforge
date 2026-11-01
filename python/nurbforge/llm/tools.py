@@ -210,10 +210,26 @@ def _build_tools() -> list[Tool]:
                 "vmin": nf.SurfaceSide.VMin, "vmax": nf.SurfaceSide.VMax}[where]
         return ws.put(name, nf.extend(o, side, length, kind))
 
-    @add("intersect", "Intersection points of a curve with another curve or with a surface.",
-         {"a": _NAME, "b": _NAME}, ["a", "b"])
-    def _(ws, a, b):
-        hits = nf.intersect(ws.get(a), ws.get(b))
+    @add("intersect", "Intersection of two objects: points for curve/curve and curve/surface; "
+         "for surface/surface the intersection curves are stored as name_1, name_2, ...",
+         {"a": _NAME, "b": _NAME, "name": {"type": "string", "description":
+                                            "base name for surface/surface curves (default 'cut')"}},
+         ["a", "b"])
+    def _(ws, a, b, name="cut"):
+        oa, ob = ws.get(a), ws.get(b)
+        if isinstance(oa, nf.NurbsSurface) and isinstance(ob, nf.NurbsSurface):
+            res = nf.intersect(oa, ob)
+            out = []
+            for i, c in enumerate(res.curves, 1):
+                ws.put(f"{name}_{i}", c.curve)
+                out.append(f"{name}_{i}: {'closed' if c.closed else 'open'}, length "
+                           f"{nf.length(c.curve):.6g}")
+            out += [f"touching point ({p.point.x:.6g}, {p.point.y:.6g}, {p.point.z:.6g})"
+                    for p in res.points]
+            return "; ".join(out) if out else "no intersection"
+        if isinstance(oa, nf.NurbsSurface):
+            oa, ob = ob, oa
+        hits = nf.intersect(oa, ob)
         if not hits:
             return "no intersection"
         return "; ".join(f"({h.point.x:.6g}, {h.point.y:.6g}, {h.point.z:.6g})" for h in hits)

@@ -25,7 +25,7 @@
 
 ## 0.4 – Intersections & trimming
 - Curve–curve, curve–surface intersection ✅
-- Surface–surface intersection (subdivision + marching)
+- Surface–surface intersection (subdivision + marching) ✅
 - Trimmed surfaces (parameter-space loops), surface systems with shared edges
 - Planar sections / cuts
 

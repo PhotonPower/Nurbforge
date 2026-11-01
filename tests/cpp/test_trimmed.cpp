@@ -176,3 +176,20 @@ TEST_CASE("containment is exact near curved trim loops", "[trim]") {
   CHECK_FALSE(tri.contains(0.05, 0.05));
   CHECK(tri.contains(0.1 + 1e-7, 0.1 + 1e-8));
 }
+
+TEST_CASE("split keeps slivers far thinner than the domain", "[trim]") {
+  // an arc entering the unit square 1e-5 deep from its left edge cuts off a sliver of area
+  // ~ (4/3) w h (the region probe used to be nudged by a fixed 1e-4 and missed it)
+  const auto sq = make_rectangle({0, 0, 0}, {1, 0, 0}, {0, 1, 0});
+  for (double h : {1e-3, 1e-5}) {  // (at 1e-6 of the domain a cut counts as running along the loop)
+    const double R = 0.5, c = R - h;  // circle centred at (-c, 0.5), radius R
+    const double half = std::acos(c / R);
+    const auto arc = make_arc({-c, 0.5, 0}, {1, 0, 0}, {0, 1, 0}, R, -half, half);
+    const auto pieces = split(TrimmedSurface(sq), std::vector<NurbsCurve>{arc});
+    REQUIRE(pieces.size() == 2);
+    const double seg = R * R * half - c * std::sqrt(R * R - c * c);
+    const double a0 = pieces[0].area(1e-9), a1 = pieces[1].area(1e-9);
+    CHECK(std::abs(std::min(a0, a1) - seg) < 1e-3 * seg);
+    CHECK(std::abs(a0 + a1 - 1.0) < 1e-9);
+  }
+}

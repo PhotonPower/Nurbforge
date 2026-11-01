@@ -248,10 +248,16 @@ seam, at a pole), spheres and cylinders touching box faces, a cylinder inside a 
 two sides and two cylinders side by side give exact volumes; the touching lumps of a union
 stay separate components.
 
-Not handled: overlaps thinner than the tolerance that are not exact contacts (the thin lens of
-two spheres overlapping by 1e-7 is traced but cannot be classified reliably), and coincident
-faces whose common part crosses the seam of a closed surface (the projected loop would jump in
-the parameter domain).
+**Overlaps thinner than the tolerance** count as contacts: if the intersection curves of a face
+pair bound a lens at most extent × angle / 4 thick (extent of the curves, largest angle between
+the normals on them) and that is below the tolerance, the pair is not cut but treated as
+touching (two spheres overlapping by 1e-7 give two touching lumps and an empty intersection).
+Thin overlaps above the tolerance are cut: the arrangement finds an interior point of each
+region by an inward ray (midpoint to the first crossing of the cycle), so slivers of 1e-5 –
+the circle segments a box face cuts from a cylinder lid it overlaps by 1e-5 – are kept.
+
+Not handled: coincident faces whose common part crosses the seam of a closed surface (the
+projected loop would jump in the parameter domain).
 
 ## Fitting
 

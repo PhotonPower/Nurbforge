@@ -5,6 +5,11 @@ versioning: [SemVer](https://semver.org).
 
 ## [Unreleased]
 ### Fixed (found by the new Boolean stress test, `benchmarks/stress.cpp`)
+- `split` (face arrangement) dropped regions thinner than 1e-4 of the parameter domain (its
+  region probe was nudged by a fixed 1e-4): a box face overlapping a cylinder by 1e-5 gave open
+  Boolean results. The probe is now the midpoint of an inward ray to the first crossing of the
+  cycle. Touching runs of intersection curves along a face boundary are recognised within the
+  tolerance instead of 10 tolerances (a 1e-5 circle segment was taken for a touching run).
 - Curve/surface intersection of a curve running just off a surface (a line next to a tilted
   plane, the patch boundary next to a line of contact between a cylinder and a rotated box
   face) subdivided down to the size limit along the whole curve and took minutes; the signed
@@ -32,6 +37,9 @@ versioning: [SemVer](https://semver.org).
   contact between curved surfaces) and joins curves that touch a domain edge; the Boolean
   classifies touching faces at an interior point clear of the contact and ignores intersection
   curves that only touch a face boundary.
+- Booleans: overlaps thinner than the tolerance count as contacts (the face pair is not cut when
+  its intersection curves bound a lens thinner than the tolerance), e.g. two spheres
+  overlapping by 1e-7 give two touching lumps and an empty intersection.
 - Boolean stress test: six families with exact tangential contact (`nf_stress 20 touch`).
 - Native STEP reader: `read_step(path)` / `from_step(text)` (C++ `io/step.hpp`, Python
   `nf.read_step(path, unit=...)`, LLM tool `import_step`) return one `Shell` per

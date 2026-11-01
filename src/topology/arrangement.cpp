@@ -226,16 +226,34 @@ std::vector<TrimmedSurface> split(const TrimmedSurface& face, const std::vector<
   std::vector<std::size_t> regions;
   for (std::size_t i = 0; i < cycles.size(); ++i) {
     if (cycles[i].area <= 0.0) continue;
-    // a point safely inside the cycle: try polyline midpoints nudged to the left
+    // a point safely inside the cycle: from polyline midpoints a ray is sent to the left
+    // (inwards); the midpoint between the start and the first crossing of the cycle lies inside
+    // even for slivers far thinner than a fixed nudge (the widest such spot is taken)
     std::optional<P2> probe;
+    double best_width = 0.0;
     const auto& poly = cycles[i].poly;
-    for (std::size_t k = 0; k + 1 < poly.size() && !probe; ++k) {
+    for (std::size_t k = 0; k + 1 < poly.size(); ++k) {
       const double ex = poly[k + 1][0] - poly[k][0], ey = poly[k + 1][1] - poly[k][1];
       const double len = std::hypot(ex, ey);
       if (len <= 0.0) continue;
-      const P2 p{0.5 * (poly[k][0] + poly[k + 1][0]) - 1e-4 * size * ey / len,
-                 0.5 * (poly[k][1] + poly[k + 1][1]) + 1e-4 * size * ex / len};
-      if (inside_polygon(poly, p[0], p[1])) probe = p;
+      const double mx = 0.5 * (poly[k][0] + poly[k + 1][0]), my = 0.5 * (poly[k][1] + poly[k + 1][1]);
+      const double nx = -ey / len, ny = ex / len;
+      double s_hit = 1e300;
+      for (std::size_t j = 0; j + 1 < poly.size(); ++j) {
+        if (j == k) continue;
+        const double ax = poly[j][0], ay = poly[j][1], bx = poly[j + 1][0] - ax, by = poly[j + 1][1] - ay;
+        const double den = nx * by - ny * bx;
+        if (std::abs(den) < 1e-300) continue;
+        const double s = ((ax - mx) * by - (ay - my) * bx) / den;
+        const double t = ((ax - mx) * ny - (ay - my) * nx) / den;
+        if (s > 1e-12 * len && t >= 0.0 && t <= 1.0) s_hit = std::min(s_hit, s);
+      }
+      if (s_hit >= 1e300 || s_hit <= best_width) continue;
+      const P2 p{mx + 0.5 * s_hit * nx, my + 0.5 * s_hit * ny};
+      if (inside_polygon(poly, p[0], p[1])) {
+        best_width = s_hit;
+        probe = p;
+      }
     }
     if (probe && face.contains((*probe)[0], (*probe)[1])) regions.push_back(i);
   }

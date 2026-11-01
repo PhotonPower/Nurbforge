@@ -276,3 +276,15 @@ def test_sweep():
     r = nf.sweep2(nf.make_line((0, 0, 0), (1, 0, 0)), nf.make_line((0, 0, 0), (0, 5, 0)),
                   nf.make_line((1, 0, 0), (2, 5, 0)))
     assert nf.distance(r(1.0, 1.0), nf.Vec3(2, 5, 0)) < 1e-6
+
+
+def test_coons_gordon():
+    p00, p10, p01, p11 = (0, 0, 0), (2, 0, 1), (0, 3, 0), (2, 3, 4)
+    s = nf.coons(nf.make_line(p00, p10), nf.make_line(p01, p11),
+                 nf.make_line(p00, p01), nf.make_line(p10, p11))
+    b = nf.make_bilinear(p00, p10, p01, p11)
+    assert nf.distance(s(0.3, 0.8), b(0.3, 0.8)) < 1e-12
+    uc = [b.iso_curve_v(v) for v in (0.0, 0.5, 1.0)]
+    vc = [b.iso_curve_u(u) for u in (0.0, 0.4, 1.0)]
+    g = nf.gordon(uc, vc)
+    assert nf.distance(g(0.7, 0.2), b(0.7, 0.2)) < 1e-10

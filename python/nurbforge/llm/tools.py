@@ -173,6 +173,13 @@ def _build_tools() -> list[Tool]:
         opt = nf.SweepOptions(twist=_deg(twist_deg))
         return ws.put(name, nf.sweep(ws.get(profile), ws.get(path), opt))
 
+    @add("coons", "Create a surface filling four boundary curves that form a closed loop "
+         "(any orientation).",
+         {"name": _NAME, "c0": _NAME, "c1": _NAME, "d0": _NAME, "d1": _NAME},
+         ["name", "c0", "c1", "d0", "d1"])
+    def _(ws, name, c0, c1, d0, d1):
+        return ws.put(name, nf.coons(ws.get(c0), ws.get(c1), ws.get(d0), ws.get(d1)))
+
     @add("extend", "Extend a curve at its start or end (or a surface across a side umin/umax/"
          "vmin/vmax) by a length. mode 'natural' continues the shape smoothly, 'linear' "
          "continues straight along the tangent.",

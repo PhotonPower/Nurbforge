@@ -507,6 +507,62 @@ PYBIND11_MODULE(_core, m) {
         "Offset surface S(u,v) + d * N(u,v) as a quintic tensor-product spline fitted to the "
         "tolerance (parameters kept). Raises GeometryError if d reaches a radius of curvature.");
 
+  // ------------------------------------------------------------------ fillets
+  py::class_<CurveFillet>(m, "CurveFillet", "Circular fillet between two planar curves.")
+      .def_readonly("arc", &CurveFillet::arc, "exact rational arc from point_a to point_b")
+      .def_readonly("center", &CurveFillet::center)
+      .def_readonly("param_a", &CurveFillet::param_a, "parameter of the tangent point on a")
+      .def_readonly("param_b", &CurveFillet::param_b, "parameter of the tangent point on b")
+      .def_readonly("point_a", &CurveFillet::point_a)
+      .def_readonly("point_b", &CurveFillet::point_b)
+      .def_readonly("trimmed_a", &CurveFillet::trimmed_a,
+                    "kept part of a ending at point_a (None if trim=False)")
+      .def_readonly("trimmed_b", &CurveFillet::trimmed_b,
+                    "kept part of b starting at point_b (None if trim=False)")
+      .def("__repr__", [](const CurveFillet& f) {
+        return "<CurveFillet center=(" + std::to_string(f.center.x) + ", " +
+               std::to_string(f.center.y) + ", " + std::to_string(f.center.z) + ")>";
+      });
+  m.def(
+      "fillet_curves",
+      [](const NurbsCurve& a, const NurbsCurve& b, double radius, const Vec3& plane_normal,
+         int side_a, int side_b, bool trim, std::optional<Vec3> corner, double tolerance) {
+        return fillet_curves(a, b, radius, plane_normal,
+                             CurveFilletOptions{side_a, side_b, trim, corner, tolerance});
+      },
+      py::arg("a"), py::arg("b"), py::arg("radius"), py::arg("plane_normal") = Vec3{0, 0, 1},
+      py::arg("side_a") = 0, py::arg("side_b") = 0, py::arg("trim") = true,
+      py::arg("corner") = py::none(), py::arg("tolerance") = 1e-7,
+      "Circular fillet of the given radius between two coplanar intersecting curves. side_a / "
+      "side_b: +1 = centre to the left of the curve's direction seen from plane_normal, -1 = "
+      "right, 0 = automatic (the corner between the kept parts, i.e. the longer sides of the "
+      "intersection). Returns a CurveFillet (exact arc, tangent parameters, trimmed curves).");
+  py::class_<SurfaceFillet>(m, "SurfaceFillet", "Rolling-ball fillet between two surfaces.")
+      .def_readonly("surface", &SurfaceFillet::surface,
+                    "u: arc from contact1 (u=0) to contact2 (u=1), v: spine parameter")
+      .def_readonly("spine", &SurfaceFillet::spine, "path of the ball centre")
+      .def_readonly("contact1", &SurfaceFillet::contact1)
+      .def_readonly("contact2", &SurfaceFillet::contact2)
+      .def_readonly("pcurve1", &SurfaceFillet::pcurve1, "contact1 as (u, v, 0) on s1")
+      .def_readonly("pcurve2", &SurfaceFillet::pcurve2, "contact2 as (u, v, 0) on s2")
+      .def("__repr__", [](const SurfaceFillet& f) {
+        return "<SurfaceFillet sections=" + std::to_string(f.surface.num_v()) + ">";
+      });
+  m.def(
+      "fillet_surfaces",
+      [](const NurbsSurface& s1, const NurbsSurface& s2, double radius, int side1, int side2,
+         double tolerance, double offset_tolerance, std::size_t max_sections) {
+        return fillet_surfaces(
+            s1, s2, radius,
+            SurfaceFilletOptions{side1, side2, tolerance, offset_tolerance, max_sections});
+      },
+      py::arg("s1"), py::arg("s2"), py::arg("radius"), py::arg("side1") = 1, py::arg("side2") = 1,
+      py::arg("tolerance") = 1e-6, py::arg("offset_tolerance") = 0.0,
+      py::arg("max_sections") = 1025,
+      "Rolling-ball fillet of radius r between two surfaces. side1 / side2 = +1 put the ball on "
+      "the side of the normal S_u x S_v of s1 / s2, -1 on the opposite side. Returns a "
+      "SurfaceFillet (surface, spine, contact curves, p-curves on s1 / s2).");
+
   // ------------------------------------------------------------------ Coons / Gordon
   m.def("coons", &coons, py::arg("c0"), py::arg("c1"), py::arg("d0"), py::arg("d1"),
         py::arg("tolerance") = 1e-7,

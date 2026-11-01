@@ -42,6 +42,7 @@ add_library(nurbforge_core STATIC
   src/modeling/sweep.cpp
   src/modeling/gordon.cpp
   src/modeling/offset.cpp
+  src/modeling/fillet.cpp
   src/analysis/closest_point.cpp
   src/analysis/properties.cpp
   src/analysis/intersect.cpp

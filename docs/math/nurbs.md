@@ -274,6 +274,54 @@ the verified error.
   detected nor removed, and the curvature check on a sample grid can miss a very narrow
   curvature peak between samples (the fit then usually fails to converge and throws).
 
+## Fillets
+
+Constant-radius fillets (`modeling/fillet.hpp`) use the offset construction: the centre of a
+fillet of radius r has distance r from both inputs, so it lies on the intersection of their
+offsets by ±r. The fitted offsets only provide start values; centres and contact points are then
+solved exactly, so the fillet does not inherit the offset fitting error.
+
+- **Curves** (`fillet_curves`, coplanar curves in a plane with normal n): the corner X is an
+  intersection of a and b. Sign convention as for `offset_curve`: side +1 puts the centre to the
+  left of the curve's direction of travel seen from the tip of n (offset by +r), −1 to the
+  right. Automatic sides: on each curve the *kept part* is the side of X with the longer
+  parameter interval (a polyline corner a → X → b keeps a before and b after X); the centre lies
+  on the side of a towards b's kept part and vice versa. The start value (intersection of the
+  two offset curves nearest to X) is refined by Gauss–Newton on
+  a(s) + d_a N_a(s) = b(t) + d_b N_b(t) with N = normalize(n × c'), whose derivative is
+  c'(1 − d κ_s) (see Offsets); s and t are then the exact foot points of the centre (tangent
+  points). The arc is the exact rational arc (`make_arc`) from a(s) to b(t), oriented in the
+  direction of travel of the trimmed a, so `trimmed_a`, `arc`, `trimmed_b` (the parts on the
+  far side of the tangent points from X, reversed where necessary) form a G1 chain.
+  References: two lines at an angle θ → setback r / tan(θ/2) from the corner, centre at
+  r / sin(θ/2); line and circle → centre at height ±r over the line and distance R ± r from the
+  circle centre (tests to 1e-10).
+- **Surfaces** (`fillet_surfaces`, rolling ball): side_i = +1 puts the ball centre on the side
+  of N_i = normalize(S_u × S_v) of surface i (offset by +r), −1 on the other side. The spine
+  start values come from the surface–surface intersection of the two offset surfaces (the
+  longest curve; offsets keep the parametrisation, so the intersection p-curves are also start
+  values for the contact parameters on s1 and s2). At a spine parameter t the exact ball centre
+  C is solved by Newton on |C − S1| = r, |C − S2| = r and (C − spine0(t)) · T = 0 (the plane
+  through the start spine point normal to its tangent): the gradients of the distance functions
+  are the unit vectors from the foot points (local closest-point projections, warm-started) to
+  C. Since d|C(t) − S_i|/dt = 0, the true spine tangent is normal to both contact radii, so each
+  section — the shorter circular arc from contact 1 to contact 2 around C — lies in the plane
+  normal to the spine. Sections are exact rational arcs with a common number of ≤ 90° segments
+  (A7.1, one knot vector for all), skinned with `loft` (cubic in v, homogeneous interpolation).
+  The spine and the p-curves (u_i, v_i, 0) are cubic interpolations of the exact section data
+  with the same parameters; the contact curves are the boundary iso-curves u = 0 and u = 1 of the
+  fillet. Tolerance control: at t = 1/4, 1/2, 3/4 of every interval between sections, the
+  fillet is compared with the exact section arc at 17 values of u, and spine, mapped p-curves
+  S_i(pcurve_i(t)) with the exact centre and contacts; failing intervals are bisected (the mid
+  check section becomes a new section) until all checks pass. References: two perpendicular
+  planes → quarter cylinder (radius error < 1e-7, contact lines exact), plane and perpendicular
+  cylinder, plane and sphere → |P − spine(t)| = r on all arcs, spine on the analytic circle,
+  fillet normal parallel to the surface normals along the contact curves.
+- **Not handled:** variable radius, fillets of more than one spine branch (the longest
+  intersection curve is used), trimming of s1/s2 along the contact p-curves (the p-curves are
+  returned for that), setbacks/vertex blends where several fillets meet, and curve fillets of
+  curves that do not intersect (no extension).
+
 ## Integral and differential properties
 
 - Arc length and area use adaptive Gauss–Kronrod 7/15 (QUADPACK nodes) on every knot span

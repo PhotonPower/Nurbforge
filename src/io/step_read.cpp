@@ -626,7 +626,7 @@ class FaceMapper {
       return;
     }
     TrimLoop a = open[0].first, b = open[1].first;
-    const int dir = open[0].second;
+    const auto dir = static_cast<std::size_t>(open[0].second);
     const auto [as, ae] = ends(a);
     const auto [bs0, be0] = ends(b);
     if ((ae[dir] - as[dir] > 0.0) == (be0[dir] - bs0[dir] > 0.0)) b = b.reversed();

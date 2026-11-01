@@ -26,6 +26,7 @@ struct Graph {
     NurbsCurve curve;  // runs from vertex a to vertex b
     std::size_t a, b;
     bool alive{true};
+    bool from_cut{false};
   };
   std::vector<Edge> edges;
   double eps;
@@ -94,6 +95,18 @@ std::vector<TrimmedSurface> split(const TrimmedSurface& face, const std::vector<
 
   Graph g;
   g.eps = 1e-7 * size;
+  // A cut piece running along a loop curve or along an earlier cut piece (coincident faces,
+  // intersection curves on face boundaries, the same curve found twice) is dropped: duplicated
+  // edges would enclose zero-area regions. Overlaps were split at their end points above.
+  const double on_eps = 1e-6 * size;
+  const auto duplicate = [&](const NurbsCurve& piece) {
+    const Vec3 m = piece.evaluate(0.5 * (piece.domain_start() + piece.domain_end()));
+    for (std::size_t k = 0; k < n_loop; ++k)
+      if (closest_point(curves[k], m).distance <= on_eps) return true;
+    for (const auto& e : g.edges)
+      if (e.from_cut && closest_point(e.curve, m).distance <= on_eps) return true;
+    return false;
+  };
   for (std::size_t i = 0; i < curves.size(); ++i) {
     auto& ps = params[i];
     std::sort(ps.begin(), ps.end());
@@ -111,7 +124,8 @@ std::vector<TrimmedSurface> split(const TrimmedSurface& face, const std::vector<
           NurbsCurve half = curves[i].sub_curve(s0, s1);
           const std::size_t va = g.vertex(at2(half, half.domain_start())), vb = g.vertex(at2(half, half.domain_end()));
           if (i >= n_loop && !face.contains(at2(half, 0.5 * (s0 + s1))[0], at2(half, 0.5 * (s0 + s1))[1])) continue;
-          g.edges.push_back({std::move(half), va, vb});
+          if (i >= n_loop && duplicate(half)) continue;
+          g.edges.push_back({std::move(half), va, vb, true, i >= n_loop});
         }
         continue;
       }
@@ -120,9 +134,10 @@ std::vector<TrimmedSurface> split(const TrimmedSurface& face, const std::vector<
         const P2 mid = at2(piece, 0.5 * (piece.domain_start() + piece.domain_end()));
         if (!face.contains(mid[0], mid[1])) continue;
       }
+      if (i >= n_loop && duplicate(piece)) continue;
       const std::size_t va = g.vertex(a), vb = g.vertex(b);
       if (va == vb) continue;
-      g.edges.push_back({std::move(piece), va, vb});
+      g.edges.push_back({std::move(piece), va, vb, true, i >= n_loop});
     }
   }
 

@@ -30,6 +30,30 @@ Shell box_shell(double h) {  // cube [-h, h]^3
                      TrimmedSurface(make_rectangle({h, -h, -h}, {0, s, 0}, {0, 0, s}))});
 }
 
+Shell box_shell(const Vec3& lo, const Vec3& hi) {  // axis-aligned box
+  const Vec3 d = hi - lo;
+  return Shell::sew({TrimmedSurface(make_rectangle(lo, {d.x, 0, 0}, {0, d.y, 0})),
+                     TrimmedSurface(make_rectangle({lo.x, lo.y, hi.z}, {d.x, 0, 0}, {0, d.y, 0})),
+                     TrimmedSurface(make_rectangle(lo, {d.x, 0, 0}, {0, 0, d.z})),
+                     TrimmedSurface(make_rectangle({lo.x, hi.y, lo.z}, {d.x, 0, 0}, {0, 0, d.z})),
+                     TrimmedSurface(make_rectangle(lo, {0, d.y, 0}, {0, 0, d.z})),
+                     TrimmedSurface(make_rectangle({hi.x, lo.y, lo.z}, {0, d.y, 0}, {0, 0, d.z}))});
+}
+
+// Union, intersection and difference volumes (an empty result is an empty shell).
+void check_volumes(const Shell& a, const Shell& b, double vu, double vi, double vd) {
+  const BooleanOp ops[3] = {BooleanOp::Union, BooleanOp::Intersection, BooleanOp::Difference};
+  const double ref[3] = {vu, vi, vd};
+  for (int o = 0; o < 3; ++o) {
+    const Shell r = boolean(a, b, ops[o]);
+    INFO("operation " << o);
+    REQUIRE(r.is_closed());
+    CHECK(r.is_consistently_oriented());
+    if (ref[o] == 0.0) CHECK(r.faces().empty());
+    else CHECK(rel_close(r.volume(1e-8), ref[o], 1e-6));
+  }
+}
+
 Shell cylinder_shell(double R, double z0, double z1) {  // axis z
   const auto side = extrude(make_circle({0, 0, z0}, {0, 0, 1}, R), {0, 0, z1 - z0});
   const auto lid = [&](double z) {
@@ -106,4 +130,22 @@ TEST_CASE("Booleans with a closed intersection curve away from the seams", "[boo
   const Shell m = boolean(b, a, BooleanOp::Difference);
   REQUIRE(m.is_closed());
   CHECK(rel_close(m.volume(1e-7), 4.0 / 3.0 * pi * r2 * r2 * r2 - lens, 1e-5));
+}
+
+TEST_CASE("Booleans with coincident faces (boxes)", "[boolean][coincident]") {
+  const Shell a = box_shell({0, 0, 0}, {1, 1, 1});
+  SECTION("partially shared side planes") { check_volumes(a, box_shell({0.5, 0, 0}, {1.5, 1, 1}), 1.5, 0.5, 0.5); }
+  SECTION("stacked, one common face") { check_volumes(a, box_shell({0, 0, 1}, {1, 1, 2}), 2.0, 0.0, 1.0); }
+  SECTION("identical boxes") { check_volumes(a, box_shell({0, 0, 0}, {1, 1, 1}), 1.0, 1.0, 0.0); }
+  SECTION("box flush with the top face") {
+    check_volumes(a, box_shell({0.25, 0.25, 0.5}, {0.75, 0.75, 1}), 1.0, 0.125, 0.875);
+  }
+}
+
+TEST_CASE("Booleans with coincident faces (cylinders)", "[boolean][coincident]") {
+  const double v = pi * 0.25;  // R = 0.5, height 1
+  SECTION("stacked, common lid") { check_volumes(cylinder_shell(0.5, 0, 1), cylinder_shell(0.5, 1, 2), 2 * v, 0, v); }
+  SECTION("coaxial, overlapping") {
+    check_volumes(cylinder_shell(0.5, 0, 1), cylinder_shell(0.5, 0.5, 1.5), 1.5 * v, 0.5 * v, 0.5 * v);
+  }
 }

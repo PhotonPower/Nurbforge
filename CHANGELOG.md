@@ -5,6 +5,11 @@ versioning: [SemVer](https://semver.org).
 
 ## [Unreleased]
 ### Added
+- Booleans with coincident faces: face pairs are classified by sampling (general / coincident /
+  touching only), coincident faces are cut along each other's projected loops instead of being
+  intersected, and common parts are classified "on" (same / opposite normal) – boxes sharing
+  faces, stacked or identical solids, coaxial cylinders. Redundant (duplicate) cuts are dropped
+  before splitting.
 - Documentation: tutorial (`docs/tutorial.md`, in the Sphinx guide and linked from the README)
   walking from curves and surfaces through fitting, freeform optics, intersections and trimming,
   closed shells and Booleans, offsets and fillets to meshing and the LLM interface; new Python

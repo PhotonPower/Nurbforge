@@ -60,6 +60,10 @@ nurbforge-llm --model qwen2.5:14b --out result.msh
 > Create a cylinder of radius 10 and height 30 along z
 ```
 
+**Getting started:** the [tutorial](docs/tutorial.md) walks from curves to surfaces, trimmed
+solids, Booleans, meshing and the LLM interface; every step is a runnable script in
+[examples/python/](examples/python/).
+
 C++ only:
 
 ```bash
@@ -88,6 +92,7 @@ pip install nurbforge-0.1.0-cp312-cp312-win_amd64.whl   # no compiler needed
 The documentation site – these pages plus the Python (autodoc) and C++ (Doxygen/Breathe) API
 references – is published at **<https://photonpower.github.io/Nurbforge/>**.
 
+- [Tutorial](docs/tutorial.md) – the main workflow, step by step with runnable examples
 - [Architecture](docs/architecture.md) – layers, modules, data flow
 - [NURBS fundamentals & conventions](docs/math/nurbs.md)
 - [Python API overview](docs/api/python.md) · [C++ API overview](docs/api/cpp.md)

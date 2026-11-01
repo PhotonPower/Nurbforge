@@ -5,6 +5,15 @@ versioning: [SemVer](https://semver.org).
 
 ## [Unreleased]
 ### Added
+- Documentation: tutorial (`docs/tutorial.md`, in the Sphinx guide and linked from the README)
+  walking from curves and surfaces through fitting, freeform optics, intersections and trimming,
+  closed shells and Booleans, offsets and fillets to meshing and the LLM interface; new Python
+  examples `05_fitting.py`, `06_loft_sweep_gordon.py`, `07_freeform_optics.py`,
+  `08_intersect_trim.py`, `09_solids_booleans.py`, `10_offsets_fillets.py` (each prints its key
+  numbers against analytic references) and the C++ example `examples/cpp/booleans.cpp`;
+  `tests/python/test_examples.py` runs every example (also with gmsh hidden) and checks that the
+  tutorial snippets are verbatim excerpts of the scripts. `02_lens_and_mesh.py` now runs without
+  gmsh and prints sags and areas; the C++ examples build with the project warning flags.
 - Fillets (`modeling/fillet.hpp`): `fillet_curves` (exact rational arc of radius r between two
   coplanar intersecting curves; centre from the offset curves refined by Newton, tangent
   parameters, trimmed curves forming a G1 chain; automatic or explicit sides) and

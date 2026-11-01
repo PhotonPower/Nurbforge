@@ -11,7 +11,7 @@
 | [api/cpp-reference.md](api/cpp-reference.md) | C++ API reference (Doxygen + Breathe, rendered on the docs site) |
 | [optics.md](optics.md) | Optical surfaces: conics, aspheres, Zernike, XY polynomials |
 | [meshing.md](meshing.md) | gmsh integration |
-| [io.md](io.md) | Native STEP writer (AP214): entities, units, limitations |
+| [io.md](io.md) | Native STEP writer (AP214) and reader: entities, units, limitations |
 | [llm.md](llm.md) | Ollama interface and safety model |
 | [build/almalinux10.md](build/almalinux10.md) | Build on AlmaLinux 10 |
 | [build/windows11.md](build/windows11.md) | Build on Windows 11 |

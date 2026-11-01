@@ -36,6 +36,7 @@
 - Boolean union / intersection / difference on trimmed NURBS shells ✅ (incl. coincident faces)
 - STEP / IGES export via OCC ✅
 - Native STEP writer (AP214, no dependencies) ✅
+- Native STEP reader ✅ (B-spline and analytic geometry → exact NURBS, trim loops rebuilt in parameter space, units, voids)
 
 ## Infrastructure
 - ✅ Wheels via cibuildwheel (manylinux_2_28 for AlmaLinux 10 compatibility, win_amd64)

@@ -755,6 +755,54 @@ PYBIND11_MODULE(_core, m) {
         "The STEP file contents (see write_step) as a string.");
   }
 
+  // ------------------------------------------------------------------ STEP import
+  {
+    // runs the reader with the given options; skipped items are reported as Python warnings
+    const auto read = [](auto&& reader, const std::string& unit, double tolerance, bool skip_unsupported) {
+      StepReadOptions o;
+      if (unit == "mm") o.unit = StepLengthUnit::Millimetre;
+      else if (unit == "cm") o.unit = StepLengthUnit::Centimetre;
+      else if (unit == "m") o.unit = StepLengthUnit::Metre;
+      else if (unit == "inch" || unit == "in") o.unit = StepLengthUnit::Inch;
+      else throw py::value_error("unit must be 'mm', 'cm', 'm' or 'inch'");
+      o.tolerance = tolerance;
+      o.skip_unsupported = skip_unsupported;
+      std::vector<std::string> warnings;
+      o.warnings = &warnings;
+      std::vector<Shell> shells;
+      {
+        py::gil_scoped_release release;
+        shells = reader(o);
+      }
+      if (!warnings.empty()) {
+        const auto warn = py::module_::import("warnings").attr("warn");
+        for (const auto& w : warnings) warn(w, py::module_::import("builtins").attr("UserWarning"), 2);
+      }
+      return shells;
+    };
+    m.def(
+        "read_step",
+        [read](const py::object& path, const std::string& unit, double tolerance, bool skip_unsupported) {
+          const std::string p = py::module_::import("os").attr("fspath")(path).cast<std::string>();
+          return read([&](const StepReadOptions& o) { return read_step(p, o); }, unit, tolerance, skip_unsupported);
+        },
+        py::arg("path"), py::kw_only(), py::arg("unit") = "mm", py::arg("tolerance") = 1e-6,
+        py::arg("skip_unsupported") = false,
+        "Read the B-rep solids and surface models of a STEP file (native reader) as a list of Shells, "
+        "converted to `unit` ('mm', 'cm', 'm', 'inch'). Analytic surfaces (plane, cylinder, cone, sphere, "
+        "torus) become exact NURBS patches; trim loops are rebuilt in parameter space. `tolerance` is the "
+        "sewing tolerance. Unsupported entities raise GeometryError unless `skip_unsupported` (the faces "
+        "are then skipped with a warning).");
+    m.def(
+        "from_step",
+        [read](const std::string& text, const std::string& unit, double tolerance, bool skip_unsupported) {
+          return read([&](const StepReadOptions& o) { return from_step(text, o); }, unit, tolerance,
+                      skip_unsupported);
+        },
+        py::arg("text"), py::kw_only(), py::arg("unit") = "mm", py::arg("tolerance") = 1e-6,
+        py::arg("skip_unsupported") = false, "Read shells from STEP file contents (see read_step).");
+  }
+
   // ------------------------------------------------------------------ patterns
   m.def("linear_pattern", &linear_pattern, py::arg("step"), py::arg("count"));
   m.def("grid_pattern", &grid_pattern, py::arg("step_a"), py::arg("count_a"), py::arg("step_b"),

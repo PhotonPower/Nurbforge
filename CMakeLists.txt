@@ -55,7 +55,8 @@ add_library(nurbforge_core STATIC
   src/topology/shell.cpp
   src/topology/arrangement.cpp
   src/topology/boolean.cpp
-  src/io/step.cpp)
+  src/io/step.cpp
+  src/io/step_read.cpp)
 add_library(Nurbforge::core ALIAS nurbforge_core)
 set_target_properties(nurbforge_core PROPERTIES EXPORT_NAME core)
 

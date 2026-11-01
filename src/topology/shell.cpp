@@ -1,6 +1,7 @@
 #include "nurbforge/topology/shell.hpp"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <queue>
 #include <string>
@@ -38,6 +39,26 @@ double control_diagonal(const NurbsCurve& c) {
   }
   return distance(lo, hi);
 }
+
+// Control-point bounding box enlarged by tol: contains every point within tol of the curve
+// (convex hull property), so curves / points outside it can be rejected without projection.
+struct Box {
+  Vec3 lo, hi;
+  Box(const NurbsCurve& c, double tol) : lo(c.control_points().front()), hi(lo) {
+    for (const auto& p : c.control_points()) {
+      lo = {std::min(lo.x, p.x), std::min(lo.y, p.y), std::min(lo.z, p.z)};
+      hi = {std::max(hi.x, p.x), std::max(hi.y, p.y), std::max(hi.z, p.z)};
+    }
+    lo -= Vec3{tol, tol, tol};
+    hi += Vec3{tol, tol, tol};
+  }
+  [[nodiscard]] bool contains(const Vec3& p) const {
+    return p.x >= lo.x && p.x <= hi.x && p.y >= lo.y && p.y <= hi.y && p.z >= lo.z && p.z <= hi.z;
+  }
+  [[nodiscard]] bool overlaps(const Box& o) const {
+    return lo.x <= o.hi.x && o.lo.x <= hi.x && lo.y <= o.hi.y && o.lo.y <= hi.y && lo.z <= o.hi.z && o.lo.z <= hi.z;
+  }
+};
 
 // Every sample of a lies on b within tol.
 bool lies_on(const NurbsCurve& a, const NurbsCurve& b, double tol) {
@@ -84,13 +105,17 @@ Shell Shell::sew(std::vector<TrimmedSurface> faces, double tolerance) {
   // resolve T-junctions: split every curve at the end points of other curves lying on it (e.g.
   // a circle split at different points on the two faces sharing it)
   std::vector<Piece> pieces;
+  std::vector<std::array<Vec3, 2>> raw_ends;
+  for (const auto& r : raw) raw_ends.push_back({r.c.evaluate(r.c.domain_start()), r.c.evaluate(r.c.domain_end())});
   for (std::size_t i = 0; i < raw.size(); ++i) {
     const NurbsCurve& c = raw[i].c;
     const double a = c.domain_start(), b = c.domain_end();
+    const Box box(c, tolerance);
     std::vector<double> cuts;
     for (std::size_t j = 0; j < raw.size(); ++j) {
       if (j == i) continue;
-      for (const Vec3& q : {raw[j].c.evaluate(raw[j].c.domain_start()), raw[j].c.evaluate(raw[j].c.domain_end())}) {
+      for (const Vec3& q : raw_ends[j]) {
+        if (!box.contains(q)) continue;
         const CurvePoint cp = closest_point(c, q);
         const double margin = 1e-9 * (b - a);
         if (cp.distance <= tolerance && cp.u > a + margin && cp.u < b - margin &&
@@ -107,22 +132,26 @@ Shell Shell::sew(std::vector<TrimmedSurface> faces, double tolerance) {
     }
     pieces.push_back({from == a ? c : c.sub_curve(from, b), raw[i].f, raw[i].l, raw[i].k});
   }
+  std::vector<Box> edge_boxes;
   for (const auto& pc : pieces) {
     {
       const NurbsCurve& c = pc.c;
       const std::size_t f = pc.f, l = pc.l, k = pc.k;
+      const Box box(c, tolerance);
       {
         bool found = false;
-        for (auto& e : sh.edges_)
-          if (lies_on(c, e.curve, tolerance) && lies_on(e.curve, c, tolerance)) {
+        for (std::size_t ei = 0; ei < sh.edges_.size() && !found; ++ei) {
+          auto& e = sh.edges_[ei];
+          if (box.overlaps(edge_boxes[ei]) && lies_on(c, e.curve, tolerance) && lies_on(e.curve, c, tolerance)) {
             e.uses.push_back({f, l, k, opposite(c, e.curve)});
             found = true;
-            break;
           }
+        }
         if (found) continue;
         ShellEdge e{c, vertex(c.evaluate(c.domain_start())), vertex(c.evaluate(c.domain_end())), {}};
         e.uses.push_back({f, l, k, false});
         sh.edges_.push_back(std::move(e));
+        edge_boxes.push_back(box);
       }
     }
   }

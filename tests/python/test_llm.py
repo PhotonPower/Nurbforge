@@ -226,6 +226,20 @@ def test_export_step_tool(tmp_path):
     assert call_tool(ws, "export_step", {"objects": ["nope"], "path": str(path)}).startswith("ERROR")
 
 
+def test_import_step_tool(tmp_path):
+    ws = Workspace()
+    box = [nf.make_rectangle(lo, d1, d2) for lo, d1, d2 in [
+        ([0, 0, 0], [2, 0, 0], [0, 3, 0]), ([0, 0, 4], [2, 0, 0], [0, 3, 0]), ([0, 0, 0], [2, 0, 0], [0, 0, 4]),
+        ([0, 3, 0], [2, 0, 0], [0, 0, 4]), ([0, 0, 0], [0, 3, 0], [0, 0, 4]), ([2, 0, 0], [0, 3, 0], [0, 0, 4])]]
+    path = tmp_path / "parts.step"
+    nf.write_step(path, [nf.Shell.sew([nf.TrimmedSurface(f) for f in box]),
+                         nf.Shell.sew([nf.TrimmedSurface(box[0])])])
+    out = call_tool(ws, "import_step", {"name": "part", "path": str(path)})
+    assert out == f"read {path}: part: 6 faces, closed, volume 24; part_1: 1 faces, open, 4 free edges"
+    assert ws.get("part").is_closed and not ws.get("part_1").is_closed
+    assert call_tool(ws, "import_step", {"name": "x", "path": str(tmp_path / "nope.step")}).startswith("ERROR")
+
+
 def test_inspect_and_check_tools():
     ws = Workspace()
     for name, lo, d1, d2 in [("b0", [0, 0, 0], [2, 0, 0], [0, 3, 0]), ("b1", [0, 0, 4], [2, 0, 0], [0, 3, 0]),

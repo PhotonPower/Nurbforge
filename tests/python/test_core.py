@@ -371,3 +371,15 @@ def test_shell():
     assert abs(cube.volume() - 1.0) < 1e-10
     open_box = nf.Shell.sew(faces[:5])
     assert len(open_box.free_edges()) == 4
+
+
+def test_booleans():
+    def sphere(c, r):
+        m = nf.make_arc(c, (0, 0, -1), (1, 0, 0), r, 0.0, math.pi)
+        return nf.Shell.sew([nf.TrimmedSurface(nf.revolve(m, c, (0, 0, 1), 2 * math.pi))])
+
+    a, b = sphere((0, 0, 0), 1.0), sphere((1, 0, 0), 1.0)
+    lens = math.pi * 5 * 1 / 12
+    i = nf.boolean(a, b, nf.BooleanOp.Intersection)
+    assert i.is_closed and abs(i.volume(1e-8) - lens) < 1e-6 * lens
+    assert nf.point_in_shell(a, (0.2, 0.1, 0.0)) and not nf.point_in_shell(a, (1.5, 0, 0))

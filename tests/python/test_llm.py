@@ -159,3 +159,16 @@ def test_sew_tool():
                                          "edge_v": list(b)})
     out = call_tool(ws, "sew", {"name": "cube", "faces": [f"f{i}" for i in range(6)]})
     assert "closed shell, volume 1" in out
+
+
+def test_boolean_tool():
+    ws = Workspace()
+    call_tool(ws, "make_arc", {"name": "m", "center": [0, 0, 0], "x_axis": [0, 0, -1], "y_axis": [1, 0, 0],
+                               "radius": 1, "start_deg": 0, "end_deg": 180})
+    call_tool(ws, "revolve", {"name": "s1", "profile": "m", "axis_point": [0, 0, 0], "axis_dir": [0, 0, 1],
+                              "angle_deg": 360})
+    call_tool(ws, "translate", {"name": "s2", "source": "s1", "vector": [1, 0, 0]})
+    call_tool(ws, "sew", {"name": "a", "faces": ["s1"]})
+    call_tool(ws, "sew", {"name": "b", "faces": ["s2"]})
+    out = call_tool(ws, "boolean", {"name": "lens", "a": "a", "b": "b", "op": "intersection"})
+    assert out.startswith("stored lens: closed shell, volume 1.30")

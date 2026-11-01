@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from ._core import (  # noqa: F401
     Asphere,
+    BooleanOp,
     CurveCurveIntersection,
     CurveEnd,
     CurvePoint,
@@ -44,6 +45,7 @@ from ._core import (  # noqa: F401
     area,
     asphere_profile,
     asphere_surface,
+    boolean,
     circle_loop,
     clamped_uniform_knots,
     closest_point,
@@ -80,6 +82,7 @@ from ._core import (  # noqa: F401
     parameter_at_length,
     planar_section,
     planar_sections,
+    point_in_shell,
     polar_pattern,
     polygon_loop,
     rectangle_loop,

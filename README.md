@@ -22,7 +22,7 @@ from code (C++ or Python), from a local LLM (Ollama), and meshed with [gmsh](htt
 | Transforms | Translate, rotate, scale, mirror, composition | – |
 | Arrays | Linear, grid, polar | Path arrays |
 | Analysis | Point, tangent, normal (incl. poles), partial derivatives of any order, global closest point / point inversion, curve–curve, curve–surface and surface–surface intersection, planar sections, curvature/torsion, Gaussian/mean/principal curvatures, arc length, area, sampling | Booleans |
-| Topology | Trimmed surfaces (parameter-space loops, exact circles), split along surface intersections, area by Green's theorem, exact gmsh export; B-rep shells (sewing, watertightness, orientation, volume), STEP export | Boolean union/intersection/difference |
+| Topology | Trimmed surfaces (parameter-space loops, exact circles), split along surface intersections, area by Green's theorem, exact gmsh export; B-rep shells (sewing, watertightness, orientation, volume), STEP export, Boolean union/intersection/difference, point-in-solid | Coincident-face Booleans, fillets |
 | Meshing | Exact NURBS transfer to gmsh (OCC), 2D meshing, high order, `.msh/.vtk/.stl/.step` | Physical groups, size fields, BEM-ready closed shells |
 | LLM | Ollama tool-calling agent with whitelisted geometry tools, CLI | Constraint-aware planning, verification loop |
 

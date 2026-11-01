@@ -108,7 +108,10 @@ struct CurveSearch {
 
   void process(const NurbsCurve& seg, int depth) {
     if (box_distance(seg.control_points(), P) > best.distance + tol.length) return;
-    if (depth >= kMaxDepthCurve || flat(seg) || box_diagonal(seg.control_points()) <= tol.length) {
+    const double width = seg.domain_end() - seg.domain_start();
+    const double full = curve.domain_end() - curve.domain_start();
+    if (depth >= kMaxDepthCurve || flat(seg) || box_diagonal(seg.control_points()) <= tol.length ||
+        width <= 1e-9 * full) {
       // start Newton from the best of a few samples inside this segment
       const double a = seg.domain_start(), b = seg.domain_end();
       double u0 = a, d0 = std::numeric_limits<double>::max();
@@ -215,7 +218,13 @@ struct SurfaceSearch {
     const auto& Q = p.control_points();
     if (box_distance(Q, P) > best.distance + tol.length) return;
     const auto ur = p.domain_u(), vr = p.domain_v();
-    if (depth >= kMaxDepthSurface || flat(p) || box_diagonal(Q) <= tol.length) {
+    // a direction narrower than this cannot be split any further (degenerate patches at poles
+    // keep the box bound weak, so the search would otherwise split them below the parametric
+    // resolution)
+    const auto sr = surface.domain_u(), sv = surface.domain_v();
+    const bool u_ok = ur[1] - ur[0] > 1e-9 * (sr[1] - sr[0]);
+    const bool v_ok = vr[1] - vr[0] > 1e-9 * (sv[1] - sv[0]);
+    if (depth >= kMaxDepthSurface || flat(p) || box_diagonal(Q) <= tol.length || (!u_ok && !v_ok)) {
       // Newton from the three best of 5x5 samples
       struct Start { double d, u, v; };
       std::vector<Start> starts;
@@ -238,8 +247,8 @@ struct SurfaceSearch {
       ext_u = std::max(ext_u, distance(p.control_point(0, j), p.control_point(p.num_u() - 1, j)));
     for (std::size_t i = 0; i < p.num_u(); ++i)
       ext_v = std::max(ext_v, distance(p.control_point(i, 0), p.control_point(i, p.num_v() - 1)));
-    const auto [a, b] = ext_u >= ext_v ? p.split_u(0.5 * (ur[0] + ur[1]))
-                                       : p.split_v(0.5 * (vr[0] + vr[1]));
+    const bool along_u = v_ok ? (u_ok && ext_u >= ext_v) : true;
+    const auto [a, b] = along_u ? p.split_u(0.5 * (ur[0] + ur[1])) : p.split_v(0.5 * (vr[0] + vr[1]));
     const bool a_first = box_distance(a.control_points(), P) <= box_distance(b.control_points(), P);
     process(a_first ? a : b, depth + 1);
     process(a_first ? b : a, depth + 1);

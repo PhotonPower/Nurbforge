@@ -80,6 +80,8 @@ class TrimmedSurface {
   TrimLoop outer_;
   std::vector<TrimLoop> holes_;
   std::vector<std::vector<std::array<double, 2>>> poly_;  // outer + holes polylines (cached)
+  std::vector<double> band_;  // per loop: max deviation of the curves from their polyline
+  [[nodiscard]] bool left_of_loop(const TrimLoop& loop, double u, double v) const;
   void build_polylines();
 };
 

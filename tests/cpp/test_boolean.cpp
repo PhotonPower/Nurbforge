@@ -218,3 +218,54 @@ TEST_CASE("Boolean with a plane through both poles of a sphere", "[boolean][bodi
   CHECK(half.components().size() == 1);
   CHECK(rel_close(half.volume(1e-8), 2.0 / 3.0 * pi * r * r * r, 1e-7));
 }
+
+// ------------------------------------------------------------------ robustness (stress-test finds)
+
+namespace {
+Shell offset_cylinder(const Vec3& base, double r, double h) {  // axis z
+  const auto side = extrude(make_circle(base, {0, 0, 1}, r), {0, 0, h});
+  const auto lid = [&](double z) {
+    return TrimmedSurface(make_rectangle({base.x - r, base.y - r, z}, {2 * r, 0, 0}, {0, 2 * r, 0}),
+                          circle_loop(0.5, 0.5, 0.5));
+  };
+  return Shell::sew({TrimmedSurface(side), lid(base.z), lid(base.z + h)});
+}
+// closed, consistently oriented results and V(A u B) + V(A n B) = V(A) + V(B), V(A - B) = V(A) - V(A n B)
+void check_identities(const Shell& a, const Shell& b) {
+  const double va = a.oriented().volume(1e-7), vb = b.oriented().volume(1e-7);
+  const Shell u = boolean(a, b, BooleanOp::Union), i = boolean(a, b, BooleanOp::Intersection),
+              d = boolean(a, b, BooleanOp::Difference);
+  for (const Shell* r : {&u, &i, &d}) {
+    REQUIRE(r->is_closed());
+    CHECK(r->is_consistently_oriented());
+  }
+  const double vu = u.volume(1e-7), vi = i.volume(1e-7), vd = d.volume(1e-7);
+  CHECK(vi > 0.0);
+  CHECK(rel_close(vu + vi, va + vb, 1e-5));
+  CHECK(rel_close(vd, va - vi, 1e-5));
+}
+}  // namespace
+
+TEST_CASE("Booleans: intersection curves ending on a trim circle", "[boolean][robust]") {
+  // box faces cut a cylinder lid: the cut ends lie on the lid's trim circle, which the polygon
+  // test (64-gon) misplaced by up to 6e-4 – the cuts ended short and the lid stayed whole
+  check_identities(cylinder_shell(0.7, 0.0, 2.0),
+                   box_shell({-0.97734720018362475, -0.67524846625610246, -0.051429789902464274},
+                             {0.33479161330348473, 0.39412143103613317, 0.72290733704003352}));
+}
+
+TEST_CASE("Booleans: closest point near a pole", "[boolean][robust]") {
+  // projecting cylinder points onto the sphere near its pole split degenerate patches below the
+  // parametric resolution (closest_point threw)
+  check_identities(sphere_shell({0, 0, 0}, 1.199961155503575),
+                   offset_cylinder({-0.40259733731404257, -0.46281045397980786, -1.8177877666917477},
+                                   0.35243433601614005, 1.380810480634058));
+}
+
+TEST_CASE("Booleans: long marching steps on small faces", "[boolean][robust]") {
+  // a straight intersection line on a small box face: a step covering more than a quarter of the
+  // face's parameter range was taken for a jump over a pole and the curve was cut short
+  check_identities(cylinder_shell(0.7, 0.0, 2.0),
+                   box_shell({-0.73456574283628506, -0.27082589505852428, 0.21489243439744388},
+                             {-0.069787101918596051, 0.2784369881762836, 0.67397747262179897}));
+}

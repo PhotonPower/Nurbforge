@@ -319,6 +319,21 @@ PYBIND11_MODULE(_core, m) {
         py::arg("a"), py::arg("b"), py::arg("options") = SurfaceIntersectionOptions{},
         "Surface/surface intersection: curves (3D + p-curves on both surfaces) and touching points.");
 
+  py::class_<Plane>(m, "Plane", "Infinite plane through `point` with normal `normal`.")
+      .def(py::init([](const Vec3& point, const Vec3& normal) { return Plane{point, normal}; }),
+           py::arg("point"), py::arg("normal") = Vec3{0, 0, 1})
+      .def_readwrite("point", &Plane::point)
+      .def_readwrite("normal", &Plane::normal)
+      .def("distance", &Plane::distance, py::arg("p"));
+  m.def("planar_section", &planar_section, py::arg("surface"), py::arg("plane"),
+        py::arg("options") = SurfaceIntersectionOptions{},
+        "Section of a surface with a plane (pcurve2 in the plane's in-plane coordinates).");
+  m.def("planar_sections", &planar_sections, py::arg("surface"), py::arg("plane"), py::arg("spacing"),
+        py::arg("count"), py::arg("options") = SurfaceIntersectionOptions{});
+  m.def("intersect", py::overload_cast<const NurbsCurve&, const Plane&, const Tolerance&>(&intersect),
+        py::arg("curve"), py::arg("plane"), py::arg("tolerance") = Tolerance{},
+        "Intersection points of a curve with a plane.");
+
   // ------------------------------------------------------------------ properties
   m.def("curvature", py::overload_cast<const NurbsCurve&, double>(&curvature), py::arg("curve"),
         py::arg("u"), "Curvature |C' x C''| / |C'|^3.");

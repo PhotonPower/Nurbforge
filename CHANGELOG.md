@@ -22,6 +22,8 @@ versioning: [SemVer](https://semver.org).
   branch and bound over Bézier pieces with safe lower bounds, safeguarded (projected) Newton;
   local variant with start value; Python `closest_point`, `closest_point_local`, `Tolerance`;
   LLM tool `closest_point`.
+- Planar sections (`analysis/section.hpp`): `Plane`, `planar_section`, `planar_sections`,
+  `intersect(curve, plane)`; LLM tool `section`.
 - Trimmed surfaces (`topology/trimmed_surface.hpp`): loops in the parameter domain, `contains`,
   area by Green's theorem, 3D boundary curves, `split` along surface intersections (chords and
   nested loops); exact gmsh export of trimmed surfaces (`add_trimmed_surface`); LLM tools

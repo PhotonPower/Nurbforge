@@ -139,3 +139,11 @@ def test_trim_and_split_tools():
     call_tool(ws, "make_rectangle", {"name": "q", "origin": [0.5, -1, -1], "edge_u": [0, 3, 0],
                                      "edge_v": [0, 0, 2]})
     assert "s_2" in call_tool(ws, "split", {"name": "s", "surface": "p", "cutter": "q"})
+
+
+def test_section_tool():
+    ws = Workspace()
+    call_tool(ws, "make_circle", {"name": "c", "center": [0, 0, 0], "normal": [0, 0, 1], "radius": 1})
+    call_tool(ws, "extrude", {"name": "cyl", "profile": "c", "direction": [0, 0, 2]})
+    out = call_tool(ws, "section", {"name": "cut", "surface": "cyl", "point": [0, 0, 1], "normal": [0, 0, 1]})
+    assert "cut_1" in out

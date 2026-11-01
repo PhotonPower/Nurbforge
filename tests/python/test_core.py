@@ -347,3 +347,14 @@ def test_trimmed_surfaces():
     assert len(parts) == 2
     assert abs(min(p.area(1e-7) for p in parts) - math.pi * (4 - 0.64)) < 1e-5
     assert abs(nf.integrate(lambda x: x * x, 0.0, 3.0) - 9.0) < 1e-12
+
+
+def test_planar_sections():
+    meridian = nf.make_arc((0, 0, 0), (0, 0, -1), (1, 0, 0), 2.0, 0.0, math.pi)
+    sphere = nf.revolve(meridian, (0, 0, 0), (0, 0, 1), 2 * math.pi)
+    res = nf.planar_section(sphere, nf.Plane((0, 0, 1.0), (0, 0, 1)))
+    assert abs(sum(nf.length(c.curve) for c in res.curves) - 2 * math.pi * math.sqrt(3)) < 1e-5
+    slices = nf.planar_sections(sphere, nf.Plane((0, 0, -1.5), (0, 0, 1)), 1.0, 4)
+    assert len(slices) == 4
+    hits = nf.intersect(nf.make_line((0, 0, -3), (0, 0, 3)), nf.Plane((0, 0, 0.5), (0, 0, 1)))
+    assert len(hits) == 1 and abs(hits[0].point.z - 0.5) < 1e-12

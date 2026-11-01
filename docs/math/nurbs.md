@@ -123,6 +123,14 @@ Curve portions lying in the other surface (e.g. an edge in a plane) are detected
 in the curve/curve and curve/surface intersections, which keeps such symmetric configurations
 fast (plane through the middle of a torus along its knot lines: 0.4 s).
 
+### Planar sections
+
+`planar_section(surface, plane)` (`analysis/section.hpp`) intersects the surface with a
+rectangle in the plane that covers the projection of the control points (plus margin), so no
+section curve is missed; `pcurve2` and `u2, v2` are re-expressed in the plane's own orthonormal
+(s, t) coordinates with origin at `plane.point`. `planar_sections` slices at equal spacing,
+`intersect(curve, plane)` returns the crossing points of a curve.
+
 ## Trimmed surfaces
 
 `TrimmedSurface` (`topology/trimmed_surface.hpp`) = surface + closed loops of curves in its

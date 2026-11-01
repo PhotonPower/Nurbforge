@@ -54,7 +54,9 @@ build-frontend = "build"
 manylinux-x86_64-image = "manylinux_2_28"
 # gmsh is only a test dependency; the mesh tests skip if it cannot be imported/loaded
 # (e.g. missing OpenGL libraries inside the manylinux container).
-test-requires = ["pytest>=7", "gmsh>=4.11"]
+# No version specifiers: on Windows cibuildwheel passes these through the shell, where ">="
+# would be a redirect.
+test-requires = ["pytest", "gmsh"]
 test-command = "pytest {project}/tests/python -v"
 
 [tool.cibuildwheel.linux]

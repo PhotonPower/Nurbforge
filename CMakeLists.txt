@@ -43,6 +43,7 @@ add_library(nurbforge_core STATIC
   src/modeling/gordon.cpp
   src/analysis/closest_point.cpp
   src/analysis/properties.cpp
+  src/analysis/intersect.cpp
   src/fitting/fit.cpp
   src/optics/surfaces.cpp)
 add_library(Nurbforge::core ALIAS nurbforge_core)

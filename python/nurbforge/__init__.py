@@ -8,8 +8,10 @@ from __future__ import annotations
 
 from ._core import (  # noqa: F401
     Asphere,
+    CurveCurveIntersection,
     CurveEnd,
     CurvePoint,
+    CurveSurfaceIntersection,
     Extension,
     GeometryError,
     NurbsCurve,
@@ -49,6 +51,7 @@ from ._core import (  # noqa: F401
     grid_pattern,
     interpolate_curve,
     interpolate_surface,
+    intersect,
     join,
     join_u,
     join_v,

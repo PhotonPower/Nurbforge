@@ -110,3 +110,10 @@ def test_asphere_tool():
     assert out.startswith("stored lens")
     p = ws.get("lens")(0.2, 1.0)
     assert abs(p.z - (p.x**2 + p.y**2) / 100.0) < 1e-12  # paraboloid
+
+
+def test_intersect_tool():
+    ws = Workspace()
+    call_tool(ws, "make_line", {"name": "a", "p0": [0, 0, 0], "p1": [2, 2, 0]})
+    call_tool(ws, "make_line", {"name": "b", "p0": [0, 2, 0], "p1": [2, 0, 0]})
+    assert call_tool(ws, "intersect", {"a": "a", "b": "b"}) == "(1, 1, 0)"

@@ -21,7 +21,7 @@ from code (C++ or Python), from a local LLM (Ollama), and meshed with [gmsh](htt
 | Construction | Extrusion, revolution (full/partial), ruled surface (auto degree/knot compatibility), loft/skinning, sweep (one/two rails, rotation-minimising frame, twist), Coons patches, Gordon surfaces, extrapolation (natural / linear) | Offset, fillets |
 | Transforms | Translate, rotate, scale, mirror, composition | – |
 | Arrays | Linear, grid, polar | Path arrays |
-| Analysis | Point, tangent, normal (incl. poles), partial derivatives of any order, global closest point / point inversion, curvature/torsion, Gaussian/mean/principal curvatures, arc length, area, sampling | Intersections |
+| Analysis | Point, tangent, normal (incl. poles), partial derivatives of any order, global closest point / point inversion, curve–curve and curve–surface intersection, curvature/torsion, Gaussian/mean/principal curvatures, arc length, area, sampling | Surface–surface intersection |
 | Topology | – | Trimming, B-rep, Boolean union/intersection/difference |
 | Meshing | Exact NURBS transfer to gmsh (OCC), 2D meshing, high order, `.msh/.vtk/.stl/.step` | Physical groups, size fields, BEM-ready closed shells |
 | LLM | Ollama tool-calling agent with whitelisted geometry tools, CLI | Constraint-aware planning, verification loop |

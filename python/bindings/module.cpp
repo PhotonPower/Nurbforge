@@ -258,6 +258,34 @@ PYBIND11_MODULE(_core, m) {
         py::arg("surface"), py::arg("point"), py::arg("u0"), py::arg("v0"),
         py::arg("tolerance") = Tolerance{});
 
+  // ------------------------------------------------------------------ intersections
+  py::class_<CurveCurveIntersection>(m, "CurveCurveIntersection")
+      .def_readonly("s", &CurveCurveIntersection::s)
+      .def_readonly("t", &CurveCurveIntersection::t)
+      .def_readonly("point", &CurveCurveIntersection::point)
+      .def_readonly("distance", &CurveCurveIntersection::distance)
+      .def("__repr__", [](const CurveCurveIntersection& x) {
+        return "CurveCurveIntersection(s=" + std::to_string(x.s) + ", t=" + std::to_string(x.t) + ")";
+      });
+  py::class_<CurveSurfaceIntersection>(m, "CurveSurfaceIntersection")
+      .def_readonly("t", &CurveSurfaceIntersection::t)
+      .def_readonly("u", &CurveSurfaceIntersection::u)
+      .def_readonly("v", &CurveSurfaceIntersection::v)
+      .def_readonly("point", &CurveSurfaceIntersection::point)
+      .def_readonly("distance", &CurveSurfaceIntersection::distance)
+      .def("__repr__", [](const CurveSurfaceIntersection& x) {
+        return "CurveSurfaceIntersection(t=" + std::to_string(x.t) + ", u=" + std::to_string(x.u) +
+               ", v=" + std::to_string(x.v) + ")";
+      });
+  m.def("intersect",
+        py::overload_cast<const NurbsCurve&, const NurbsCurve&, const Tolerance&>(&intersect),
+        py::arg("a"), py::arg("b"), py::arg("tolerance") = Tolerance{},
+        "All intersection points of two curves, sorted by the parameter on a.");
+  m.def("intersect",
+        py::overload_cast<const NurbsCurve&, const NurbsSurface&, const Tolerance&>(&intersect),
+        py::arg("curve"), py::arg("surface"), py::arg("tolerance") = Tolerance{},
+        "All intersection points of a curve and a surface, sorted by the curve parameter.");
+
   // ------------------------------------------------------------------ properties
   m.def("curvature", py::overload_cast<const NurbsCurve&, double>(&curvature), py::arg("curve"),
         py::arg("u"), "Curvature |C' x C''| / |C'|^3.");

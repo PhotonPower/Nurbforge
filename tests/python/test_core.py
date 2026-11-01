@@ -309,3 +309,13 @@ def test_optics():
     assert abs(nf.xy_polynomial_surface(xy)(1.0, 2.0).z - xy.sag(1.0, 2.0)) < 1e-13
     g = nf.sag_surface(lambda x, y: math.sin(x) * math.cos(y), 0, 1, 0, 1, tolerance=1e-9)
     assert abs(g(0.3, 0.6).z - math.sin(0.3) * math.cos(0.6)) < 2e-9
+
+
+def test_intersections():
+    circle = nf.make_circle((0, 0, 0), (0, 0, 1), 2.0)
+    hits = nf.intersect(circle, nf.make_line((-3, 1, 0), (3, 1, 0)))
+    assert len(hits) == 2 and all(abs(h.point.y - 1) < 1e-12 for h in hits)
+    meridian = nf.make_arc((0, 0, 0), (0, 0, -1), (1, 0, 0), 2.0, 0.0, math.pi)
+    sphere = nf.revolve(meridian, (0, 0, 0), (0, 0, 1), 2 * math.pi)
+    sh = nf.intersect(nf.make_line((0, 0, -3), (0, 0, 3)), sphere)
+    assert [round(h.point.z, 12) for h in sh] == [-2.0, 2.0]

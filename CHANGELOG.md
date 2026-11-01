@@ -22,6 +22,9 @@ versioning: [SemVer](https://semver.org).
   branch and bound over Bézier pieces with safe lower bounds, safeguarded (projected) Newton;
   local variant with start value; Python `closest_point`, `closest_point_local`, `Tolerance`;
   LLM tool `closest_point`.
+- Curve–curve and curve–surface intersection (`analysis/intersect.hpp`): subdivision with
+  tangent/normal-cone leaf tests, box-constrained Gauss–Newton, merging of tangential contact
+  clusters; LLM tool `intersect`.
 - Optical surfaces (`optics/surfaces.hpp`, docs/optics.md): exact conic surfaces of revolution,
   even/odd aspheres, Zernike (Fringe/Noll) and XY polynomial sags, generic `sag_surface`
   graph fit with adaptive knots and verified tolerance; `approximate_curve` with given knots

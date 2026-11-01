@@ -1,6 +1,10 @@
 #include "nurbforge/analysis/surface_intersect.hpp"
 
 #include <algorithm>
+#include <atomic>
+#include <exception>
+#include <mutex>
+#include <thread>
 #include <array>
 #include <cmath>
 #include <limits>
@@ -17,6 +21,37 @@ namespace {
 
 constexpr double pi = std::numbers::pi;
 using X4 = std::array<double, 4>;  // (u1, v1, u2, v2)
+
+// Calls f(k) for k = 0 .. n-1 on up to hardware_concurrency threads (work distributed by an
+// atomic counter); sequential for small n. f must only write per-index results. The first
+// exception of any call is rethrown after all threads have finished.
+template <class F>
+void parallel_for(std::size_t n, F&& f) {
+  const std::size_t hw = std::max<std::size_t>(1, std::thread::hardware_concurrency());
+  const std::size_t threads = std::min(hw, n / 4);
+  if (threads <= 1) {
+    for (std::size_t k = 0; k < n; ++k) f(k);
+    return;
+  }
+  std::atomic<std::size_t> next{0};
+  std::exception_ptr error;
+  std::mutex m;
+  const auto work = [&] {
+    for (std::size_t k = next++; k < n; k = next++) {
+      try {
+        f(k);
+      } catch (...) {
+        const std::lock_guard<std::mutex> lock(m);
+        if (!error) error = std::current_exception();
+      }
+    }
+  };
+  std::vector<std::thread> pool;
+  for (std::size_t t = 1; t < threads; ++t) pool.emplace_back(work);
+  work();
+  for (auto& t : pool) t.join();
+  if (error) std::rethrow_exception(error);
+}
 
 // ------------------------------------------------------------------ small linear algebra
 
@@ -126,10 +161,28 @@ class Ssi {
   }
 
   SurfaceIntersection run() {
-    std::vector<X4> seeds;
+    std::vector<X4> direct;
     const auto pa = a_.decompose_bezier(), pb = b_.decompose_bezier();
     for (const auto& p : pa)
-      for (const auto& q : pb) collect_seeds(p, q, 0, seeds);
+      for (const auto& q : pb) collect_seeds(p, q, 0, direct);
+    // The boundary seeds of the leaves (patch pairs with separated normal cones) dominate the
+    // cost and are independent: computed in parallel, then merged at the positions where the
+    // sequential subdivision would have produced them (deterministic order).
+    parallel_for(leaves_.size(), [&](std::size_t k) {
+      Leaf& leaf = leaves_[k];
+      boundary_seeds(leaf.p, leaf.q, false, leaf.seeds);
+      boundary_seeds(leaf.q, leaf.p, true, leaf.seeds);
+    });
+    std::vector<X4> seeds;
+    std::size_t next = 0;
+    for (const auto& leaf : leaves_) {
+      seeds.insert(seeds.end(), direct.begin() + static_cast<std::ptrdiff_t>(next),
+                   direct.begin() + static_cast<std::ptrdiff_t>(leaf.position));
+      seeds.insert(seeds.end(), leaf.seeds.begin(), leaf.seeds.end());
+      next = leaf.position;
+    }
+    seeds.insert(seeds.end(), direct.begin() + static_cast<std::ptrdiff_t>(next), direct.end());
+    leaves_.clear();
     // seeds on a domain boundary first: open curves are then traced from their ends
     std::stable_sort(seeds.begin(), seeds.end(), [&](const X4& x, const X4& y) {
       return on_boundary(x) && !on_boundary(y);
@@ -282,9 +335,9 @@ class Ssi {
     const double dp = distance(box(p.control_points()).lo, box(p.control_points()).hi);
     const double dq = distance(box(q.control_points()).lo, box(q.control_points()).hi);
     if (no_loops) {
-      // every intersection curve in this pair crosses the boundary of p or q
-      boundary_seeds(p, q, false, seeds);
-      boundary_seeds(q, p, true, seeds);
+      // every intersection curve in this pair crosses the boundary of p or q: its boundary
+      // seeds are computed later (in parallel) and inserted at this position
+      leaves_.push_back({p, q, seeds.size(), {}});
       return;
     }
     if (depth >= 24 || std::max(dp, dq) <= 1e-4 * size_) {
@@ -741,6 +794,12 @@ class Ssi {
   X4 lo_{}, hi_{};
   std::array<std::vector<double>, 4> knots_;  // interior knot values per parameter
   SurfaceIntersection result_;
+  struct Leaf {
+    NurbsSurface p, q;
+    std::size_t position;  // index in the sequential seed list
+    std::vector<X4> seeds;
+  };
+  std::vector<Leaf> leaves_;
 };
 
 }  // namespace

@@ -65,6 +65,10 @@ target_include_directories(nurbforge_core PUBLIC
   $<INSTALL_INTERFACE:include>)
 nf_set_warnings(nurbforge_core)
 
+# std::thread (parallel seed search in the surface/surface intersection)
+find_package(Threads REQUIRED)
+target_link_libraries(nurbforge_core PUBLIC Threads::Threads)
+
 if(MSVC)
   target_compile_definitions(nurbforge_core PUBLIC _USE_MATH_DEFINES NOMINMAX)
 endif()

@@ -14,7 +14,9 @@ so they cannot rot; timings on shared CI runners are not meaningful and are not 
 
 ## Reference results
 
-Windows 11, Intel Core i7-11800H, MSVC (Visual Studio 2026), Release, single thread:
+Windows 11, Intel Core i7-11800H (8 cores / 16 threads), MSVC (Visual Studio 2026), Release.
+The surface/surface intersection searches its seeds in parallel (see below); everything else
+runs on one thread.
 
 | case | per | time [ms] |
 |---|---|---:|
@@ -23,10 +25,10 @@ Windows 11, Intel Core i7-11800H, MSVC (Visual Studio 2026), Release, single thr
 | closest point on sphere | 1000 points | 188 |
 | curve interpolation (1000 points) | 1 fit | 0.21 |
 | curve approximation to 1e-4 | 1 fit | 2.4 |
-| surface/surface intersection (two spheres) | 1 intersection | 167 |
+| surface/surface intersection (two spheres) | 1 intersection | 67 (sequential: 167) |
 | sewing a cube | 1 shell | 5.4 |
 | point in shell (sphere) | 100 points | 300 |
-| Boolean intersection (two spheres) | 1 Boolean | 351 |
+| Boolean intersection (two spheres) | 1 Boolean | 240 (sequential: 351) |
 | Boolean difference (drilled cube) | 1 Boolean | 226 |
 | Boolean union (coincident boxes) | 1 Boolean | 218 |
 | volume of the lens (rel. 1e-6) | 1 volume | 144 |
@@ -34,6 +36,25 @@ Windows 11, Intel Core i7-11800H, MSVC (Visual Studio 2026), Release, single thr
 Evaluation runs at roughly 7 million curve points or 3.6 million rational surface points per
 second. The robust global operations (closest point by branch and bound, surface/surface
 intersection, ray casting) dominate the Boolean pipeline.
+
+## Parallel seed search in the surface/surface intersection
+
+Profiling the two-sphere intersection showed 90 % of the time in the seed search, almost all of
+it in the boundary seeds of the leaf patch pairs (pairs with separated normal cones: every
+intersection curve of the pair crosses a patch boundary, found by intersecting the four
+boundary iso-curves of each patch with the other patch) – 212 independent leaves of about
+0.8 ms each. The subdivision now only collects the leaves; their boundary seeds are computed
+on all hardware threads (`std::thread`, work distributed by an atomic counter) and merged at the
+positions where the sequential subdivision would have produced them, so the result is
+identical to the sequential one. Best of 7 runs:
+
+| intersection | 1 thread | 4 threads | 16 threads |
+|---|---:|---:|---:|
+| two spheres | 174 ms | 92 ms | 77 ms |
+| sphere / cylinder | 64 ms | 38 ms | 36 ms |
+
+Scaling flattens beyond four threads (memory allocation in the small curve/surface
+intersections, and the remaining sequential tracing and fitting of about 20 ms).
 
 ## Parallelisation (OpenMP) – measured, not adopted
 

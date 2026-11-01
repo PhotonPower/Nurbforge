@@ -5,6 +5,10 @@ versioning: [SemVer](https://semver.org).
 
 ## [Unreleased]
 ### Added
+- Surface/surface intersection: the boundary seeds of the leaf patch pairs (90 % of the time)
+  are computed on all hardware threads and merged in sequential order (identical results);
+  two spheres 174 → 77 ms, two-sphere Boolean 351 → 240 ms. The core library links
+  `Threads::Threads`.
 - LLM constraint solving: tool `solve` – a recipe of tool calls with unknowns (`"$r"`,
   `"${2*r}"`, whitelist expression interpreter), bounds and targets on measured properties; a
   bounded Levenberg–Marquardt iteration re-runs the recipe in a scratch workspace and executes

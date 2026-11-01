@@ -2,6 +2,7 @@
 
 | Document | Content |
 |---|---|
+| [tutorial.md](tutorial.md) | Tutorial: from curves to trimmed solids, Booleans, meshing and the LLM interface |
 | [architecture.md](architecture.md) | Layers, modules, dependencies, error handling |
 | [math/nurbs.md](math/nurbs.md) | NURBS definitions, conventions, implemented algorithms |
 | [api/python.md](api/python.md) | Python API overview |
@@ -29,6 +30,7 @@ references) is published at <https://photonpower.github.io/Nurbforge/>. To build
 :hidden:
 :caption: Guide
 
+tutorial
 architecture
 math/nurbs
 optics

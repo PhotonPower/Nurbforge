@@ -1,2 +1,7 @@
 add_executable(nf_example_lens_surface lens_surface.cpp)
 target_link_libraries(nf_example_lens_surface PRIVATE Nurbforge::core)
+nf_set_warnings(nf_example_lens_surface)
+
+add_executable(nf_example_booleans booleans.cpp)
+target_link_libraries(nf_example_booleans PRIVATE Nurbforge::core)
+nf_set_warnings(nf_example_booleans)

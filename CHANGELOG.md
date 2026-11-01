@@ -5,6 +5,8 @@ versioning: [SemVer](https://semver.org).
 
 ## [Unreleased]
 ### Added
+- Benchmarks: `benchmarks/bench.cpp` (`-DNF_BUILD_BENCHMARKS=ON`, built and smoke-tested in the CI
+  preset), reference timings and an OpenMP experiment in `docs/benchmarks.md`.
 - LLM verification: tools `inspect` (measured properties and detected issues of an object) and
   `check` (measured property vs. expected value, PASS/FAIL); `GeometryAgent` runs verification
   rounds after the final answer (`verify_rounds`, default 1; CLI `--verify-rounds`): objects

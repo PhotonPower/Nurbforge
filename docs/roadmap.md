@@ -26,7 +26,8 @@
 ## 0.4 – Intersections & trimming
 - Curve–curve, curve–surface intersection ✅
 - Surface–surface intersection (subdivision + marching) ✅
-- Trimmed surfaces (parameter-space loops), surface systems with shared edges
+- Trimmed surfaces (parameter-space loops) ✅, split along intersections ✅, exact gmsh export ✅
+- Surface systems with shared edges
 - Planar sections / cuts
 
 ## 0.5 – Topology & Booleans

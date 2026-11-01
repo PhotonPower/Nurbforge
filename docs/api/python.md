@@ -27,6 +27,8 @@ import nurbforge as nf
 | Tolerances | `Tolerance(length=1e-10, parametric=1e-10, angular=1e-9)` |
 | Extrapolation | `extend(curve, CurveEnd.Start/End, length, Extension.Natural/Linear)`, `extend(surface, SurfaceSide.UMin/UMax/VMin/VMax, length, type)` |
 | Optics | `Asphere(curvature, conic, even, odd)`, `asphere_surface(a, r_max, tolerance)`, `asphere_profile`, `ZernikeSag(base, norm_radius, indexing, coeffs)`, `zernike_surface`, `zernike(j, indexing, rho, theta)`, `zernike_nm`, `XYPolynomialSag(base, norm_radius, terms)`, `xy_polynomial_surface`, `sag_surface(f, x0, x1, y0, y1, degree, tolerance)` – see [optics.md](../optics.md) |
+| Trimming | `TrimmedSurface(surface[, outer, holes])` -> `contains`, `area`, `boundary_curves`, `with_hole`; `TrimLoop(curves)`, `rectangle_loop`, `circle_loop`, `polygon_loop`; `split(surface, cutter)` / `split(surface, pcurves)` |
+| Integration | `integrate(f, a, b, rel_tol, breaks, abs_tol)` |
 | Joining | `join(a, b, tolerance)`, `join_u(a, b, tolerance)`, `join_v(a, b, tolerance)` |
 | Arrays | `linear_pattern`, `grid_pattern`, `polar_pattern`, `apply_pattern` |
 | Knots | `clamped_uniform_knots`, `unique_knots`, `validate_knots` |

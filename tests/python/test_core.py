@@ -332,3 +332,18 @@ def test_surface_surface_intersection():
     w = c.pcurve1(0.5 * sum(c.curve.domain))
     assert abs(sphere(w.x, w.y).z - 0.8) < 1e-6
     assert res.points == []
+
+
+def test_trimmed_surfaces():
+    plate = nf.make_rectangle((0, 0, 0), (4, 0, 0), (0, 2, 0))
+    disk = nf.TrimmedSurface(plate, nf.circle_loop(0.5, 0.5, 0.25))
+    assert disk.contains(0.5, 0.5) and not disk.contains(0.9, 0.5)
+    assert abs(disk.area() - math.pi * 0.5) < 1e-6
+    holed = nf.TrimmedSurface(plate).with_hole(nf.circle_loop(0.5, 0.5, 0.25))
+    assert abs(holed.area() - (8 - math.pi * 0.5)) < 1e-6
+    meridian = nf.make_arc((0, 0, 0), (0, 0, -1), (1, 0, 0), 2.0, 0.0, math.pi)
+    sphere = nf.revolve(meridian, (0, 0, 0), (0, 0, 1), 2 * math.pi)
+    parts = nf.split(nf.make_rectangle((-3, -3, 0.8), (6, 0, 0), (0, 6, 0)), sphere)
+    assert len(parts) == 2
+    assert abs(min(p.area(1e-7) for p in parts) - math.pi * (4 - 0.64)) < 1e-5
+    assert abs(nf.integrate(lambda x: x * x, 0.0, 3.0) - 9.0) < 1e-12

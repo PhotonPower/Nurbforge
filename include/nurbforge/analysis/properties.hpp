@@ -2,6 +2,9 @@
 /// @file properties.hpp
 /// Differential and integral properties: curvature, torsion, arc length, surface area.
 
+#include <functional>
+#include <vector>
+
 #include "nurbforge/core/vec.hpp"
 #include "nurbforge/nurbs/curve.hpp"
 #include "nurbforge/nurbs/surface.hpp"
@@ -10,6 +13,13 @@ namespace nf {
 
 /// Default relative accuracy of the adaptive integrators.
 inline constexpr double kIntegrationRelTol = 1e-10;
+
+/// Globally adaptive Gauss-Kronrod (7/15) integral of f over [a, b], split at the given
+/// interior break points (where f may be non-smooth). Target error max(rel_tol * int |f|,
+/// abs_tol); the number of subintervals is bounded, so noisy integrands cannot explode.
+[[nodiscard]] double integrate(const std::function<double(double)>& f, double a, double b,
+                               double rel_tol = kIntegrationRelTol,
+                               const std::vector<double>& breaks = {}, double abs_tol = 0.0);
 
 // ------------------------------------------------------------------ curves
 

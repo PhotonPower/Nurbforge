@@ -127,3 +127,15 @@ def test_intersect_tool_surfaces():
     call_tool(ws, "extrude", {"name": "cyl", "profile": "c", "direction": [0, 0, 1]})
     out = call_tool(ws, "intersect", {"a": "cyl", "b": "p"})
     assert "cut_1" in out and "length" in out
+
+
+def test_trim_and_split_tools():
+    ws = Workspace()
+    call_tool(ws, "make_rectangle", {"name": "p", "origin": [0, 0, 0], "edge_u": [1, 0, 0], "edge_v": [0, 1, 0]})
+    out = call_tool(ws, "trim_circle", {"name": "d", "source": "p", "center_u": 0.5, "center_v": 0.5,
+                                        "radius": 0.5})
+    assert out.startswith("stored d")
+    assert call_tool(ws, "measure", {"name": "d"}).startswith("area=0.785398")
+    call_tool(ws, "make_rectangle", {"name": "q", "origin": [0.5, -1, -1], "edge_u": [0, 3, 0],
+                                     "edge_v": [0, 0, 2]})
+    assert "s_2" in call_tool(ws, "split", {"name": "s", "surface": "p", "cutter": "q"})

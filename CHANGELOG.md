@@ -22,6 +22,11 @@ versioning: [SemVer](https://semver.org).
   branch and bound over Bézier pieces with safe lower bounds, safeguarded (projected) Newton;
   local variant with start value; Python `closest_point`, `closest_point_local`, `Tolerance`;
   LLM tool `closest_point`.
+- Trimmed surfaces (`topology/trimmed_surface.hpp`): loops in the parameter domain, `contains`,
+  area by Green's theorem, 3D boundary curves, `split` along surface intersections (chords and
+  nested loops); exact gmsh export of trimmed surfaces (`add_trimmed_surface`); LLM tools
+  `trim_circle`, `split`.
+- Public globally adaptive integrator `integrate` (bounded interval budget, absolute target).
 - Surface–surface intersection (`analysis/surface_intersect.hpp`): subdivision seeds with normal-cone loop test,
   predictor–corrector marching with 3D and parameter-space step control, exact knot-line and
   boundary points, verified fit of 3D curves and p-curves, seam/pole-aware de-duplication.
@@ -61,6 +66,8 @@ versioning: [SemVer](https://semver.org).
 - All tolerance literals in `src/` replaced by the named constants; angular comparisons now
   uniformly use 1e-9.
 ### Fixed
+- Adaptive quadrature (arc length, area, `integrate`) could explode on noise-dominated
+  integrands (local recursive bisection to depth 50); now globally adaptive with a budget.
 - `NurbsSurface::normal` returns the limit normal at poles and collapsed edges instead of throwing
   (e.g. at the poles of revolved spheres – relevant for BEM meshes).
 - `ruled` / `make_compatible` now handle curves of different degree (previously

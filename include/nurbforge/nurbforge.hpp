@@ -25,3 +25,4 @@
 #include "nurbforge/analysis/surface_intersect.hpp"
 #include "nurbforge/fitting/fit.hpp"
 #include "nurbforge/optics/surfaces.hpp"
+#include "nurbforge/topology/trimmed_surface.hpp"

@@ -244,12 +244,16 @@ std::vector<std::vector<NurbsCurve>> TrimmedSurface::boundary_curves(double tole
     {
       const auto ku = unique_knots(surface_.knots_u()).first, kv = unique_knots(surface_.knots_v()).first;
       std::vector<double> extra;
-      const auto crossings = [&](int coord, const std::vector<double>& knots) {
+      // A crossing needs the curve to be clearly off the knot line on both sides (|g| > eps):
+      // a trim curve running along a knot line (e.g. an intersection with a plane through a
+      // sphere's meridian) must not produce a crossing at every rounding-level sign change.
+      const auto crossings = [&](int coord, const std::vector<double>& knots, double eps) {
         for (std::size_t s = 0; s + 1 < br.size(); ++s)
           for (double kappa : knots) {
             const auto g = [&](double t) {
               const Vec3 w = pc.evaluate(t);
-              return (coord == 0 ? w.x : w.y) - kappa;
+              const double x = (coord == 0 ? w.x : w.y) - kappa;
+              return std::abs(x) <= eps ? 0.0 : x;
             };
             const int n = 32;
             double t0 = br[s], g0 = g(t0);
@@ -270,8 +274,8 @@ std::vector<std::vector<NurbsCurve>> TrimmedSurface::boundary_curves(double tole
             }
           }
       };
-      crossings(0, std::vector<double>(ku.begin() + 1, ku.end() - 1));
-      crossings(1, std::vector<double>(kv.begin() + 1, kv.end() - 1));
+      crossings(0, std::vector<double>(ku.begin() + 1, ku.end() - 1), 1e-9 * (ku.back() - ku.front()));
+      crossings(1, std::vector<double>(kv.begin() + 1, kv.end() - 1), 1e-9 * (kv.back() - kv.front()));
       br.insert(br.end(), extra.begin(), extra.end());
       std::sort(br.begin(), br.end());
       br.erase(std::unique(br.begin(), br.end(), [](double x, double y) { return y - x <= 1e-12; }), br.end());

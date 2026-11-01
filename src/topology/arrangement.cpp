@@ -141,6 +141,17 @@ std::vector<TrimmedSurface> split(const TrimmedSurface& face, const std::vector<
     }
   }
 
+  // end points onto the merged vertices: curves meeting within the merge distance (e.g. two
+  // intersection curves ending at a pole, each within the solver tolerance) must form exactly
+  // closed loops. The pieces are clamped, so their ends are the first / last control points.
+  for (auto& e : g.edges) {
+    auto P = e.curve.homogeneous_control_points();
+    const P2 va = g.vertices[e.a], vb = g.vertices[e.b];
+    P.front() = Vec4::from_point({va[0], va[1], 0.0}, P.front().w);
+    P.back() = Vec4::from_point({vb[0], vb[1], 0.0}, P.back().w);
+    e.curve = NurbsCurve::from_homogeneous(e.curve.degree(), e.curve.knots(), P);
+  }
+
   // remove dangling edges (vertices of degree 1) iteratively
   for (bool changed = true; changed;) {
     changed = false;

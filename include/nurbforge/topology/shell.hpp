@@ -47,8 +47,16 @@ class Shell {
   /// adjacent faces point to the same side).
   [[nodiscard]] bool is_consistently_oriented() const;
 
-  /// Flips faces so that the orientation becomes consistent (per connected component). For a
-  /// closed shell the normals then point outwards (enclosed volume positive).
+  /// Connected components (faces linked through shared edges), each as its own shell – e.g.
+  /// the outer boundary and the void boundaries of a hollow solid, or the separate lumps of a
+  /// Boolean result.
+  [[nodiscard]] std::vector<Shell> components() const;
+
+  /// Flips faces so that the orientation becomes consistent within every connected component.
+  /// Closed components are then oriented by nesting: a component lying inside an even number
+  /// of other closed components is an outer boundary (normals outwards, positive volume), one
+  /// inside an odd number bounds a void (normals into the void, negative volume) – so a hollow
+  /// solid keeps its void and the total volume is the solid volume.
   [[nodiscard]] Shell oriented() const;
 
   [[nodiscard]] double area(double rel_tol = 1e-8) const;
@@ -58,6 +66,8 @@ class Shell {
   [[nodiscard]] double volume(double rel_tol = 1e-8) const;
 
  private:
+  [[nodiscard]] std::vector<std::vector<std::size_t>> face_components() const;
+
   std::vector<TrimmedSurface> faces_;
   std::vector<Vec3> vertices_;
   std::vector<ShellEdge> edges_;

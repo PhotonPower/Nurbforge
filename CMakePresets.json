@@ -26,7 +26,8 @@
       "inherits": "base",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
-        "NF_WARNINGS_AS_ERRORS": "ON"
+        "NF_WARNINGS_AS_ERRORS": "ON",
+        "NF_BUILD_BENCHMARKS": "ON"
       }
     },
     {

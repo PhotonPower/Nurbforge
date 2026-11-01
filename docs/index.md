@@ -36,6 +36,7 @@ math/nurbs
 optics
 meshing
 llm
+benchmarks
 build/almalinux10
 build/windows11
 ```

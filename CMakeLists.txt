@@ -16,6 +16,7 @@ option(NF_BUILD_TESTS            "Build C++ unit tests"            ON)
 option(NF_BUILD_PYTHON           "Build Python bindings"           ON)
 option(NF_BUILD_EXAMPLES         "Build C++ examples"              ON)
 option(NF_WARNINGS_AS_ERRORS     "Treat compiler warnings as errors" OFF)
+option(NF_BUILD_BENCHMARKS      "Build the benchmark executable"  OFF)
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 include(CompilerWarnings)
@@ -79,6 +80,10 @@ endif()
 
 if(NF_BUILD_EXAMPLES AND NOT SKBUILD)
   add_subdirectory(examples/cpp)
+endif()
+
+if(NF_BUILD_BENCHMARKS AND NOT SKBUILD)
+  add_subdirectory(benchmarks)
 endif()
 
 # ---------------------------------------------------------------- install

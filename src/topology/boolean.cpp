@@ -40,17 +40,17 @@ Box3 shell_box(const Shell& s) {
   return b;
 }
 
-// A parameter point inside the trimmed face (nudged inwards from the outer loop).
-// A parameter point inside the trimmed face. From the midpoints of the outer loop's polyline a
+// Parameter points inside the trimmed face. From the midpoints of the outer loop's polyline a
 // ray is sent inwards (to the left of the counter-clockwise loop); the midpoint between the
 // start and the first crossing with any loop lies inside even for very thin pieces (slivers at
 // seams or poles), unlike a fixed inward nudge.
-std::optional<std::array<double, 2>> interior_point(const TrimmedSurface& f) {
+// All candidates are returned, widest spot first; the caller checks them with contains() (the
+// exact test near curved loops is too expensive to run on every candidate).
+std::vector<std::array<double, 2>> interior_points(const TrimmedSurface& f) {
   const auto poly = f.outer().polyline(8);
   std::vector<std::vector<std::array<double, 2>>> loops{poly};
   for (const auto& h : f.holes()) loops.push_back(h.polyline(8));
-  std::optional<std::array<double, 2>> best;
-  double best_width = 0.0;
+  std::vector<std::pair<double, std::array<double, 2>>> found;
   for (std::size_t k = 0; k < poly.size(); ++k) {
     const auto& p = poly[k];
     const auto& q = poly[(k + 1) % poly.size()];
@@ -72,12 +72,12 @@ std::optional<std::array<double, 2>> interior_point(const TrimmedSurface& f) {
       }
     if (s_hit >= 1e300) continue;
     const std::array<double, 2> c{mx + 0.5 * s_hit * nx, my + 0.5 * s_hit * ny};
-    if (s_hit > best_width && f.contains(c[0], c[1])) {  // prefer the widest spot
-      best_width = s_hit;
-      best = c;
-    }
+    found.emplace_back(s_hit, c);
   }
-  return best;
+  std::stable_sort(found.begin(), found.end(), [](const auto& x, const auto& y) { return x.first > y.first; });
+  std::vector<std::array<double, 2>> out;
+  for (const auto& [w, c] : found) out.push_back(c);
+  return out;
 }
 
 // Distance of a parameter point from the loops of a face (polyline approximation).
@@ -97,8 +97,12 @@ double distance_to_loops(const TrimmedSurface& f, double u, double v) {
 }
 
 // Parameter intervals of an intersection curve on which both p-curves lie inside their faces.
+// Where the curve touches a face boundary tangentially (e.g. a circle touching a box edge), it
+// runs within the fit accuracy of the boundary over a short stretch and the in/out test flips
+// arbitrarily there: short runs that stay within 10 tolerances of either face's boundary are
+// taken as touching – inside runs are dropped, gaps between inside runs are closed.
 std::vector<std::pair<double, double>> shared_intervals(const IntersectionCurve& c, const TrimmedSurface& fa,
-                                                        const TrimmedSurface& fb) {
+                                                        const TrimmedSurface& fb, double tolerance) {
   const auto inside = [&](double t) {
     const Vec3 w1 = c.pcurve1.evaluate(t), w2 = c.pcurve2.evaluate(t);
     return fa.contains(w1.x, w1.y) && fb.contains(w2.x, w2.y);
@@ -130,7 +134,42 @@ std::vector<std::pair<double, double>> shared_intervals(const IntersectionCurve&
   const double tiny = 1e-9 * (t1 - t0);
   out.erase(std::remove_if(out.begin(), out.end(), [&](const auto& iv) { return iv.second - iv.first <= tiny; }),
             out.end());
-  return out;
+  // touching runs (short, and within 10 tolerances of a face boundary at their samples)
+  std::vector<NurbsCurve> bounds;
+  const auto touching = [&](double lo, double hi) {
+    if (hi - lo > 0.05 * (t1 - t0)) return false;
+    if (bounds.empty())
+      for (const TrimmedSurface* f : {&fa, &fb})
+        for (auto& loop : f->boundary_curves(0.1 * tolerance))
+          for (auto& b : loop) bounds.push_back(std::move(b));
+    for (double s : {0.25, 0.5, 0.75}) {
+      const Vec3 P = c.curve.evaluate(lo + s * (hi - lo));
+      double d = 1e300;
+      for (const auto& b : bounds) d = std::min(d, closest_point(b, P).distance);
+      if (d > 10.0 * tolerance) return false;
+    }
+    return true;
+  };
+  const bool closed = distance(c.curve.evaluate(t0), c.curve.evaluate(t1)) <= tolerance;
+  std::vector<std::pair<double, double>> merged;
+  for (const auto& iv : out) {
+    if (!merged.empty() && touching(merged.back().second, iv.first)) merged.back().second = iv.second;
+    else merged.push_back(iv);
+  }
+  // on a closed curve the gap may run across the curve's start (checked in its two halves)
+  if (closed && !merged.empty()) {
+    const double gap_lo = merged.back().second, gap_hi = merged.front().first;
+    const double len = (t1 - gap_lo) + (gap_hi - t0);
+    if (len > tiny && len <= 0.05 * (t1 - t0) && (gap_lo >= t1 - tiny || touching(gap_lo, t1)) &&
+        (gap_hi <= t0 + tiny || touching(t0, gap_hi))) {
+      merged.back().second = t1;
+      merged.front().first = t0;
+    }
+  }
+  std::vector<std::pair<double, double>> kept;
+  for (const auto& iv : merged)
+    if (!touching(iv.first, iv.second)) kept.push_back(iv);
+  return kept;
 }
 
 // How two surfaces relate, from samples of each projected onto the other. Samples whose foot
@@ -322,6 +361,7 @@ Shell boolean(const Shell& a_in, const Shell& b_in, BooleanOp op, double toleran
   const auto& FB = B.faces();
   std::vector<std::vector<NurbsCurve>> cuts_a(FA.size()), cuts_b(FB.size());
   std::vector<std::vector<std::size_t>> partners_a(FA.size()), partners_b(FB.size());  // coincident faces
+  std::vector<std::vector<std::size_t>> touching_a(FA.size()), touching_b(FB.size());  // tangential contact
   SurfaceIntersectionOptions opt;
   opt.tol.length = 1e-3 * tolerance;
   for (std::size_t i = 0; i < FA.size(); ++i)
@@ -338,33 +378,59 @@ Shell boolean(const Shell& a_in, const Shell& b_in, BooleanOp op, double toleran
         continue;
       }
       const auto res = intersect(FA[i].surface(), FB[j].surface(), opt);
+      if (!res.points.empty()) {  // tangential contact (not cut)
+        touching_a[i].push_back(j);
+        touching_b[j].push_back(i);
+      }
       for (const auto& c : res.curves)
-        for (const auto& [t0, t1] : shared_intervals(c, FA[i], FB[j])) {
+        for (const auto& [t0, t1] : shared_intervals(c, FA[i], FB[j], tolerance)) {
           cuts_a[i].push_back(c.pcurve1.sub_curve(t0, t1));
           cuts_b[j].push_back(c.pcurve2.sub_curve(t0, t1));
         }
     }
   // classification of a piece of `face` against the other shell: "on" if its interior point lies
-  // on a coincident face of the other shell (same or opposite outward normal), else ray casting
+  // on a coincident face of the other shell (same or opposite outward normal), else ray casting.
+  // A piece that only touches the other shell (tangential contact, which is not cut) may have
+  // its widest interior point on the contact – ray casting is undecided there, so the first
+  // candidate clear of the touching faces is used.
   const auto where = [&](const TrimmedSurface& piece, const std::vector<std::size_t>& partners,
-                         const std::vector<TrimmedSurface>& other_faces, const Shell& other) {
-    const auto q = interior_point(piece);
-    if (!q) throw GeometryError("boolean: cannot find an interior point of a face piece");
-    const Vec3 P = piece.surface().evaluate((*q)[0], (*q)[1]);
-    for (std::size_t j : partners) {
-      const TrimmedSurface& g = other_faces[j];
-      const SurfacePoint f = closest_point(g.surface(), P);
-      if (f.distance <= 10.0 * tolerance && g.contains(f.u, f.v)) {
-        const double c = dot(piece.surface().normal((*q)[0], (*q)[1]), g.surface().normal(f.u, f.v));
-        return c > 0.0 ? Where::OnSame : Where::OnOpposite;
+                         const std::vector<std::size_t>& touching, const std::vector<TrimmedSurface>& other_faces,
+                         const Shell& other) {
+    const auto candidates = interior_points(piece);
+    const double clear = 100.0 * tolerance;
+    Vec3 best;
+    double best_gap = -1.0;
+    for (std::size_t k = 0; k < candidates.size(); ++k) {
+      const auto& q = candidates[k];
+      if (!piece.contains(q[0], q[1])) continue;
+      const Vec3 P = piece.surface().evaluate(q[0], q[1]);
+      for (std::size_t j : partners) {
+        const TrimmedSurface& g = other_faces[j];
+        const SurfacePoint f = closest_point(g.surface(), P);
+        if (f.distance <= 10.0 * tolerance && g.contains(f.u, f.v)) {
+          const double c = dot(piece.surface().normal(q[0], q[1]), g.surface().normal(f.u, f.v));
+          return c > 0.0 ? Where::OnSame : Where::OnOpposite;
+        }
+      }
+      double gap = 1e300;
+      for (std::size_t j : touching) {
+        if (gap < clear) break;
+        const SurfacePoint f = closest_point(other_faces[j].surface(), P);
+        if (other_faces[j].contains(f.u, f.v)) gap = std::min(gap, f.distance);
+      }
+      if (gap >= clear) return point_in_shell(other, P, tolerance) ? Where::In : Where::Out;
+      if (gap > best_gap) {  // touching everywhere: take the point farthest from the other shell
+        best_gap = gap;
+        best = P;
       }
     }
-    return point_in_shell(other, P, tolerance) ? Where::In : Where::Out;
+    if (best_gap < 0.0) throw GeometryError("boolean: cannot find an interior point of a face piece");
+    return point_in_shell(other, best, tolerance) ? Where::In : Where::Out;
   };
   std::vector<TrimmedSurface> result;
   for (std::size_t i = 0; i < FA.size(); ++i)
     for (const auto& p : split(FA[i], prune_cuts(FA[i], std::move(cuts_a[i])))) {
-      const Where w = where(p, partners_a[i], FB, B);
+      const Where w = where(p, partners_a[i], touching_a[i], FB, B);
       const bool keep = op == BooleanOp::Union          ? (w == Where::Out || w == Where::OnSame)
                         : op == BooleanOp::Intersection ? (w == Where::In || w == Where::OnSame)
                                                         : (w == Where::Out || w == Where::OnOpposite);
@@ -374,7 +440,7 @@ Shell boolean(const Shell& a_in, const Shell& b_in, BooleanOp op, double toleran
   // A (union, intersection), all other "on" cases drop out
   for (std::size_t j = 0; j < FB.size(); ++j)
     for (const auto& p : split(FB[j], prune_cuts(FB[j], std::move(cuts_b[j])))) {
-      const Where w = where(p, partners_b[j], FA, A);
+      const Where w = where(p, partners_b[j], touching_b[j], FA, A);
       if (op == BooleanOp::Union && w == Where::Out) result.push_back(p);
       if (op == BooleanOp::Intersection && w == Where::In) result.push_back(p);
       if (op == BooleanOp::Difference && w == Where::In) result.push_back(p.flipped());

@@ -33,7 +33,7 @@
 
 ## 0.5 – Topology & Booleans
 - B-rep shells (vertex/edge/coedge/face/shell) ✅, watertightness and orientation checks ✅, volume ✅; bodies with several shells ✅ (voids, lumps)
-- Boolean union / intersection / difference on trimmed NURBS shells ✅ (incl. coincident faces)
+- Boolean union / intersection / difference on trimmed NURBS shells ✅ (incl. coincident faces and tangential contacts)
 - STEP / IGES export via OCC ✅
 - Native STEP writer (AP214, no dependencies) ✅
 - Native STEP reader ✅ (B-spline and analytic geometry → exact NURBS, trim loops rebuilt in parameter space, units, voids)

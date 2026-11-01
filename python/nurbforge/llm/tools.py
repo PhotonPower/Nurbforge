@@ -9,7 +9,7 @@ from typing import Any
 import numpy as np
 
 from .. import _core as nf
-from . import verify
+from . import constraints, verify
 
 Vec = list[float]
 
@@ -356,6 +356,26 @@ def _build_tools() -> list[Tool]:
         nf.write_step(path, shells, unit=unit)
         closed = sum(1 for s in shells if s.is_closed)
         return f"wrote {path}: {len(shells)} shell(s), {closed} closed"
+
+    @add("solve", "Find unknown dimensions from measured targets. 'recipe' is a list of tool "
+         "calls {tool, args} whose numeric arguments may be \"$name\" or \"${expression}\" "
+         "(+ - * / **, pi, sqrt, sin/cos/tan in degrees); 'unknowns' maps each name to "
+         "{start, min, max}; 'targets' are {name, property, value} on measured properties "
+         "(as in 'check': volume, area, length, bbox.max, ...). The recipe is re-run until the "
+         "targets are met, then executed for real.",
+         {"recipe": {"type": "array", "items": {"type": "object"}},
+          "unknowns": {"type": "object"},
+          "targets": {"type": "array", "items": {"type": "object"}}},
+         ["recipe", "unknowns", "targets"])
+    def _(ws, recipe, unknowns, targets):
+        res = constraints.solve(ws, recipe, unknowns, targets, call_tool)
+        vals = ", ".join(f"{k}={v:.10g}" for k, v in res["values"].items())
+        worst = max(abs(e) for e in res["residuals"])
+        if res["converged"]:
+            return (f"solved in {res['iterations']} iterations: {vals} (max relative target "
+                    f"error {worst:.2e}); recipe executed")
+        return (f"NOT solved after {res['iterations']} iterations: {vals} (max relative target "
+                f"error {worst:.2e}); nothing was created – check the recipe, bounds or targets")
 
     @add("inspect", "Measured properties of an object (type, bounding box, length / area / "
          "volume, closed, free edges, ...) and detected issues. Use it to verify results.",

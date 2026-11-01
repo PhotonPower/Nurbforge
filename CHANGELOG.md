@@ -9,6 +9,11 @@ versioning: [SemVer](https://semver.org).
   are computed on all hardware threads and merged in sequential order (identical results);
   two spheres 174 → 77 ms, two-sphere Boolean 351 → 240 ms. The core library links
   `Threads::Threads`.
+- LLM constraint solving: tool `solve` – a recipe of tool calls with unknowns (`"$r"`,
+  `"${2*r}"`, whitelist expression interpreter), bounds and targets on measured properties; a
+  bounded Levenberg–Marquardt iteration re-runs the recipe in a scratch workspace and executes
+  it for real once the targets are met (`nurbforge.llm.constraints`). The system prompt tells
+  the model to use it for indirectly given dimensions.
 - Bodies with several shells: `Shell::components()` (Python `Shell.components()`); `oriented()`
   orients closed components by nesting depth, so voids keep inward normals (hollow solids have
   the correct volume and work as Boolean inputs; lumps of a Boolean result are separate

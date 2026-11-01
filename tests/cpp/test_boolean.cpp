@@ -6,6 +6,7 @@
 
 #include "nurbforge/core/error.hpp"
 #include "nurbforge/geometry/primitives.hpp"
+#include "nurbforge/geometry/transform.hpp"
 #include "nurbforge/modeling/construct.hpp"
 #include "nurbforge/topology/boolean.hpp"
 
@@ -354,4 +355,31 @@ TEST_CASE("Booleans: thin overlap above the tolerance", "[boolean][tangent]") {
   CHECK(std::abs(i.volume(1e-7) - seg) < 1e-10);
   CHECK(std::abs(u.volume(1e-7) - (cyl + box - seg)) < 1e-9);
   CHECK(std::abs(d.volume(1e-7) - (cyl - seg)) < 1e-9);
+}
+
+namespace {
+Shell rotated_z(const Shell& s, double angle) {
+  std::vector<TrimmedSurface> faces;
+  for (const auto& f : s.faces())
+    faces.emplace_back(f.surface().transformed(Transform::rotation({0, 0, 0}, {0, 0, 1}, angle)), f.outer(), f.holes());
+  return Shell::sew(std::move(faces));
+}
+}  // namespace
+
+TEST_CASE("Booleans: tilted box face touching a cylinder", "[boolean][tangent]") {
+  // the patch boundaries of the cylinder next to the contact line run just off the tilted plane:
+  // the curve/surface intersection subdivided them down to the size limit (minutes)
+  const double r = 0.7021256186899939, z0 = -0.21300335723297636, h = 1.2982978724505516, w = 0.67037666446677946;
+  const Shell b = rotated_z(box_shell({r, -1.0, z0}, {r + w, 1.0, z0 + h}), 5.1897199994457743);
+  const double cyl = pi * r * r * 2.0;
+  check_contact(cylinder_shell(r, 0.0, 2.0), b, cyl + 2.0 * w * h, 0.0, cyl);
+}
+
+TEST_CASE("Booleans: cylinder inside a tilted box touching two sides", "[boolean][tangent]") {
+  // the two ends of the intersection curve at a touching point overlap slightly (the position
+  // along the tangent is only determined to ~sqrt(2 r tol)) and must still be joined
+  const double r = 0.62334641101607957, z0 = 0.66660399501980083, ex = 0.24319203551411819, ey = 0.47548877062290407;
+  const Shell a = rotated_z(box_shell({-r, -r, z0}, {r + ex, r + ey, z0 + 0.8}), 4.8653577882165431);
+  const double box = (2 * r + ex) * (2 * r + ey) * 0.8, mid = pi * r * r * 0.8;
+  check_contact(a, cylinder_shell(r, 0.0, 2.0), box + pi * r * r * 2.0 - mid, mid, box - mid);
 }

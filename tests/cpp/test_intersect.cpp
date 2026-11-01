@@ -6,6 +6,7 @@
 
 #include "nurbforge/analysis/intersect.hpp"
 #include "nurbforge/geometry/primitives.hpp"
+#include "nurbforge/geometry/transform.hpp"
 #include "nurbforge/modeling/construct.hpp"
 
 using namespace nf;
@@ -166,4 +167,18 @@ TEST_CASE("curves crossing surfaces several times", "[intersect][surface]") {
   const auto ref = roots(height_gap, 0.0, 1.0, 4000);
   REQUIRE(hits.size() == ref.size());
   for (std::size_t i = 0; i < hits.size(); ++i) CHECK(std::abs(hits[i].t - ref[i]) < 1e-8);
+}
+
+TEST_CASE("curve/surface: a line running just off a tilted plane", "[intersect]") {
+  // the boxes of the tilted plane's pieces overlap the line everywhere: the signed distance is
+  // scanned instead of subdividing down to the size limit
+  const auto plane = make_rectangle({0, -1, 0}, {0, 2, 0}, {0, 0, 2}).transformed(
+      Transform::rotation({0, 0, 0}, {0, 0, 1}, 0.7));
+  const Vec3 n = plane.normal(0.5, 0.5);
+  const Vec3 p0 = plane.evaluate(0.5, 0.05), p1 = plane.evaluate(0.5, 0.95);
+  // parallel at 3e-8 (no intersection), and crossing the plane at a tiny angle
+  CHECK(intersect(make_line(p0 + 3e-8 * n, p1 + 3e-8 * n), plane).empty());
+  const auto hits = intersect(make_line(p0 + 3e-8 * n, p1 - 3e-8 * n), plane);
+  REQUIRE(hits.size() == 1);
+  CHECK(distance(hits[0].point, 0.5 * (p0 + p1)) < 1e-6);
 }

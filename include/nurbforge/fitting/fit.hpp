@@ -49,6 +49,14 @@ enum class Parametrization {
                                            std::size_t n_ctrl,
                                            Parametrization method = Parametrization::Centripetal);
 
+/// Least-squares approximation with given knot vector (clamped, degree+1 <= n_ctrl <= number of
+/// points) and data parameters (inside the knot domain, first/last at the domain ends); the
+/// first and last point are interpolated. Reproduces data from the spline space exactly, e.g.
+/// x(t) = t stays exactly linear (used for graph fits).
+[[nodiscard]] NurbsCurve approximate_curve(const std::vector<Vec3>& points, std::size_t degree,
+                                           const KnotVector& knots,
+                                           const std::vector<double>& params);
+
 /// Least-squares approximation with the smallest number of control points such that every data
 /// point lies within `tolerance` of the curve point at its parameter (an upper bound of the
 /// point-to-curve distance). Falls back to interpolation if necessary.

@@ -22,6 +22,10 @@ versioning: [SemVer](https://semver.org).
   branch and bound over Bézier pieces with safe lower bounds, safeguarded (projected) Newton;
   local variant with start value; Python `closest_point`, `closest_point_local`, `Tolerance`;
   LLM tool `closest_point`.
+- Optical surfaces (`optics/surfaces.hpp`, docs/optics.md): exact conic surfaces of revolution,
+  even/odd aspheres, Zernike (Fringe/Noll) and XY polynomial sags, generic `sag_surface`
+  graph fit with adaptive knots and verified tolerance; `approximate_curve` with given knots
+  and parameters (`fitting`); LLM tool `asphere`.
 - Coons patches and Gordon surfaces (`modeling/gordon.hpp`) as Boolean sums with automatic
   boundary orientation, network-consistency check and non-rational conversion of rational
   curves; LLM tool `coons`.

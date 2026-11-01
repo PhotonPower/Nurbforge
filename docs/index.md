@@ -6,6 +6,7 @@
 | [math/nurbs.md](math/nurbs.md) | NURBS definitions, conventions, implemented algorithms |
 | [api/python.md](api/python.md) | Python API overview |
 | [api/cpp.md](api/cpp.md) | C++ API overview, Doxygen |
+| [optics.md](optics.md) | Optical surfaces: conics, aspheres, Zernike, XY polynomials |
 | [meshing.md](meshing.md) | gmsh integration |
 | [llm.md](llm.md) | Ollama interface and safety model |
 | [build/almalinux10.md](build/almalinux10.md) | Build on AlmaLinux 10 |

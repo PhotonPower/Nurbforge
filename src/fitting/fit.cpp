@@ -286,6 +286,17 @@ NurbsCurve approximate_curve(const std::vector<Vec3>& Q, std::size_t p, std::siz
   return {p, ls.knots(), ls.fit(Q)};
 }
 
+NurbsCurve approximate_curve(const std::vector<Vec3>& Q, std::size_t p, const KnotVector& U,
+                             const std::vector<double>& params) {
+  if (p < 1) throw GeometryError("fitting: degree must be >= 1");
+  if (params.size() != Q.size()) throw GeometryError("approximate_curve: one parameter per point");
+  const std::size_t n_ctrl = U.size() - p - 1;
+  validate_knots(U, p, n_ctrl);
+  if (n_ctrl > Q.size()) throw GeometryError("approximate_curve: more control points than data points");
+  const LeastSquares ls(p, U, params, n_ctrl);
+  return {p, U, ls.fit(Q)};
+}
+
 NurbsCurve approximate_curve_tol(const std::vector<Vec3>& Q, std::size_t p, double tolerance,
                                  Parametrization method) {
   const auto ub = data_parameters(Q, method);

@@ -2,6 +2,7 @@
 #include <optional>
 #include <tuple>
 
+#include <pybind11/functional.h>
 #include <pybind11/numpy.h>
 #include <pybind11/operators.h>
 #include <pybind11/pybind11.h>
@@ -425,6 +426,62 @@ PYBIND11_MODULE(_core, m) {
         "Coons patch: S(u,0)=c0, S(u,1)=c1, S(0,v)=d0, S(1,v)=d1 (orientations fixed automatically).");
   m.def("gordon", &gordon, py::arg("u_curves"), py::arg("v_curves"), py::arg("tolerance") = 1e-7,
         "Gordon surface through a consistent curve network.");
+
+  // ------------------------------------------------------------------ optical surfaces
+  py::class_<Asphere>(m, "Asphere", "Rotationally symmetric sag: conic + even (r^4, r^6, ...) + odd (r, r^2, ...) terms.")
+      .def(py::init([](double curvature, double conic, std::vector<double> even, std::vector<double> odd) {
+             return Asphere{curvature, conic, std::move(even), std::move(odd)};
+           }),
+           py::arg("curvature") = 0.0, py::arg("conic") = 0.0, py::arg("even") = std::vector<double>{},
+           py::arg("odd") = std::vector<double>{})
+      .def_readwrite("curvature", &Asphere::curvature)
+      .def_readwrite("conic", &Asphere::conic)
+      .def_readwrite("even", &Asphere::even)
+      .def_readwrite("odd", &Asphere::odd)
+      .def("sag", &Asphere::sag, py::arg("r"))
+      .def("max_radius", &Asphere::max_radius)
+      .def_property_readonly("is_conic", &Asphere::is_conic);
+  py::enum_<ZernikeIndexing>(m, "ZernikeIndexing")
+      .value("Fringe", ZernikeIndexing::Fringe)
+      .value("Noll", ZernikeIndexing::Noll);
+  m.def("zernike", &zernike, py::arg("j"), py::arg("indexing"), py::arg("rho"), py::arg("theta"));
+  m.def("zernike_nm", [](std::size_t j, ZernikeIndexing ix) {
+        int n = 0, mm = 0;
+        zernike_nm(j, ix, n, mm);
+        return py::make_tuple(n, mm);
+      }, py::arg("j"), py::arg("indexing"));
+  py::class_<ZernikeSag>(m, "ZernikeSag")
+      .def(py::init([](Asphere base, double norm_radius, ZernikeIndexing ix, std::vector<double> c) {
+             return ZernikeSag{std::move(base), norm_radius, ix, std::move(c)};
+           }),
+           py::arg("base") = Asphere{}, py::arg("norm_radius") = 1.0,
+           py::arg("indexing") = ZernikeIndexing::Fringe, py::arg("coeffs") = std::vector<double>{})
+      .def_readwrite("base", &ZernikeSag::base)
+      .def_readwrite("norm_radius", &ZernikeSag::norm_radius)
+      .def_readwrite("indexing", &ZernikeSag::indexing)
+      .def_readwrite("coeffs", &ZernikeSag::coeffs)
+      .def("sag", &ZernikeSag::sag, py::arg("x"), py::arg("y"));
+  py::class_<XYPolynomialSag>(m, "XYPolynomialSag")
+      .def(py::init([](Asphere base, double norm_radius, const std::vector<std::tuple<int, int, double>>& terms) {
+             XYPolynomialSag s{std::move(base), norm_radius, {}};
+             for (const auto& [i, j, c] : terms) s.terms.push_back({i, j, c});
+             return s;
+           }),
+           py::arg("base") = Asphere{}, py::arg("norm_radius") = 1.0,
+           py::arg("terms") = std::vector<std::tuple<int, int, double>>{},
+           "terms: list of (i, j, c) for c * (x/norm)^i * (y/norm)^j")
+      .def("sag", &XYPolynomialSag::sag, py::arg("x"), py::arg("y"));
+  m.def("asphere_profile", &asphere_profile, py::arg("asphere"), py::arg("r_max"),
+        py::arg("tolerance") = 1e-7);
+  m.def("asphere_surface", &asphere_surface, py::arg("asphere"), py::arg("r_max"),
+        py::arg("tolerance") = 1e-7, "Surface of revolution; exact for pure conics.");
+  m.def("sag_surface", &sag_surface, py::arg("f"), py::arg("x0"), py::arg("x1"), py::arg("y0"),
+        py::arg("y1"), py::arg("degree") = 3, py::arg("tolerance") = 1e-7, py::arg("max_spans") = 256,
+        "Graph surface z = f(x, y) over a rectangle, fitted to the tolerance.");
+  m.def("zernike_surface", &zernike_surface, py::arg("zernike"), py::arg("half_width") = 0.0,
+        py::arg("tolerance") = 1e-7);
+  m.def("xy_polynomial_surface", &xy_polynomial_surface, py::arg("poly"), py::arg("half_width") = 0.0,
+        py::arg("tolerance") = 1e-7);
 
   // ------------------------------------------------------------------ patterns
   m.def("linear_pattern", &linear_pattern, py::arg("step"), py::arg("count"));

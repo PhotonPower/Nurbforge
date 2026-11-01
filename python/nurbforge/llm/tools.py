@@ -180,6 +180,18 @@ def _build_tools() -> list[Tool]:
     def _(ws, name, c0, c1, d0, d1):
         return ws.put(name, nf.coons(ws.get(c0), ws.get(c1), ws.get(d0), ws.get(d1)))
 
+    @add("asphere", "Create an optical lens surface (sag along +z, vertex at the origin): "
+         "radius of curvature R (0 = flat; positive: centre at +z), conic constant k and optional "
+         "even aspheric coefficients A4, A6, ... over the clear radius.",
+         {"name": _NAME, "radius": {"type": "number"}, "conic": {"type": "number"},
+          "coefficients": {"type": "array", "items": {"type": "number"}},
+          "clear_radius": {"type": "number"}},
+         ["name", "radius", "clear_radius"])
+    def _(ws, name, radius, clear_radius, conic=0.0, coefficients=None):
+        a = nf.Asphere(curvature=0.0 if radius == 0 else 1.0 / radius, conic=conic,
+                       even=list(coefficients or []))
+        return ws.put(name, nf.asphere_surface(a, clear_radius))
+
     @add("extend", "Extend a curve at its start or end (or a surface across a side umin/umax/"
          "vmin/vmax) by a length. mode 'natural' continues the shape smoothly, 'linear' "
          "continues straight along the tangent.",

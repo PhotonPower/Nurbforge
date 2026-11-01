@@ -13,7 +13,8 @@
  ├──────────────────────────────────────────────────────────────┤
  │  C++ kernel  libnurbforge_core  (namespace nf)               │
  │   optics/    conics, aspheres, Zernike, XY polynomials       │
- │   modeling/  construct, loft, sweep, Coons/Gordon, extend    │
+ │   modeling/  construct, loft, sweep, Coons/Gordon, extend,   │
+ │              offset                                          │
  │   fitting/   interpolation, least-squares approximation      │
  │   analysis/  closest point, curvature, arc length, area      │
  │   geometry/  transform, primitives                           │

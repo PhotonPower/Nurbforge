@@ -26,6 +26,7 @@ import nurbforge as nf
 | Intersections | `intersect(curve, curve)` → `[CurveCurveIntersection(s, t, point, distance)]`, `intersect(curve, surface)` → `[CurveSurfaceIntersection(t, u, v, point, distance)]`, `intersect(surface, surface, SurfaceIntersectionOptions(tolerance, chord_tolerance, fit_tolerance))` → `SurfaceIntersection(curves=[IntersectionCurve(points, closed, curve, pcurve1, pcurve2)], points)` |
 | Tolerances | `Tolerance(length=1e-10, parametric=1e-10, angular=1e-9)` |
 | Extrapolation | `extend(curve, CurveEnd.Start/End, length, Extension.Natural/Linear)`, `extend(surface, SurfaceSide.UMin/UMax/VMin/VMax, length, type)` |
+| Offsets | `offset_curve(curve, distance, plane_normal=(0, 0, 1), tolerance=1e-7)` (planar, cubic, parameters kept), `offset_surface(surface, distance, tolerance=1e-7)` (along the normal, quintic); raise `GeometryError` where the distance reaches a radius of curvature |
 | Optics | `Asphere(curvature, conic, even, odd)`, `asphere_surface(a, r_max, tolerance)`, `asphere_profile`, `ZernikeSag(base, norm_radius, indexing, coeffs)`, `zernike_surface`, `zernike(j, indexing, rho, theta)`, `zernike_nm`, `XYPolynomialSag(base, norm_radius, terms)`, `xy_polynomial_surface`, `sag_surface(f, x0, x1, y0, y1, degree, tolerance)` – see [optics.md](../optics.md) |
 | Joining | `join(a, b, tolerance)`, `join_u(a, b, tolerance)`, `join_v(a, b, tolerance)` |
 | Arrays | `linear_pattern`, `grid_pattern`, `polar_pattern`, `apply_pattern` |

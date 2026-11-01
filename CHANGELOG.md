@@ -5,6 +5,12 @@ versioning: [SemVer](https://semver.org).
 
 ## [Unreleased]
 ### Added
+- Offset curves and surfaces (`modeling/offset.hpp`): `offset_curve` (planar, cubic B-spline
+  fitted per Bézier segment and joined, cusp/corner/planarity checks) and `offset_surface`
+  (along the unit normal incl. limit normals at poles, quintic tensor-product fit with the knot
+  lines of the input as break lines, curvature and crease checks); both keep the parameter
+  correspondence and verify the tolerance at dense check points; Python `offset_curve`,
+  `offset_surface`; LLM tool `offset`.
 - Named tolerances `nf::tol::kLength`, `kParametric`, `kAngular` and the per-operation
   `nf::Tolerance` struct (`nurbforge/core/tolerance.hpp`, ADR 0005).
 - Build guides for AlmaLinux 10 and Windows 11 (`docs/build/`).

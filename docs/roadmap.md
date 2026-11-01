@@ -20,7 +20,8 @@
 - Loft / skinning ✅
 - Sweep (one and two rails) ✅
 - Coons and Gordon patches ✅
-- Offset curves/surfaces, fillets (rolling ball, approximate)
+- Offset curves/surfaces ✅
+- Fillets (rolling ball, approximate)
 - Optical surfaces: conics (exact), aspheres (even/odd), Zernike, XY polynomials, freeform sag functions → NURBS fit with verified tolerance ✅
 
 ## 0.4 – Intersections & trimming

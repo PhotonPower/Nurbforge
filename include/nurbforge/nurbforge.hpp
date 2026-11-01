@@ -19,6 +19,7 @@
 #include "nurbforge/modeling/loft.hpp"
 #include "nurbforge/modeling/sweep.hpp"
 #include "nurbforge/modeling/gordon.hpp"
+#include "nurbforge/modeling/offset.hpp"
 #include "nurbforge/analysis/closest_point.hpp"
 #include "nurbforge/analysis/properties.hpp"
 #include "nurbforge/analysis/intersect.hpp"

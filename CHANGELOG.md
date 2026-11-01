@@ -5,6 +5,12 @@ versioning: [SemVer](https://semver.org).
 
 ## [Unreleased]
 ### Added
+- Offset curves and surfaces (`modeling/offset.hpp`): `offset_curve` (planar, cubic B-spline
+  fitted per Bézier segment and joined, cusp/corner/planarity checks) and `offset_surface`
+  (along the unit normal incl. limit normals at poles, quintic tensor-product fit with the knot
+  lines of the input as break lines, curvature and crease checks); both keep the parameter
+  correspondence and verify the tolerance at dense check points; Python `offset_curve`,
+  `offset_surface`; LLM tool `offset`.
 - Binary wheels via cibuildwheel (`.github/workflows/wheels.yml`, `[tool.cibuildwheel]` in
   `pyproject.toml`): manylinux_2_28 x86_64 and win_amd64, CPython 3.10–3.13, each wheel tested
   with the pytest suite; sdist; built on `v*` tags, manually and on packaging PRs. PyPI

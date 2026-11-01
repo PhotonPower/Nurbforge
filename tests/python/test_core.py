@@ -254,6 +254,28 @@ def test_extend():
     assert abs(s(0.2, s.domain_v[1]).z - 3.0) < 1e-12
 
 
+def test_offset():
+    c = nf.make_circle((0, 0, 0), (0, 0, 1), 2.0)
+    o = nf.offset_curve(c, 0.5)  # default plane normal +z: inwards for a ccw circle
+    assert o.degree == 3 and not o.is_rational
+    r = np.linalg.norm(o.sample(200), axis=1)
+    assert np.allclose(r, 1.5, atol=1e-7)
+    with pytest.raises(nf.GeometryError):
+        nf.offset_curve(c, 2.5)  # beyond the centre of curvature
+    with pytest.raises(nf.GeometryError):
+        nf.offset_curve(c, 0.5, (1, 0, 0))  # not in that plane
+
+    meridian = nf.make_arc((0, 0, 0), (0, 0, -1), (1, 0, 0), 2.0, 0.0, math.pi)
+    sphere = nf.revolve(meridian, (0, 0, 0), (0, 0, 1), 2 * math.pi)
+    n = sphere.normal(0.3, 0.4)
+    sign = 1.0 if nf.dot(n, sphere(0.3, 0.4)) > 0 else -1.0
+    s = nf.offset_surface(sphere, 0.5, 1e-6)
+    pts = s.sample(15, 15)
+    assert np.allclose(np.linalg.norm(pts, axis=-1), 2.0 + sign * 0.5, atol=1e-6)
+    with pytest.raises(nf.GeometryError):
+        nf.offset_surface(sphere, -sign * 2.5)
+
+
 def test_loft():
     secs = [nf.make_circle((0, 0, z), (0, 0, 1), 1.0 + 0.5 * z) for z in (0.0, 1.0, 2.0, 3.0)]
     s = nf.loft(secs)

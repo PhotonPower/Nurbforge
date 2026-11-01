@@ -210,6 +210,19 @@ def _build_tools() -> list[Tool]:
                 "vmin": nf.SurfaceSide.VMin, "vmax": nf.SurfaceSide.VMax}[where]
         return ws.put(name, nf.extend(o, side, length, kind))
 
+    @add("offset", "Offset a curve or surface by a signed distance. Surfaces move along their "
+         "normal. Curves must be planar and move within their plane, to the left of the "
+         "direction of travel seen from plane_normal (default [0, 0, 1]; e.g. inwards for a "
+         "counter-clockwise circle). Fails if the distance reaches a radius of curvature.",
+         {"name": _NAME, "source": _NAME, "distance": {"type": "number"},
+          "plane_normal": {**_VEC, "description": "curves only, default [0, 0, 1]"}},
+         ["name", "source", "distance"])
+    def _(ws, name, source, distance, plane_normal=None):
+        o = ws.get(source)
+        if isinstance(o, nf.NurbsCurve):
+            return ws.put(name, nf.offset_curve(o, distance, plane_normal or [0.0, 0.0, 1.0]))
+        return ws.put(name, nf.offset_surface(o, distance))
+
     @add("intersect", "Intersection of two objects: points for curve/curve and curve/surface; "
          "for surface/surface the intersection curves are stored as name_1, name_2, ...",
          {"a": _NAME, "b": _NAME, "name": {"type": "string", "description":

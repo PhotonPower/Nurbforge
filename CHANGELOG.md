@@ -4,6 +4,12 @@ All notable changes are documented here. Format: [Keep a Changelog](https://keep
 versioning: [SemVer](https://semver.org).
 
 ## [Unreleased]
+
+## [0.5.0] – 2026-11-01
+Roadmap milestones 0.2–0.5: NURBS toolbox, surface construction and freeform optics,
+intersections and trimming, B-rep shells, Boolean operations and STEP export. The API is not yet
+stable (0.x).
+
 ### Added
 - Native STEP writer (`io/step.hpp`, `docs/io.md`): `write_step(path, shells, options)` and
   `to_step(shells, options)` write ISO 10303-21 files with the AP214 schema without any

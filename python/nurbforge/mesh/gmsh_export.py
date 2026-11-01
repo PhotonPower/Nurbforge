@@ -17,7 +17,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 
-from .._core import NurbsCurve, NurbsSurface, TrimmedSurface, unique_knots
+from .._core import NurbsCurve, NurbsSurface, Shell, TrimmedSurface, unique_knots
 
 
 def _gmsh():
@@ -83,6 +83,10 @@ def add_surface(surface: NurbsSurface, wire_tags: list[int] | None = None) -> in
 def add_trimmed_surface(trimmed: TrimmedSurface) -> int:
     """Add a trimmed NURBS surface: the trim loops are passed exactly as B-spline wires in
     the parameter space of the surface (outer contour first, then holes). Returns the tag."""
+    if trimmed.is_untrimmed:
+        # no wires: OCC handles the full (possibly periodic) B-spline patch itself, whereas a
+        # parameter-space rectangle would contain a closed surface's seam twice
+        return add_surface(trimmed.surface)
     gmsh = _gmsh()
     occ = gmsh.model.occ
     curve_tags: list[int] = []
@@ -141,6 +145,35 @@ class GmshSession:
     def write(self, path: str) -> None:
         """Write mesh/geometry; format from extension (.msh, .vtk, .stl, .step, .brep ...)."""
         self.gmsh.write(path)
+
+
+def add_shell(shell: Shell, solid: bool = True) -> list[int]:
+    """Add all faces of a shell; faces are merged along shared edges. For a closed shell and
+    ``solid=True`` a volume is built from the surface loop. Returns the face tags (and the volume
+    tag last, if one was created)."""
+    gmsh = _gmsh()
+    occ = gmsh.model.occ
+    tags = [add_trimmed_surface(f) for f in shell.faces]
+    occ.removeAllDuplicates()
+    occ.synchronize()
+    tags = [t for _, t in gmsh.model.getEntities(2)]
+    if solid and shell.is_closed:
+        loop = occ.addSurfaceLoop(tags, sewing=True)
+        tags.append(occ.addVolume([loop]))
+    return tags
+
+
+def export_step(objects, path: str, solid: bool = True) -> None:
+    """Write surfaces, trimmed surfaces and shells to a STEP (or BREP/IGES, by extension) file
+    via gmsh's OpenCASCADE kernel. Closed shells become solids if ``solid`` is set."""
+    with GmshSession() as g:
+        for o in objects:
+            if isinstance(o, Shell):
+                add_shell(o, solid=solid)
+            else:
+                g.add_surface(o)
+        g.gmsh.model.occ.synchronize()
+        g.write(path)
 
 
 def mesh_surfaces(surfaces: Iterable[NurbsSurface | TrimmedSurface], path: str,

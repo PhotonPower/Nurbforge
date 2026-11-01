@@ -27,13 +27,13 @@
 - Curve–curve, curve–surface intersection ✅
 - Surface–surface intersection (subdivision + marching) ✅
 - Trimmed surfaces (parameter-space loops) ✅, split along intersections ✅, exact gmsh export ✅
-- Surface systems with shared edges
+- Surface systems with shared edges ✅ (sewn shells)
 - Planar sections / cuts ✅
 
 ## 0.5 – Topology & Booleans
-- B-rep (vertex/edge/loop/face/shell/body), watertightness checks
+- B-rep shells (vertex/edge/coedge/face/shell) ✅, watertightness and orientation checks ✅, volume ✅; bodies with several shells
 - Boolean union / intersection / difference on trimmed NURBS shells
-- STEP / IGES export (via OCC or native writer)
+- STEP / IGES export via OCC ✅ (native writer open)
 
 ## Infrastructure
 - ✅ Wheels via cibuildwheel (manylinux_2_28 for AlmaLinux 10 compatibility, win_amd64)

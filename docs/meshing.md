@@ -30,6 +30,18 @@ with GmshSession() as g:
 Mesh nodes on trimmed edges follow OCC's own 3D approximation of the trim curve
 (deviation ~1e-4 in our tests).
 
+Shells are added face by face with duplicate removal; closed shells become solids:
+
+```python
+from nurbforge.mesh import export_step
+shell = nf.Shell.sew([nf.TrimmedSurface(side), bottom, top]).oriented()
+export_step([shell], "cylinder.step")      # .step / .brep / .iges by extension
+```
+
+Note: OCC's `getMass` is only accurate to ~0.5 % for such faces; Nurbforge's own `area()` /
+`volume()` are accurate to the requested tolerance (the volume of a fine tetrahedral mesh of the
+re-imported solid agrees).
+
 ## Implementation notes
 
 - Control-point indexing differs: Nurbforge is row-major with v fastest; gmsh expects u fastest.

@@ -11,6 +11,7 @@
 #include "nurbforge/core/error.hpp"
 #include "nurbforge/fitting/fit.hpp"
 #include "nurbforge/geometry/primitives.hpp"
+#include "nurbforge/geometry/transform.hpp"
 #include "nurbforge/nurbs/join.hpp"
 
 namespace nf {
@@ -130,11 +131,52 @@ void TrimmedSurface::build_polylines() {
   for (const auto& h : holes_) poly_.push_back(h.polyline());
 }
 
+bool TrimmedSurface::is_untrimmed() const {
+  if (!holes_.empty()) return false;
+  const auto du = surface_.domain_u(), dv = surface_.domain_v();
+  const double eu = 1e-9 * (du[1] - du[0]), ev = 1e-9 * (dv[1] - dv[0]);
+  for (const auto& p : poly_[0]) {
+    const bool on = std::abs(p[0] - du[0]) <= eu || std::abs(p[0] - du[1]) <= eu ||
+                    std::abs(p[1] - dv[0]) <= ev || std::abs(p[1] - dv[1]) <= ev;
+    if (!on) return false;
+  }
+  return std::abs(std::abs(shoelace(poly_[0])) - (du[1] - du[0]) * (dv[1] - dv[0])) <=
+         1e-9 * (du[1] - du[0]) * (dv[1] - dv[0]);
+}
+
 bool TrimmedSurface::contains(double u, double v) const {
   if (!inside_polygon(poly_[0], u, v)) return false;
   for (std::size_t i = 1; i < poly_.size(); ++i)
     if (inside_polygon(poly_[i], u, v)) return false;
   return true;
+}
+
+TrimmedSurface TrimmedSurface::flipped() const {
+  const auto du = surface_.domain_u();
+  const double a = du[0], b = du[1];
+  // reversed u direction: rows in opposite order, mirrored knots
+  const KnotVector& K = surface_.knots_u();
+  KnotVector U(K.size());
+  for (std::size_t i = 0; i < K.size(); ++i) U[i] = a + b - K[K.size() - 1 - i];
+  std::vector<Vec3> P;
+  std::vector<double> W;
+  for (std::size_t i = surface_.num_u(); i-- > 0;)
+    for (std::size_t j = 0; j < surface_.num_v(); ++j) {
+      P.push_back(surface_.control_point(i, j));
+      W.push_back(surface_.weight(i, j));
+    }
+  NurbsSurface s{surface_.degree_u(), surface_.degree_v(), std::move(U), surface_.knots_v(),
+                 surface_.num_u(), surface_.num_v(), std::move(P), std::move(W)};
+  // mirror the loops: x -> a + b - x (this reverses their orientation; the constructor fixes it)
+  const Transform mirror({-1.0, 0.0, 0.0, a + b, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0});
+  const auto map_loop = [&](const TrimLoop& l) {
+    TrimLoop m;
+    for (const auto& c : l.curves) m.curves.push_back(c.transformed(mirror));
+    return m;
+  };
+  std::vector<TrimLoop> holes;
+  for (const auto& h : holes_) holes.push_back(map_loop(h));
+  return {std::move(s), map_loop(outer_), std::move(holes)};
 }
 
 TrimmedSurface TrimmedSurface::with_hole(TrimLoop hole) const {
@@ -144,26 +186,39 @@ TrimmedSurface TrimmedSurface::with_hole(TrimLoop hole) const {
 }
 
 double TrimmedSurface::area(double rel_tol) const {
-  // Green's theorem in the parameter plane: with F(u, v) = int_{u0}^{u} |S_u x S_v|(s, v) ds,
-  // area = sum over the loops of int F(u(t), v(t)) v'(t) dt (holes are clockwise: negative).
-  const double U0 = surface_.domain_u()[0];
-  const auto uknots = unique_knots(surface_.knots_u()).first;
   const auto dA = [&](double u, double v) {
     const auto d = surface_.first_derivatives(u, v);
     return norm(cross(d[1], d[2]));
   };
-  const auto F = [&](double u, double v) {
-    return integrate([&](double s) { return dA(s, v); }, U0, u, 0.1 * rel_tol, uknots);
-  };
   // absolute error target relative to the untrimmed area: loop integrands may be pure rounding
   // noise (curves along u, where v' ~ 0), so a relative target alone would never be met
-  const double abs_tol = rel_tol * nf::area(surface_, 1e-6);
+  return integrate(dA, rel_tol, rel_tol * nf::area(surface_, 1e-6));
+}
+
+double TrimmedSurface::integrate(const std::function<double(double, double)>& f, double rel_tol,
+                                 double abs_tol) const {
+  // Green's theorem in the parameter plane: with F(u, v) = int_{u0}^{u} f(s, v) ds the integral
+  // is the sum over the loops of int F(u(t), v(t)) v'(t) dt (holes are clockwise: negative).
+  const double U0 = surface_.domain_u()[0];
+  const auto uknots = unique_knots(surface_.knots_u()).first;
+  const auto F = [&](double u, double v) {
+    return nf::integrate([&](double s) { return f(s, v); }, U0, u, 0.1 * rel_tol, uknots,
+                         0.01 * abs_tol);
+  };
   double total = 0.0;
   const auto loop_integral = [&](const TrimLoop& l) {
     double sum = 0.0;
     for (const auto& c : l.curves) {
-      std::vector<double> br = unique_knots(c.knots()).first;
-      sum += integrate(
+      // break only where the curve is less smooth than C2 (multiplicity >= p - 1): interpolated
+      // intersection curves have hundreds of simple (C2) knots, which need no breaks
+      std::vector<double> br;
+      {
+        const auto [vals, mults] = unique_knots(c.knots());
+        const int need = std::max(1, static_cast<int>(c.degree()) - 1);
+        for (std::size_t q = 1; q + 1 < vals.size(); ++q)
+          if (mults[q] >= need) br.push_back(vals[q]);
+      }
+      sum += nf::integrate(
           [&](double t) {
             const auto d = c.derivatives(t, 1);
             return d[1].y == 0.0 ? 0.0 : F(d[0].x, d[0].y) * d[1].y;
@@ -180,10 +235,47 @@ double TrimmedSurface::area(double rel_tol) const {
 std::vector<std::vector<NurbsCurve>> TrimmedSurface::boundary_curves(double tolerance) const {
   std::vector<std::vector<NurbsCurve>> out;
   const auto map_curve = [&](const NurbsCurve& pc) {
-    // piecewise per span of the trim curve: cubic interpolation of S(pc(t)) at the original
-    // parameter, doubled until the midpoint error is below the tolerance
+    // piecewise per span of the trim curve and between crossings of the surface's knot lines
+    // (where S is only C1, e.g. rational circles – a cubic across them converges like h^2):
+    // cubic interpolation of S(pc(t)) at the original parameter, doubled until the midpoint
+    // error is below the tolerance
     std::optional<NurbsCurve> result;
-    const auto br = unique_knots(pc.knots()).first;
+    std::vector<double> br = unique_knots(pc.knots()).first;
+    {
+      const auto ku = unique_knots(surface_.knots_u()).first, kv = unique_knots(surface_.knots_v()).first;
+      std::vector<double> extra;
+      const auto crossings = [&](int coord, const std::vector<double>& knots) {
+        for (std::size_t s = 0; s + 1 < br.size(); ++s)
+          for (double kappa : knots) {
+            const auto g = [&](double t) {
+              const Vec3 w = pc.evaluate(t);
+              return (coord == 0 ? w.x : w.y) - kappa;
+            };
+            const int n = 32;
+            double t0 = br[s], g0 = g(t0);
+            for (int i = 1; i <= n; ++i) {
+              const double t1 = br[s] + (br[s + 1] - br[s]) * i / n, g1 = g(t1);
+              if (g1 == 0.0 && g0 != 0.0 && i < n) {  // knot value hit exactly at a sample
+                extra.push_back(t1);
+              } else if (g0 * g1 < 0.0) {  // strict sign change: bisection
+                double lo = t0, hi = t1;
+                for (int it = 0; it < 60; ++it) {
+                  const double m = 0.5 * (lo + hi);
+                  (g(m) * g0 <= 0.0 ? hi : lo) = m;
+                }
+                extra.push_back(0.5 * (lo + hi));
+              }
+              t0 = t1;
+              g0 = g1;
+            }
+          }
+      };
+      crossings(0, std::vector<double>(ku.begin() + 1, ku.end() - 1));
+      crossings(1, std::vector<double>(kv.begin() + 1, kv.end() - 1));
+      br.insert(br.end(), extra.begin(), extra.end());
+      std::sort(br.begin(), br.end());
+      br.erase(std::unique(br.begin(), br.end(), [](double x, double y) { return y - x <= 1e-12; }), br.end());
+    }
     for (std::size_t s = 0; s + 1 < br.size(); ++s) {
       const double a = br[s], b = br[s + 1];
       for (std::size_t N = 4;; N = 2 * N - 1) {

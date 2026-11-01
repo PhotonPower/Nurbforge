@@ -29,6 +29,10 @@ versioning: [SemVer](https://semver.org).
   branch and bound over Bézier pieces with safe lower bounds, safeguarded (projected) Newton;
   local variant with start value; Python `closest_point`, `closest_point_local`, `Tolerance`;
   LLM tool `closest_point`.
+- B-rep shells (`topology/shell.hpp`): sewing of trimmed faces along shared edges, free and
+  non-manifold edges, watertightness, consistent orientation (`oriented()`), volume by the
+  divergence theorem; `TrimmedSurface::integrate`, `flipped`, `is_untrimmed`; STEP export via
+  gmsh/OCC (`export_step`, `add_shell`); LLM tool `sew`.
 - Planar sections (`analysis/section.hpp`): `Plane`, `planar_section`, `planar_sections`,
   `intersect(curve, plane)`; LLM tool `section`.
 - Trimmed surfaces (`topology/trimmed_surface.hpp`): loops in the parameter domain, `contains`,
@@ -75,6 +79,8 @@ versioning: [SemVer](https://semver.org).
 - All tolerance literals in `src/` replaced by the named constants; angular comparisons now
   uniformly use 1e-9.
 ### Fixed
+- Trimmed boundary curves were fitted across C1 knot lines of the surface (thousands of points,
+  slow sewing); they are now split at the knot-line crossings.
 - Adaptive quadrature (arc length, area, `integrate`) could explode on noise-dominated
   integrands (local recursive bisection to depth 50); now globally adaptive with a budget.
 - `NurbsSurface::normal` returns the limit normal at poles and collapsed edges instead of throwing

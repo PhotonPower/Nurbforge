@@ -17,6 +17,14 @@ versioning: [SemVer](https://semver.org).
   predicted parameter change.
 
 ### Added
+- Booleans with tangential contacts: spheres touching at a point (outside, inside, on the seam,
+  at a pole), spheres and cylinders touching box faces along a point or a line, a cylinder
+  inside a box touching two of its sides and two cylinders side by side give closed results
+  with exact volumes (tests `[tangent]`). The surface/surface intersection reports touching
+  contacts as points (micrometre curves around a contact on a seam, fragments along a line of
+  contact between curved surfaces) and joins curves that touch a domain edge; the Boolean
+  classifies touching faces at an interior point clear of the contact and ignores intersection
+  curves that only touch a face boundary.
 - Native STEP reader: `read_step(path)` / `from_step(text)` (C++ `io/step.hpp`, Python
   `nf.read_step(path, unit=...)`, LLM tool `import_step`) return one `Shell` per
   `MANIFOLD_SOLID_BREP` / `BREP_WITH_VOIDS` / surface-model shell. Part 21 parser (complex

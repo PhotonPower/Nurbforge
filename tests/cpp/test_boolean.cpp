@@ -269,3 +269,62 @@ TEST_CASE("Booleans: long marching steps on small faces", "[boolean][robust]") {
                    box_shell({-0.73456574283628506, -0.27082589505852428, 0.21489243439744388},
                              {-0.069787101918596051, 0.2784369881762836, 0.67397747262179897}));
 }
+
+// ------------------------------------------------------------------ tangential contact
+
+namespace {
+// expected volumes of union, intersection (0: empty result) and difference; every non-empty
+// result closed and consistently oriented
+void check_contact(const Shell& a, const Shell& b, double vu, double vi, double vd) {
+  const double want[3] = {vu, vi, vd};
+  const BooleanOp ops[3] = {BooleanOp::Union, BooleanOp::Intersection, BooleanOp::Difference};
+  for (int k = 0; k < 3; ++k) {
+    const Shell r = boolean(a, b, ops[k]);
+    if (want[k] == 0.0) {
+      CHECK(r.faces().empty());
+      continue;
+    }
+    REQUIRE(r.is_closed());
+    CHECK(r.is_consistently_oriented());
+    CHECK(rel_close(r.volume(1e-7), want[k], 1e-6));
+  }
+}
+constexpr double unit_ball = 4.0 / 3.0 * pi;
+}  // namespace
+
+TEST_CASE("Booleans: spheres touching at a point", "[boolean][tangent]") {
+  // externally: two lumps / nothing / A
+  check_contact(sphere_shell({0, 0, 0}, 1.0), sphere_shell({1.5, 0, 0}, 0.5), unit_ball * 1.125, 0.0, unit_ball);
+  // internally, contact on the seam, off the seam and at a pole (the marcher produced
+  // micrometre-long curves around a contact on the seam)
+  const double r3 = 0.064;  // 0.4^3
+  for (const Vec3& c : {Vec3{0.6, 0, 0}, Vec3{0.6 * std::cos(1.0), 0.6 * std::sin(1.0), 0}, Vec3{0, 0, 0.6}})
+    check_contact(sphere_shell({0, 0, 0}, 1.0), sphere_shell(c, 0.4), unit_ball, unit_ball * r3, unit_ball * (1 - r3));
+}
+
+TEST_CASE("Booleans: sphere touching a box face", "[boolean][tangent]") {
+  check_contact(sphere_shell({0, 0, 0}, 1.0), box_shell({-1, -1, 1}, {1, 1, 2}), unit_ball + 4.0, 0.0, unit_ball);
+  check_contact(box_shell({-1, -1, -1}, {1, 1, 1.5}), sphere_shell({0, 0, 0}, 1.0), 10.0, unit_ball, 10.0 - unit_ball);
+}
+
+TEST_CASE("Booleans: cylinder touching a box face along a line", "[boolean][tangent]") {
+  // the face's widest interior point lies on the contact line, where ray casting is undecided
+  const double cyl = pi * 0.49 * 2.0;
+  check_contact(cylinder_shell(0.7, 0.0, 2.0), box_shell({0.7, -1, 0.5}, {1.5, 1, 1.5}), cyl + 1.6, 0.0, cyl);
+  check_contact(cylinder_shell(0.7, 0.0, 2.0), box_shell({-1, 0.7, 0.5}, {1, 1.5, 1.5}), cyl + 1.6, 0.0, cyl);
+}
+
+TEST_CASE("Booleans: cylinder inside a box touching two sides", "[boolean][tangent]") {
+  // the cut circles on the box faces touch the face boundaries: the intersection curve must not
+  // end there, and the band of the cylinder between them lies on the contact lines
+  const double box = 1.7 * 1.7 * 1.0, mid = pi * 0.49;
+  check_contact(box_shell({-0.7, -0.7, 0.5}, {1, 1, 1.5}), cylinder_shell(0.7, 0.0, 2.0),
+                box + 2.0 * pi * 0.49 - mid, mid, box - mid);
+}
+
+TEST_CASE("Booleans: cylinders touching along a line", "[boolean][tangent]") {
+  // curved surfaces touching along a line: the marcher produced scattered fragments
+  const double a = pi * 0.49 * 2.0, b = pi * 0.25 * 2.0;
+  check_contact(cylinder_shell(0.7, 0.0, 2.0),
+                offset_cylinder({1.2 * std::cos(0.4), 1.2 * std::sin(0.4), 0.5}, 0.5, 2.0), a + b, 0.0, a);
+}

@@ -11,6 +11,7 @@
 #include <numbers>
 #include <optional>
 
+#include "nurbforge/analysis/closest_point.hpp"
 #include "nurbforge/analysis/intersect.hpp"
 #include "nurbforge/fitting/fit.hpp"
 #include "nurbforge/nurbs/join.hpp"
@@ -188,6 +189,7 @@ class Ssi {
       return on_boundary(x) && !on_boundary(y);
     });
     for (const auto& s : seeds) trace_from(s);
+    join_touching();
     return std::move(result_);
   }
 
@@ -422,6 +424,11 @@ class Ssi {
           return true;
     for (const auto& q : result_.points)
       if (distance(p.point, q.point) <= eps && params_near(p, q)) return true;
+    for (const auto& line : touch_lines_)
+      for (std::size_t i = 0; i + 1 < line.size(); ++i)
+        if (segment_distance(p.point, line[i].point, line[i + 1].point) <= eps &&
+            (params_near(p, line[i]) || params_near(p, line[i + 1])))
+          return true;
     return false;
   }
 
@@ -656,6 +663,15 @@ class Ssi {
       pts.push_back(make_point(n.x));
       brk.push_back(n.brk);
     }
+    if (degenerate(pts)) {  // marched around a tangential contact point (e.g. on a seam)
+      result_.points.push_back(sp);
+      return;
+    }
+    if (touching(pts)) {  // fragment of a curve along which the surfaces touch
+      result_.points.push_back(sp);
+      touch_lines_.push_back(std::move(pts));
+      return;
+    }
     if (closed) {
       pts.push_back(pts.front());
       brk.push_back(false);
@@ -663,6 +679,134 @@ class Ssi {
       fix_pole_ends(pts);
     }
     result_.curves.push_back(fit(pts, brk, closed));
+    raw_.push_back({std::move(pts), std::move(brk)});
+  }
+
+  // A curve touching a domain boundary tangentially (a circle touching the edge of a plane's
+  // domain) is ended where it comes within the tolerance of the boundary, and the rest is traced
+  // from another seed: the two curves end on the same boundary a short gap apart, with tangents
+  // along the gap. Such pairs are joined (the gap's sagitta is of the order of the tolerance).
+  void join_touching() {
+    const auto bound_of = [&](const SurfaceSurfacePoint& p, std::size_t k) {
+      const double x[4] = {p.u1, p.v1, p.u2, p.v2};
+      const double eps = 1e-9 * (hi_[k] - lo_[k]);
+      return x[k] <= lo_[k] + eps ? -1 : x[k] >= hi_[k] - eps ? 1 : 0;
+    };
+    const auto end_tangent = [&](const std::vector<SurfaceSurfacePoint>& pts, bool at_end) -> std::optional<Vec3> {
+      const SurfaceSurfacePoint& p = at_end ? pts.back() : pts.front();
+      const SurfaceSurfacePoint& q = at_end ? pts[pts.size() - 2] : pts[1];
+      auto t = tangent({p.u1, p.v1, p.u2, p.v2});
+      if (!t) return std::nullopt;
+      return dot(*t, at_end ? p.point - q.point : q.point - p.point) >= 0.0 ? *t : -*t;
+    };
+    // can the end of curve i be continued by the start of curve j?
+    const auto joinable = [&](std::size_t i, std::size_t j) {
+      const auto& a = raw_[i].pts;
+      const auto& b = raw_[j].pts;
+      const SurfaceSurfacePoint &pa = a.back(), &pb = b.front();
+      bool same_bound = false;
+      for (std::size_t k = 0; k < 4; ++k)
+        if (bound_of(pa, k) != 0 && bound_of(pa, k) == bound_of(pb, k)) same_bound = true;
+      if (!same_bound) return false;
+      // close in parameter space too (at a pole, curves on different meridians meet in 3D)
+      const double xa[4] = {pa.u1, pa.v1, pa.u2, pa.v2}, xb[4] = {pb.u1, pb.v1, pb.u2, pb.v2};
+      for (std::size_t k = 0; k < 4; ++k)
+        if (std::abs(xa[k] - xb[k]) > 1e-2 * (hi_[k] - lo_[k])) return false;
+      const double gap = distance(pa.point, pb.point);
+      if (gap <= 10.0 * tol_.length) return true;  // the ends coincide (they may overlap slightly)
+      if (gap > 1e-3 * size_) return false;
+      const Vec3 c = (pb.point - pa.point) / gap;
+      const auto ta = end_tangent(a, true), tb = end_tangent(b, false);
+      if (!ta || !tb || dot(*ta, c) <= 0.0 || dot(*tb, c) <= 0.0) return false;
+      return gap * std::max(norm(cross(*ta, c)), norm(cross(*tb, c))) <= 100.0 * tol_.length;
+    };
+    const auto reverse = [&](std::size_t i) {
+      std::reverse(raw_[i].pts.begin(), raw_[i].pts.end());
+      auto& brk = raw_[i].brk;  // a break flag marks the first point of a piece
+      const std::vector<bool> rb(brk.rbegin(), brk.rend());
+      brk = rb;
+    };
+    bool changed = true;
+    while (changed) {
+      changed = false;
+      for (std::size_t i = 0; i < raw_.size() && !changed; ++i) {
+        if (result_.curves[i].closed) continue;
+        for (std::size_t j = 0; j < raw_.size() && !changed; ++j) {
+          if (j == i || result_.curves[j].closed) continue;
+          for (int orient = 0; orient < 4 && !changed; ++orient) {
+            if (orient == 1 || orient == 3) reverse(j);
+            if (orient == 2) reverse(i);
+            if (!joinable(i, j)) continue;
+            auto& a = raw_[i];
+            const auto& b = raw_[j];
+            const bool same = distance(a.pts.back().point, b.pts.front().point) <= 10.0 * tol_.length;
+            const auto from = static_cast<std::ptrdiff_t>(same ? 1 : 0);
+            a.pts.insert(a.pts.end(), b.pts.begin() + from, b.pts.end());
+            if (!same) a.brk.push_back(false);
+            a.brk.insert(a.brk.end(), b.brk.begin() + 1, b.brk.end());
+            const bool closed = distance(a.pts.front().point, a.pts.back().point) <= 10.0 * tol_.length &&
+                                params_near(a.pts.front(), a.pts.back());
+            if (closed) a.pts.back() = a.pts.front();
+            result_.curves[i] = fit(a.pts, a.brk, closed);
+            raw_.erase(raw_.begin() + static_cast<std::ptrdiff_t>(j));
+            result_.curves.erase(result_.curves.begin() + static_cast<std::ptrdiff_t>(j));
+            changed = true;
+          }
+          if (!changed) reverse(i);  // restore (j was reversed twice)
+        }
+      }
+    }
+  }
+
+  // A traced curve that stays within 1e-5 of the model size around its start with parallel
+  // normals (within 1e-3) is a tangential contact point: near the contact the surfaces are
+  // closer than the tolerance over a small patch, and the marcher produces a tiny curve there.
+  // A genuine intersection of that extent and angle would enclose a region thinner than
+  // 1e-8 of the model size.
+  bool degenerate(const std::vector<SurfaceSurfacePoint>& pts) const {
+    for (const auto& p : pts)
+      if (distance(p.point, pts.front().point) > 1e-5 * size_) return false;
+    for (const auto& p : pts) {
+      const Eval e = eval({p.u1, p.v1, p.u2, p.v2});
+      const Vec3 n1 = cross(e.su1, e.sv1), n2 = cross(e.su2, e.sv2);
+      const double l = norm(n1) * norm(n2);
+      if (l > 0.0 && norm(cross(n1, n2)) > 1e-3 * l) return false;
+    }
+    return true;
+  }
+
+  // Surfaces touching along a curve (two cylinders side by side) have parallel normals along it;
+  // the marcher then produces scattered fragments. A traced curve whose normals are nearly
+  // parallel everywhere is tested at its middle: points of the first surface a small distance
+  // to either side of the curve lie on the same side of the second surface if the surfaces only
+  // touch, on opposite sides if they cross.
+  bool touching(const std::vector<SurfaceSurfacePoint>& pts) const {
+    for (const auto& p : pts) {
+      const Eval e = eval({p.u1, p.v1, p.u2, p.v2});
+      const Vec3 n1 = cross(e.su1, e.sv1), n2 = cross(e.su2, e.sv2);
+      const double l = norm(n1) * norm(n2);
+      if (l <= 0.0 || norm(cross(n1, n2)) > 0.05 * l) return false;
+    }
+    const SurfaceSurfacePoint& m = pts[pts.size() / 2];
+    const SurfaceSurfacePoint& q = pts[pts.size() / 2 == 0 ? 1 : pts.size() / 2 - 1];
+    const Eval e = eval({m.u1, m.v1, m.u2, m.v2});
+    const Vec3 n1 = normalized(cross(e.su1, e.sv1)), n2 = normalized(cross(e.su2, e.sv2));
+    const Vec3 along = q.point - m.point;
+    if (norm(along) <= 0.0) return false;
+    const Vec3 side = normalized(cross(n1, along));
+    const auto d = param_dir(e.su1, e.sv1, side);
+    const double delta = 1e-3 * size_;
+    double sign[2] = {0.0, 0.0};
+    for (int s = 0; s < 2; ++s) {
+      const double f = s == 0 ? delta : -delta;
+      const double u = std::clamp(m.u1 + f * d[0], lo_[0], hi_[0]), v = std::clamp(m.v1 + f * d[1], lo_[1], hi_[1]);
+      const Vec3 Q = a_.evaluate(u, v);
+      if (distance(Q, m.point) < 0.5 * delta) return false;  // clamped at the domain boundary
+      const SurfacePoint foot = closest_point(b_, Q);
+      sign[s] = dot(Q - foot.point, n2);
+      if (std::abs(sign[s]) <= 10.0 * tol_.length) return false;  // undecided
+    }
+    return sign[0] * sign[1] > 0.0;
   }
 
   // At a pole (|S_u| = 0 or |S_v| = 0) one parameter of the surface is arbitrary. An open curve
@@ -798,6 +942,12 @@ class Ssi {
   X4 lo_{}, hi_{};
   std::array<std::vector<double>, 4> knots_;  // interior knot values per parameter
   SurfaceIntersection result_;
+  struct Raw {  // traced points of result_.curves[i] with their piece breaks (for re-fitting)
+    std::vector<SurfaceSurfacePoint> pts;
+    std::vector<bool> brk;
+  };
+  std::vector<Raw> raw_;
+  std::vector<std::vector<SurfaceSurfacePoint>> touch_lines_;  // traced tangential contacts
   struct Leaf {
     NurbsSurface p, q;
     std::size_t position;  // index in the sequential seed list

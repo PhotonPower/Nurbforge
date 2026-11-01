@@ -139,3 +139,34 @@ TEST_CASE("touching and disjoint surfaces", "[ssi]") {
   CHECK(none.curves.empty());
   CHECK(none.points.empty());
 }
+
+TEST_CASE("surface intersection: tangential contacts are points", "[ssi][tangent]") {
+  const auto sph = [](const Vec3& c, double r) {
+    return revolve(make_arc(c, {0, 0, -1}, {1, 0, 0}, r, 0.0, pi), c, {0, 0, 1}, 2 * pi);
+  };
+  // internal contact on the seam of both spheres
+  const auto r1 = intersect(sph({0, 0, 0}, 1.0), sph({0.6, 0, 0}, 0.4));
+  CHECK(r1.curves.empty());
+  REQUIRE_FALSE(r1.points.empty());
+  CHECK(distance(r1.points.front().point, Vec3{1, 0, 0}) < 1e-5);
+  // two cylinders touching along a line
+  const auto c1 = extrude(make_circle({0, 0, 0}, {0, 0, 1}, 0.7), {0, 0, 2});
+  const auto c2 = extrude(make_circle({1.2 * std::cos(0.4), 1.2 * std::sin(0.4), 0}, {0, 0, 1}, 0.5), {0, 0, 2});
+  const auto r2 = intersect(c1, c2);
+  CHECK(r2.curves.empty());
+  CHECK_FALSE(r2.points.empty());
+}
+
+TEST_CASE("surface intersection: a curve touching the domain boundary is not cut there", "[ssi][tangent]") {
+  // circle r 0.7 on the plane [-0.7, 1]^2 touches the domain edges at (-0.7, 0) and (0, -0.7)
+  const auto side = extrude(make_circle({0, 0, 0}, {0, 0, 1}, 0.7), {0, 0, 2});
+  const auto plane = make_rectangle({-0.7, -0.7, 0.5}, {1.7, 0, 0}, {0, 1.7, 0});
+  const auto r = intersect(plane, side);
+  double length = 0.0;
+  for (const auto& c : r.curves) {
+    for (std::size_t k = 1; k < c.points.size(); ++k) length += distance(c.points[k].point, c.points[k - 1].point);
+    for (const Vec3& end : {c.points.front().point, c.points.back().point})
+      for (const Vec3& touch : {Vec3{-0.7, 0, 0.5}, Vec3{0, -0.7, 0.5}}) CHECK(distance(end, touch) > 1e-3);
+  }
+  CHECK(std::abs(length - 2 * pi * 0.7) < 1e-3);  // polyline: chords shorter than the arc
+}

@@ -118,6 +118,16 @@ tangential contact keeps the gap below tol over a short stretch).
    checked and exact points are added where needed (near poles the p-curves vary quickly).
 5. Seeds already on a traced curve are skipped – compared in 3D and in parameter distance
    weighted by |S_u|, |S_v| (seams: far apart; poles: u irrelevant).
+6. **Tangential contacts.** A traced curve shorter than 1e-5 of the model size with parallel
+   normals (marched around a contact point, e.g. on a seam) is reported as a point. A curve with
+   nearly parallel normals everywhere (angle < 0.05) is tested at its middle: points of the
+   first surface 1e-3 of the model size to either side of it lie on the same side of the second
+   surface if the surfaces only touch (two cylinders side by side) – then it is reported as a
+   point and further seeds on it are skipped – and on opposite sides if they cross.
+7. **Touching the domain boundary.** A curve that touches a domain edge tangentially (a circle
+   touching the edge of a plane's domain) ends where it comes within the tolerance of the edge
+   and is continued from another seed. Open curves ending on the same boundary at coinciding
+   points, or a short gap apart with tangents along the gap (sagitta ≤ 100 tol), are joined.
 
 Curve portions lying in the other surface (e.g. an edge in a plane) are detected as overlaps
 in the curve/curve and curve/surface intersections, which keeps such symmetric configurations
@@ -196,7 +206,11 @@ the solid volume, Booleans accept hollow inputs, and the STEP writer exports voi
    vertex; counter-clockwise cycles inside the face become regions, clockwise cycles become
    holes of the smallest enclosing region. Cuts may end on loops or other cuts and may cross.
 3. Each piece is classified by `point_in_shell` (ray casting against the trimmed faces, rays
-   that hit a boundary or graze a face are discarded, majority of three valid rays).
+   that hit a boundary or graze a face are discarded, majority of three valid rays) at an
+   interior point. Candidates come from inward rays from the outer loop, widest first; for a
+   face that touches the other shell tangentially (the surface/surface intersection reported
+   contact points) the first candidate at least 100 tolerances away from the touching faces is
+   used – the widest one may lie on the contact line, where ray casting is undecided.
 4. Selection – union: A out + B out; intersection: A in + B in; difference: A out + B in
    (flipped) – and sewing. The pieces keep the orientation of their outward-oriented shells, so
    inner voids stay inward (no re-orientation of the result).
@@ -223,8 +237,18 @@ same or the opposite outward normal:
 
 So two boxes sharing a face fuse into one solid, identical solids give themselves (union,
 intersection) or nothing (difference), and an empty result is an empty shell.
-Not handled: tangential contacts and coincident faces whose common part crosses the seam of a
-closed surface (the projected loop would jump in the parameter domain).
+**Tangential contacts** are not cut: touching faces are classified as a whole (see above), and
+where an intersection curve touches a face boundary, short runs within 10 tolerances of the
+boundary are taken as touching – inside runs are dropped, gaps between inside runs closed (the
+in/out test flips arbitrarily there). Spheres touching at a point (outside, inside, on the
+seam, at a pole), spheres and cylinders touching box faces, a cylinder inside a box touching
+two sides and two cylinders side by side give exact volumes; the touching lumps of a union
+stay separate components.
+
+Not handled: overlaps thinner than the tolerance that are not exact contacts (the thin lens of
+two spheres overlapping by 1e-7 is traced but cannot be classified reliably), and coincident
+faces whose common part crosses the seam of a closed surface (the projected loop would jump in
+the parameter domain).
 
 ## Fitting
 

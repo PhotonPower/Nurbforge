@@ -2,10 +2,12 @@
 
 #include <algorithm>
 #include <cmath>
+#include <limits>
 #include <numbers>
 #include <optional>
 #include <string>
 
+#include "nurbforge/analysis/closest_point.hpp"
 #include "nurbforge/analysis/properties.hpp"
 #include "nurbforge/analysis/surface_intersect.hpp"
 #include "nurbforge/core/error.hpp"
@@ -127,8 +129,78 @@ TrimmedSurface::TrimmedSurface(NurbsSurface surface, TrimLoop outer, std::vector
 
 void TrimmedSurface::build_polylines() {
   poly_.clear();
-  poly_.push_back(outer_.polyline());
-  for (const auto& h : holes_) poly_.push_back(h.polyline());
+  band_.clear();
+  const auto du = surface_.domain_u(), dv = surface_.domain_v();
+  const double tiny = 1e-12 * std::max(du[1] - du[0], dv[1] - dv[0]);
+  const auto add = [&](const TrimLoop& l) {
+    poly_.push_back(l.polyline());
+    // deviation of every curve from its polyline chords, at the chord midpoints (same sampling
+    // as polyline()): inside this band the polygon test is not reliable
+    double dev = 0.0;
+    for (const auto& c : l.curves) {
+      const std::size_t spans = std::max<std::size_t>(1, unique_knots(c.knots()).first.size() - 1);
+      const std::size_t n = spans * 16;
+      const double a = c.domain_start(), b = c.domain_end();
+      for (std::size_t i = 0; i < n; ++i) {
+        const auto at = [&](double f) {
+          const Vec3 p = c.evaluate(a + (b - a) * f);
+          return P2{p.x, p.y};
+        };
+        const P2 p0 = at(static_cast<double>(i) / static_cast<double>(n));
+        const P2 p1 = at(static_cast<double>(i + 1) / static_cast<double>(n));
+        const P2 pm = at((static_cast<double>(i) + 0.5) / static_cast<double>(n));
+        const double ex = p1[0] - p0[0], ey = p1[1] - p0[1], len = std::hypot(ex, ey);
+        if (len > 0.0) dev = std::max(dev, std::abs((pm[0] - p0[0]) * ey - (pm[1] - p0[1]) * ex) / len);
+      }
+    }
+    band_.push_back(2.0 * dev + tiny);
+  };
+  add(outer_);
+  for (const auto& h : holes_) add(h);
+}
+
+// Exact side test near a loop: the closest point on the loop's curves and the curve direction
+// there (loops are oriented with the face on their left: outer counter-clockwise, holes
+// clockwise). At a corner (foot at a curve end) the point is on the face side of a convex corner
+// if it is left of both adjacent curves, of a reflex corner if it is left of either.
+bool TrimmedSurface::left_of_loop(const TrimLoop& loop, double u, double v) const {
+  const Vec3 P{u, v, 0.0};
+  std::size_t best = 0;
+  CurvePoint foot;
+  foot.distance = std::numeric_limits<double>::max();
+  for (std::size_t k = 0; k < loop.curves.size(); ++k) {
+    const CurvePoint f = closest_point(loop.curves[k], P);
+    if (f.distance < foot.distance) {
+      foot = f;
+      best = k;
+    }
+  }
+  const NurbsCurve& c = loop.curves[best];
+  const auto left = [&](const NurbsCurve& cu, double t) {
+    const auto d = cu.derivatives(t, 1);
+    return d[1].x * (P.y - d[0].y) - d[1].y * (P.x - d[0].x) > 0.0;
+  };
+  const double span = c.domain_end() - c.domain_start(), eps = 1e-9 * span;
+  const std::size_t m = loop.curves.size();
+  const NurbsCurve* in = nullptr;
+  const NurbsCurve* out = nullptr;
+  double t_in = 0.0, t_out = 0.0;
+  if (foot.u >= c.domain_end() - eps) {
+    in = &c;
+    t_in = c.domain_end();
+    out = &loop.curves[(best + 1) % m];
+    t_out = out->domain_start();
+  } else if (foot.u <= c.domain_start() + eps) {
+    in = &loop.curves[(best + m - 1) % m];
+    t_in = in->domain_end();
+    out = &c;
+    t_out = c.domain_start();
+  }
+  if (!in) return left(c, foot.u);
+  const Vec3 ti = in->derivatives(t_in, 1)[1], to = out->derivatives(t_out, 1)[1];
+  const bool convex = ti.x * to.y - ti.y * to.x >= 0.0;
+  const bool l_in = left(*in, t_in), l_out = left(*out, t_out);
+  return convex ? (l_in && l_out) : (l_in || l_out);
 }
 
 bool TrimmedSurface::is_untrimmed() const {
@@ -145,9 +217,25 @@ bool TrimmedSurface::is_untrimmed() const {
 }
 
 bool TrimmedSurface::contains(double u, double v) const {
-  if (!inside_polygon(poly_[0], u, v)) return false;
-  for (std::size_t i = 1; i < poly_.size(); ++i)
-    if (inside_polygon(poly_[i], u, v)) return false;
+  // polygon test, refined by the exact side test within the chord-deviation band of a loop
+  // (a 64-gon of a trim circle deviates by 6e-4 – points of intersection curves near the
+  // boundary would otherwise be misclassified and cuts would end short of the loop)
+  const auto face_side = [&](std::size_t k) {
+    const TrimLoop& loop = k == 0 ? outer_ : holes_[k - 1];
+    const auto& poly = poly_[k];
+    double d = std::numeric_limits<double>::max();
+    for (std::size_t i = 0, j = poly.size() - 1; i < poly.size(); j = i++) {
+      const double ax = poly[j][0], ay = poly[j][1], ex = poly[i][0] - ax, ey = poly[i][1] - ay;
+      const double l2 = ex * ex + ey * ey;
+      const double t = l2 > 0.0 ? std::clamp(((u - ax) * ex + (v - ay) * ey) / l2, 0.0, 1.0) : 0.0;
+      d = std::min(d, std::hypot(u - ax - t * ex, v - ay - t * ey));
+    }
+    if (d <= band_[k]) return left_of_loop(loop, u, v);
+    const bool in = inside_polygon(poly, u, v);
+    return k == 0 ? in : !in;
+  };
+  for (std::size_t k = 0; k < poly_.size(); ++k)
+    if (!face_side(k)) return false;
   return true;
 }
 

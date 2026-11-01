@@ -589,11 +589,15 @@ class Ssi {
         // the domain within one short 3D step) without the predictor ever reaching the degenerate
         // boundary. The curve ends at the pole instead – on the nearest domain boundary of the
         // parameters that did not jump – otherwise it would continue on the other side and cover
-        // parts traced from other seeds a second time.
+        // parts traced from other seeds a second time. A jump is a large parameter change that the
+        // predictor did not expect (on a small patch an ordinary step may legitimately cover a
+        // quarter of a parameter range).
         {
           std::size_t jump = 4;
-          for (std::size_t k = 0; k < 4; ++k)
-            if (std::abs((*xc)[k] - x[k]) > 0.25 * (hi_[k] - lo_[k])) jump = k;
+          for (std::size_t k = 0; k < 4; ++k) {
+            const double change = std::abs((*xc)[k] - x[k]), range = hi_[k] - lo_[k];
+            if (change > 0.25 * range && change > 4.0 * std::abs(h * dx[k]) + 1e-12 * range) jump = k;
+          }
           if (jump < 4) {
             end_on_nearest_bound(x, P, jump, 1.0, pts);
             return pts;

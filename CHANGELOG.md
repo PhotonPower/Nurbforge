@@ -4,6 +4,18 @@ All notable changes are documented here. Format: [Keep a Changelog](https://keep
 versioning: [SemVer](https://semver.org).
 
 ## [Unreleased]
+### Fixed (found by the new Boolean stress test, `benchmarks/stress.cpp`)
+- `TrimmedSurface::contains` decided near curved trim loops by the loop's polygon (a trim circle
+  deviates from its 64-gon by 6e-4): intersection curves ending on a trim circle were clipped
+  short, their cuts did not reach the loop and the face was not split (e.g. a box cutting a
+  cylinder lid). Within the chord-deviation band the side is now decided on the exact curve.
+- `closest_point` on surfaces split degenerate patches at poles below the parametric resolution
+  and threw ("split: parameter … is not inside"); a direction that is too narrow is no longer
+  split (also for curves).
+- Surface/surface intersection: the pole-jump detection (0.5.x) also fired for ordinary long
+  steps on small faces and cut straight intersection lines short; a jump must now exceed the
+  predicted parameter change.
+
 ### Added
 - Native STEP reader: `read_step(path)` / `from_step(text)` (C++ `io/step.hpp`, Python
   `nf.read_step(path, unit=...)`, LLM tool `import_step`) return one `Shell` per
@@ -19,6 +31,8 @@ versioning: [SemVer](https://semver.org).
   cones, spheres, tori, drilled and filleted boxes match the exact volumes.
 - `Shell::sew` rejects curve pairs by control-point bounding boxes before projecting (sewing the
   26 faces of a filleted box: 7.7 s → 0.4 s).
+- Boolean stress test `nf_stress` (seven surface families, volume-identity oracle; ctest
+  `stress_smoke`).
 - Surface/surface intersection: the boundary seeds of the leaf patch pairs (90 % of the time)
   are computed on all hardware threads and merged in sequential order (identical results);
   two spheres 174 → 77 ms, two-sphere Boolean 351 → 240 ms. The core library links

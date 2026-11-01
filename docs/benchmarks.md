@@ -12,6 +12,17 @@ cmake --build --preset release --target nf_bench
 The CI build (`ci` preset) compiles the benchmarks and runs `nf_bench --quick` as a ctest case,
 so they cannot rot; timings on shared CI runners are not meaningful and are not checked.
 
+## Boolean stress test
+
+`benchmarks/stress.cpp` (`nf_stress [cases per family] [filter]`) runs union, intersection and
+difference on random but reproducible pairs of seven surface families – sphere/sphere,
+sphere/cylinder, sphere/box, cylinder/box, torus/box, torus/sphere, perpendicular cylinders.
+Instead of analytic volumes (which do not exist for most pairs) it checks that every result is
+closed and consistently oriented and that the volumes satisfy V(A ∪ B) + V(A ∩ B) = V(A) + V(B)
+and V(A − B) = V(A) − V(A ∩ B) to 1e-5. ctest runs one case per family (`stress_smoke`); a full
+run with 20 cases per family (140 cases, 420 Booleans) passes with a worst identity error of
+2.6e-6.
+
 ## Reference results
 
 Windows 11, Intel Core i7-11800H (8 cores / 16 threads), MSVC (Visual Studio 2026), Release.

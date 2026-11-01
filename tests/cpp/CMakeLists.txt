@@ -34,6 +34,7 @@ add_executable(nurbforge_tests
   test_trimmed.cpp
   test_section.cpp
   test_shell.cpp
+  test_offset.cpp
   test_boolean.cpp)
 target_link_libraries(nurbforge_tests PRIVATE Nurbforge::core Catch2::Catch2WithMain)
 catch_discover_tests(nurbforge_tests)

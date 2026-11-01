@@ -20,7 +20,8 @@
 - Loft / skinning ✅
 - Sweep (one and two rails) ✅
 - Coons and Gordon patches ✅
-- Offset curves/surfaces, fillets (rolling ball, approximate)
+- Offset curves/surfaces ✅
+- Fillets (rolling ball, approximate)
 - Optical surfaces: conics (exact), aspheres (even/odd), Zernike, XY polynomials, freeform sag functions → NURBS fit with verified tolerance ✅
 
 ## 0.4 – Intersections & trimming
@@ -36,7 +37,7 @@
 - STEP / IGES export via OCC ✅ (native writer open)
 
 ## Infrastructure
-- Wheels via cibuildwheel (manylinux_2_28 for AlmaLinux 10 compatibility, win_amd64)
-- Sphinx site with Breathe (Doxygen) API docs on GitHub Pages
+- ✅ Wheels via cibuildwheel (manylinux_2_28 for AlmaLinux 10 compatibility, win_amd64)
+- ✅ Sphinx site with Breathe (Doxygen) API docs on GitHub Pages
 - Benchmarks; optional OpenMP parallel sampling
 - LLM: geometry verification step (agent checks results), constraint reasoning

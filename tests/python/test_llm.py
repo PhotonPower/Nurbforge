@@ -79,6 +79,19 @@ def test_extend_tool():
     assert abs(ws.get("l2")(ws.get("l2").domain[1]).x - 2.5) < 1e-12
 
 
+def test_offset_tool():
+    ws = Workspace()
+    call_tool(ws, "make_circle", {"name": "c", "center": [0, 0, 0], "normal": [0, 0, 1], "radius": 2})
+    out = call_tool(ws, "offset", {"name": "c2", "source": "c", "distance": -0.5})
+    assert out.startswith("stored c2")
+    assert abs(nf.norm(ws.get("c2")(0.3)) - 2.5) < 1e-7  # outwards for a ccw circle
+    assert call_tool(ws, "offset", {"name": "bad", "source": "c", "distance": 2}).startswith("ERROR")
+    call_tool(ws, "make_rectangle", {"name": "p", "origin": [0, 0, 0], "edge_u": [1, 0, 0],
+                                     "edge_v": [0, 1, 0]})
+    assert call_tool(ws, "offset", {"name": "p2", "source": "p", "distance": 0.25}).startswith("stored p2")
+    assert abs(ws.get("p2")(0.5, 0.5).z - 0.25) < 1e-12
+
+
 def test_loft_tool():
     ws = Workspace()
     for i, z in enumerate((0, 1, 2)):

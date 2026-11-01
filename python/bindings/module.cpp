@@ -496,6 +496,17 @@ PYBIND11_MODULE(_core, m) {
   m.def("sweep2", &sweep2, py::arg("profile"), py::arg("rail1"), py::arg("rail2"),
         py::arg("options") = SweepOptions{}, "Two-rail sweep with uniform scaling.");
 
+  // ------------------------------------------------------------------ offsets
+  m.def("offset_curve", &offset_curve, py::arg("curve"), py::arg("distance"),
+        py::arg("plane_normal") = Vec3{0, 0, 1}, py::arg("tolerance") = 1e-7,
+        "Planar offset c(t) + d * normalize(plane_normal x c'(t)) as a cubic B-spline fitted to "
+        "the tolerance (parameters kept). Raises GeometryError at cusps (|d| >= radius of "
+        "curvature on the concave side), corners or non-planar curves.");
+  m.def("offset_surface", &offset_surface, py::arg("surface"), py::arg("distance"),
+        py::arg("tolerance") = 1e-7,
+        "Offset surface S(u,v) + d * N(u,v) as a quintic tensor-product spline fitted to the "
+        "tolerance (parameters kept). Raises GeometryError if d reaches a radius of curvature.");
+
   // ------------------------------------------------------------------ Coons / Gordon
   m.def("coons", &coons, py::arg("c0"), py::arg("c1"), py::arg("d0"), py::arg("d1"),
         py::arg("tolerance") = 1e-7,

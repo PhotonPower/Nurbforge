@@ -79,6 +79,8 @@ from ._core import (  # noqa: F401
     make_polyline,
     make_rectangle,
     norm,
+    offset_curve,
+    offset_surface,
     parameter_at_length,
     planar_section,
     planar_sections,

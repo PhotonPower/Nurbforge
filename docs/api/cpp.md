@@ -21,3 +21,5 @@ target_link_libraries(my_solver PRIVATE Nurbforge::core)
 or with `add_subdirectory(Nurbforge)` / `FetchContent` and `-DNF_BUILD_PYTHON=OFF`.
 
 Reference documentation: `doxygen docs/Doxyfile` → `build/docs/html/index.html`.
+
+The same Doxygen output (XML) is rendered on the documentation site: [C++ API reference](cpp-reference.md).

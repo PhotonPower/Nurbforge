@@ -260,6 +260,42 @@ tolerance (quarter-cylinder test: radius error < 2·tol).
 - The extension length is an arc length (Newton on the length of the extension); surfaces measure
   it along the middle iso-curve. Original parameters are preserved.
 
+## Offsets
+
+The exact offset of a NURBS is not a NURBS in general (the unit normal contains a square root),
+so offsets are fitted (`modeling/offset.hpp`). The parametrisation of the input is kept:
+offset(t) approximates the exact offset point of c(t) (resp. S(u, v)), and the deviation from it is
+the verified error.
+
+- **Curves** (planar): o(t) = c(t) + d · normalize(n × c'(t)) for a curve in a plane with normal
+  n (the control points must lie in that plane – equivalent to planarity of the curve, since the
+  basis functions are linearly independent). With the unit tangent T and N = n × T,
+  dN/ds = −κ_s T for the signed curvature κ_s = n · (c' × c'') / |c'|³, hence
+  o'(t) = |c'|(1 − d κ_s) T: the offset is regular while d κ_s < 1 and reverses direction (cusp)
+  beyond. `offset_curve` throws where d κ_s ≥ 1 (curvature from `analysis/properties.hpp`,
+  checked at every fit and check point), where c' vanishes, and at tangent discontinuities that
+  would open a gap > tol/2. Every Bézier segment of c is fitted separately with a cubic
+  (least squares with given knots, p + 2 points per span, knots halved until 17 check points per
+  span are within tol/2): rational curves such as circles are only C1 at their knots, and a cubic
+  across such a joint converges like h² instead of h⁴. The pieces are joined with `join`
+  (joint knots removed where exact).
+- **Surfaces:** O(u, v) = S(u, v) + d · N(u, v) with the unit normal (limit normal at poles). With
+  principal curvatures k_i relative to N, the offset's principal radii are 1/k_i − d; the offset
+  degenerates where d k_i ≥ 1, which `offset_surface` rejects (principal curvatures on a 9 × 9
+  grid per knot rectangle). Normal discontinuities across knot lines (creases) are rejected
+  when they would open a gap > tol. The fit is a non-rational degree-5 tensor-product spline
+  (error O(h⁶): about 10× fewer control points per direction than a bicubic at tol = 1e-7 for a
+  sphere). The knot lines of S are break lines with multiplicity 6 − k for an input continuity
+  C^k (offset C^(k−1)), clamped to [1, 5]. Knots are first inserted by 1D fits along iso-lines
+  (5 per original span, tol/2 per direction), then the tensor fit (rows, then columns, as in
+  `sag_surface`) is verified at 9 × 9 points per knot rectangle and failing rectangles are
+  refined. Exact references in the tests: plane → plane, sphere → sphere R ± d, cylinder →
+  cylinder, torus → tube radius r ± d (independently checked on 400 × 400 grids: the true error
+  stays below tol).
+- **Not handled:** global self-intersections (bottlenecks narrower than 2|d|) are neither
+  detected nor removed, and the curvature check on a sample grid can miss a very narrow
+  curvature peak between samples (the fit then usually fails to converge and throws).
+
 ## Integral and differential properties
 
 - Arc length and area use adaptive Gauss–Kronrod 7/15 (QUADPACK nodes) on every knot span

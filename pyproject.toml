@@ -24,7 +24,7 @@ classifiers = [
 mesh = ["gmsh>=4.11"]
 llm  = []            # Ollama is accessed via plain HTTP (stdlib only)
 dev  = ["pytest>=7", "gmsh>=4.11", "ruff", "mypy"]
-docs = ["sphinx>=7", "furo", "myst-parser", "breathe"]
+docs = ["sphinx>=7", "furo", "myst-parser>=3", "breathe>=4.35"]
 
 [project.scripts]
 nurbforge-llm = "nurbforge.llm.cli:main"
@@ -44,6 +44,26 @@ cmake.define = { NF_BUILD_TESTS = "OFF", NF_BUILD_EXAMPLES = "OFF", NF_BUILD_PYT
 [[tool.scikit-build.overrides]]
 if.platform-system = "win32"
 cmake.version = ">=4.2"
+
+# Binary wheels (.github/workflows/wheels.yml). manylinux_2_28 (glibc 2.28) wheels install on
+# AlmaLinux/RHEL 8, 9 and 10; Windows wheels need CMake >= 4.2 only for VS 2026 (override above).
+[tool.cibuildwheel]
+build = "cp310-* cp311-* cp312-* cp313-*"
+skip = "*-musllinux_* *-win32 *_i686"
+build-frontend = "build"
+manylinux-x86_64-image = "manylinux_2_28"
+# gmsh is only a test dependency; the mesh tests skip if it cannot be imported/loaded
+# (e.g. missing OpenGL libraries inside the manylinux container).
+# No version specifiers: on Windows cibuildwheel passes these through the shell, where ">="
+# would be a redirect.
+test-requires = ["pytest", "gmsh"]
+test-command = "pytest {project}/tests/python -v"
+
+[tool.cibuildwheel.linux]
+archs = ["x86_64"]
+
+[tool.cibuildwheel.windows]
+archs = ["AMD64"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests/python"]

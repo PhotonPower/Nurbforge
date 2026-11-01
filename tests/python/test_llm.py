@@ -92,6 +92,27 @@ def test_offset_tool():
     assert abs(ws.get("p2")(0.5, 0.5).z - 0.25) < 1e-12
 
 
+def test_fillet_tool():
+    ws = Workspace()
+    call_tool(ws, "make_line", {"name": "a", "p0": [-2, 0, 0], "p1": [0, 0, 0]})
+    call_tool(ws, "make_line", {"name": "b", "p0": [0, 0, 0], "p1": [0, 2, 0]})
+    out = call_tool(ws, "fillet", {"name": "f", "a": "a", "b": "b", "radius": 0.5})
+    assert out.startswith("stored f") and "f_a" in out
+    arc = ws.get("f")
+    assert nf.distance(arc(arc.domain[0]), nf.Vec3(-0.5, 0, 0)) < 1e-12
+    assert nf.distance(ws.get("f_b")(ws.get("f_b").domain[0]), nf.Vec3(0, 0.5, 0)) < 1e-12
+    assert call_tool(ws, "fillet", {"name": "g", "a": "a", "b": "b", "radius": 9}).startswith("ERROR")
+    call_tool(ws, "make_rectangle", {"name": "p", "origin": [-1, 0, 0], "edge_u": [5, 0, 0],
+                                     "edge_v": [0, 3, 0]})
+    call_tool(ws, "make_rectangle", {"name": "q", "origin": [0, 0, -1], "edge_u": [0, 3, 0],
+                                     "edge_v": [0, 0, 5]})
+    out = call_tool(ws, "fillet", {"name": "r", "a": "p", "b": "q", "radius": 0.5})
+    assert out.startswith("stored r") and "r_contact1" in out
+    c1 = ws.get("r_contact1")
+    assert abs(c1(c1.domain[0]).z) < 1e-9
+    assert call_tool(ws, "fillet", {"name": "x", "a": "a", "b": "p", "radius": 0.5}).startswith("ERROR")
+
+
 def test_loft_tool():
     ws = Workspace()
     for i, z in enumerate((0, 1, 2)):

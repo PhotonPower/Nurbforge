@@ -223,6 +223,34 @@ def _build_tools() -> list[Tool]:
             return ws.put(name, nf.offset_curve(o, distance, plane_normal or [0.0, 0.0, 1.0]))
         return ws.put(name, nf.offset_surface(o, distance))
 
+    @add("fillet", "Round the corner between two objects with a constant radius. Two planar "
+         "intersecting curves: circular arc tangent to both, stored as name, with the trimmed "
+         "curves stored as name_a and name_b (a, arc, b form a smooth chain); the corner is "
+         "chosen automatically unless side_a/side_b are given (+1 left / -1 right of the curve "
+         "direction seen from plane_normal). Two surfaces: rolling-ball fillet surface stored as "
+         "name, contact curves as name_contact1/name_contact2; side_a/side_b = +1 (default) put "
+         "the ball on the normal side of a/b, -1 on the other side.",
+         {"name": _NAME, "a": _NAME, "b": _NAME, "radius": {"type": "number"},
+          "side_a": {"type": "integer", "enum": [-1, 0, 1]},
+          "side_b": {"type": "integer", "enum": [-1, 0, 1]},
+          "plane_normal": {**_VEC, "description": "curves only, default [0, 0, 1]"}},
+         ["name", "a", "b", "radius"])
+    def _(ws, name, a, b, radius, side_a=None, side_b=None, plane_normal=None):
+        oa, ob = ws.get(a), ws.get(b)
+        if isinstance(oa, nf.NurbsCurve) and isinstance(ob, nf.NurbsCurve):
+            f = nf.fillet_curves(oa, ob, radius, plane_normal or [0.0, 0.0, 1.0],
+                                 side_a=side_a or 0, side_b=side_b or 0)
+            ws.put(f"{name}_a", f.trimmed_a)
+            ws.put(f"{name}_b", f.trimmed_b)
+            return (ws.put(name, f.arc) + f"; trimmed curves {name}_a, {name}_b; centre "
+                    f"({f.center.x:.6g}, {f.center.y:.6g}, {f.center.z:.6g})")
+        if isinstance(oa, nf.NurbsSurface) and isinstance(ob, nf.NurbsSurface):
+            f = nf.fillet_surfaces(oa, ob, radius, side1=side_a or 1, side2=side_b or 1)
+            ws.put(f"{name}_contact1", f.contact1)
+            ws.put(f"{name}_contact2", f.contact2)
+            return ws.put(name, f.surface) + f"; contact curves {name}_contact1, {name}_contact2"
+        raise ValueError("fillet needs two curves or two surfaces")
+
     @add("intersect", "Intersection of two objects: points for curve/curve and curve/surface; "
          "for surface/surface the intersection curves are stored as name_1, name_2, ...",
          {"a": _NAME, "b": _NAME, "name": {"type": "string", "description":

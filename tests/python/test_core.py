@@ -276,6 +276,40 @@ def test_offset():
         nf.offset_surface(sphere, -sign * 2.5)
 
 
+def test_fillet_curves():
+    a = nf.make_line((-2, 0, 0), (0, 0, 0))
+    b = nf.make_line((0, 0, 0), (0, 2, 0))
+    f = nf.fillet_curves(a, b, 0.5)  # left turn: centre in the inner corner
+    assert nf.distance(f.center, nf.Vec3(-0.5, 0.5, 0)) < 1e-12
+    assert nf.distance(f.point_a, nf.Vec3(-0.5, 0, 0)) < 1e-12
+    assert nf.distance(f.point_b, nf.Vec3(0, 0.5, 0)) < 1e-12
+    assert f.arc.is_rational and f.arc.degree == 2
+    assert np.allclose(np.linalg.norm(f.arc.sample(50) - [-0.5, 0.5, 0], axis=1), 0.5, atol=1e-12)
+    chain = nf.join(nf.join(f.trimmed_a, f.arc, 1e-9), f.trimmed_b, 1e-9)
+    assert nf.distance(chain(chain.domain[1]), nf.Vec3(0, 2, 0)) < 1e-9
+    # crossing lines, explicit sides: right of both (the sector x > 0, y < 0)
+    a2, b2 = nf.make_line((-2, 0, 0), (1, 0, 0)), nf.make_line((0, -1, 0), (0, 2, 0))
+    g = nf.fillet_curves(a2, b2, 0.5, side_a=-1, side_b=-1, trim=False)
+    assert nf.distance(g.center, nf.Vec3(0.5, -0.5, 0)) < 1e-12
+    assert g.trimmed_a is None
+    with pytest.raises(nf.GeometryError):
+        nf.fillet_curves(a, b, 5.0)
+
+
+def test_fillet_surfaces():
+    s1 = nf.make_rectangle((-1, 0, 0), (5, 0, 0), (0, 3, 0))  # z = 0, normal +z
+    s2 = nf.make_rectangle((0, 0, -1), (0, 3, 0), (0, 0, 5))  # x = 0, normal +x
+    f = nf.fillet_surfaces(s1, s2, 0.5)
+    pts = f.surface.sample(12, 12)
+    assert np.allclose(np.hypot(pts[..., 0] - 0.5, pts[..., 2] - 0.5), 0.5, atol=1e-6)
+    t = 0.5 * (f.spine.domain[0] + f.spine.domain[1])
+    assert abs(f.contact1(t).z) < 1e-9 and abs(f.contact2(t).x) < 1e-9
+    q = f.pcurve1(t)
+    assert nf.distance(s1(q.x, q.y), f.contact1(t)) < 1e-6
+    with pytest.raises(nf.GeometryError):
+        nf.fillet_surfaces(s1, s2, 0.5, side1=0)
+
+
 def test_loft():
     secs = [nf.make_circle((0, 0, z), (0, 0, 1), 1.0 + 0.5 * z) for z in (0.0, 1.0, 2.0, 3.0)]
     s = nf.loft(secs)

@@ -15,7 +15,7 @@
  │   topology/  trimmed surfaces, split, shells (sewing)        │
  │   optics/    conics, aspheres, Zernike, XY polynomials       │
  │   modeling/  construct, loft, sweep, Coons/Gordon, extend,   │
- │              offset                                          │
+ │              offset, fillet                                  │
  │   fitting/   interpolation, least-squares approximation      │
  │   analysis/  closest point, curvature, arc length, area      │
  │   geometry/  transform, primitives                           │

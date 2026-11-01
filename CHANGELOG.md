@@ -5,6 +5,14 @@ versioning: [SemVer](https://semver.org).
 
 ## [Unreleased]
 ### Added
+- Fillets (`modeling/fillet.hpp`): `fillet_curves` (exact rational arc of radius r between two
+  coplanar intersecting curves; centre from the offset curves refined by Newton, tangent
+  parameters, trimmed curves forming a G1 chain; automatic or explicit sides) and
+  `fillet_surfaces` (rolling-ball fillet: spine from the intersection of the offset surfaces,
+  exact ball positions in the planes normal to the spine, exact circular sections skinned with
+  verified tolerance; returns surface, spine, contact curves and their p-curves on both
+  surfaces); Python `fillet_curves`, `fillet_surfaces`, `CurveFillet`, `SurfaceFillet`; LLM
+  tool `fillet`.
 - Offset curves and surfaces (`modeling/offset.hpp`): `offset_curve` (planar, cubic B-spline
   fitted per Bézier segment and joined, cusp/corner/planarity checks) and `offset_surface`
   (along the unit normal incl. limit normals at poles, quintic tensor-product fit with the knot

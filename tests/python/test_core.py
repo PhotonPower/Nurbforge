@@ -263,3 +263,16 @@ def test_loft():
     assert v[0] == 0.0 and v[-1] == 1.0
     c = nf.make_compatible([nf.make_line((0, 0, 0), (1, 0, 0)), secs[0]])
     assert c[0].degree == c[1].degree and list(c[0].knots) == list(c[1].knots)
+
+
+def test_sweep():
+    profile = nf.make_circle((5, 0, 0), (0, 1, 0), 1.0)
+    path = nf.make_arc((0, 0, 0), (1, 0, 0), (0, 1, 0), 5.0, 0.0, math.pi)
+    s = nf.sweep(profile, path, nf.SweepOptions(tolerance=1e-7))
+    p = s(0.3, 0.6)
+    assert abs(math.hypot(math.hypot(p.x, p.y) - 5.0, p.z) - 1.0) < 1e-6  # torus
+    t = nf.sweep_translational(nf.make_line((0, 0, 0), (1, 0, 0)), nf.make_line((0, 0, 0), (0, 2, 0)))
+    assert nf.distance(t(1.0, 1.0), nf.Vec3(1, 2, 0)) < 1e-14
+    r = nf.sweep2(nf.make_line((0, 0, 0), (1, 0, 0)), nf.make_line((0, 0, 0), (0, 5, 0)),
+                  nf.make_line((1, 0, 0), (2, 5, 0)))
+    assert nf.distance(r(1.0, 1.0), nf.Vec3(2, 5, 0)) < 1e-6

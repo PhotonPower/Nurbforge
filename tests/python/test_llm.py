@@ -85,3 +85,11 @@ def test_loft_tool():
         call_tool(ws, "make_circle", {"name": f"c{i}", "center": [0, 0, z], "normal": [0, 0, 1], "radius": 1})
     out = call_tool(ws, "loft", {"name": "tube", "sections": ["c0", "c1", "c2"]})
     assert out.startswith("stored tube")
+
+
+def test_sweep_tool():
+    ws = Workspace()
+    call_tool(ws, "make_circle", {"name": "p", "center": [0, 0, 0], "normal": [0, 0, 1], "radius": 0.5})
+    call_tool(ws, "make_line", {"name": "path", "p0": [0, 0, 0], "p1": [0, 0, 4]})
+    out = call_tool(ws, "sweep", {"name": "pipe", "profile": "p", "path": "path", "twist_deg": 90})
+    assert out.startswith("stored pipe")

@@ -397,6 +397,28 @@ PYBIND11_MODULE(_core, m) {
         return curves;
       }, py::arg("curves"), "Common degree, knot vector and domain [0, 1] for all curves.");
 
+  // ------------------------------------------------------------------ sweep
+  py::enum_<SweepFrame>(m, "SweepFrame")
+      .value("RotationMinimizing", SweepFrame::RotationMinimizing)
+      .value("Fixed", SweepFrame::Fixed);
+  py::class_<SweepOptions>(m, "SweepOptions")
+      .def(py::init([](SweepFrame frame, double twist, double tolerance, std::size_t max_sections) {
+             return SweepOptions{frame, twist, tolerance, max_sections};
+           }),
+           py::arg("frame") = SweepFrame::RotationMinimizing, py::arg("twist") = 0.0,
+           py::arg("tolerance") = 1e-6, py::arg("max_sections") = 1025)
+      .def_readwrite("frame", &SweepOptions::frame)
+      .def_readwrite("twist", &SweepOptions::twist)
+      .def_readwrite("tolerance", &SweepOptions::tolerance)
+      .def_readwrite("max_sections", &SweepOptions::max_sections);
+  m.def("sweep_translational", &sweep_translational, py::arg("profile"), py::arg("trajectory"),
+        "Exact translational sweep S(u, v) = C(u) + T(v) - T(v0).");
+  m.def("sweep", &sweep, py::arg("profile"), py::arg("trajectory"),
+        py::arg("options") = SweepOptions{},
+        "Sweep a profile (given at the trajectory start) along a trajectory.");
+  m.def("sweep2", &sweep2, py::arg("profile"), py::arg("rail1"), py::arg("rail2"),
+        py::arg("options") = SweepOptions{}, "Two-rail sweep with uniform scaling.");
+
   // ------------------------------------------------------------------ patterns
   m.def("linear_pattern", &linear_pattern, py::arg("step"), py::arg("count"));
   m.def("grid_pattern", &grid_pattern, py::arg("step_a"), py::arg("count_a"), py::arg("step_b"),

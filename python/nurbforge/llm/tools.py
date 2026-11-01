@@ -164,6 +164,15 @@ def _build_tools() -> list[Tool]:
     def _(ws, name, sections, degree=3):
         return ws.put(name, nf.loft([ws.get(s) for s in sections], int(degree)))
 
+    @add("sweep", "Sweep a profile curve along a path curve. The profile must be drawn at the "
+         "start of the path (typically in the plane normal to the path). Optional twist in "
+         "degrees over the whole path.",
+         {"name": _NAME, "profile": _NAME, "path": _NAME, "twist_deg": {"type": "number"}},
+         ["name", "profile", "path"])
+    def _(ws, name, profile, path, twist_deg=0.0):
+        opt = nf.SweepOptions(twist=_deg(twist_deg))
+        return ws.put(name, nf.sweep(ws.get(profile), ws.get(path), opt))
+
     @add("extend", "Extend a curve at its start or end (or a surface across a side umin/umax/"
          "vmin/vmax) by a length. mode 'natural' continues the shape smoothly, 'linear' "
          "continues straight along the tangent.",

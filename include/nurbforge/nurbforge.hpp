@@ -17,6 +17,7 @@
 #include "nurbforge/modeling/pattern.hpp"
 #include "nurbforge/modeling/extend.hpp"
 #include "nurbforge/modeling/loft.hpp"
+#include "nurbforge/modeling/sweep.hpp"
 #include "nurbforge/analysis/closest_point.hpp"
 #include "nurbforge/analysis/properties.hpp"
 #include "nurbforge/fitting/fit.hpp"

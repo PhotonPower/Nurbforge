@@ -20,6 +20,28 @@ target_link_libraries(my_solver PRIVATE Nurbforge::core)
 
 or with `add_subdirectory(Nurbforge)` / `FetchContent` and `-DNF_BUILD_PYTHON=OFF`.
 
+## Slicing shells
+
+`analysis/shell_section.hpp` cuts closed B-rep shells into planar sections, e.g. to slice a body into
+layers along a stacking direction:
+
+```cpp
+#include <nurbforge/analysis/shell_section.hpp>
+const nf::Vec3 dir{0, 0, 1};
+for (double h : nf::critical_heights(shell, dir)) { /* topology changes only here */ }
+bool prism = nf::is_extrusion_band(shell, dir, h0, h1);       // all sections in (h0, h1) equal
+nf::PlanarSection s = nf::section(shell, {{0, 0, 0.5 * (h0 + h1)}, dir});
+for (const auto& loop : s.loops)            // solid on the left: area > 0 outer, < 0 hole
+  for (const auto& c : loop.curves)         // c.curve in (s, t, 0), c.normal(t) outward (3D)
+    ...;
+```
+
+Faces whose height along the normal depends on one parameter (extrusions and revolutions about the
+normal, planes) give exact isoparametric section curves (`SectionCurve::exact`); others are traced
+and fitted to `SectionOptions::fit_tolerance` (default 1e-9 of the model size). Planes through
+critical heights (a plane containing a face) are rejected. All these queries are `const` and
+thread-safe (checked under ThreadSanitizer in CI).
+
 Reference documentation: `doxygen docs/Doxyfile` → `build/docs/html/index.html`.
 
 The same Doxygen output (XML) is rendered on the documentation site: [C++ API reference](cpp-reference.md).

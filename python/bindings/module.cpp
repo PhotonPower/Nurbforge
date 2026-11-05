@@ -332,6 +332,37 @@ PYBIND11_MODULE(_core, m) {
         "Section of a surface with a plane (pcurve2 in the plane's in-plane coordinates).");
   m.def("planar_sections", &planar_sections, py::arg("surface"), py::arg("plane"), py::arg("spacing"),
         py::arg("count"), py::arg("options") = SurfaceIntersectionOptions{});
+  // shell sections (slicing of B-rep bodies)
+  py::class_<SectionOptions>(m, "SectionOptions")
+      .def(py::init<>())
+      .def_readwrite("join_tolerance", &SectionOptions::join_tolerance)
+      .def_readwrite("fit_tolerance", &SectionOptions::fit_tolerance)
+      .def_readwrite("s_axis", &SectionOptions::s_axis);
+  py::class_<SectionCurve>(m, "SectionCurve", "Piece of a section loop on one face of a shell.")
+      .def_readonly("curve", &SectionCurve::curve, "In plane coordinates (s, t, 0).")
+      .def_readonly("curve3d", &SectionCurve::curve3d)
+      .def_readonly("pcurve", &SectionCurve::pcurve, "(u, v, 0) on the source face's surface.")
+      .def_readonly("face", &SectionCurve::face)
+      .def_readonly("exact", &SectionCurve::exact)
+      .def("normal", &SectionCurve::normal, py::arg("t"), "Outward unit normal of the shell at parameter t.");
+  py::class_<SectionLoop>(m, "SectionLoop")
+      .def_readonly("curves", &SectionLoop::curves)
+      .def_readonly("area", &SectionLoop::area, "Signed area in (s, t): > 0 outer loop, < 0 hole.");
+  py::class_<PlanarSection>(m, "PlanarSection")
+      .def_readonly("origin", &PlanarSection::origin)
+      .def_readonly("s_axis", &PlanarSection::s_axis)
+      .def_readonly("t_axis", &PlanarSection::t_axis)
+      .def_readonly("normal", &PlanarSection::normal)
+      .def_readonly("loops", &PlanarSection::loops);
+  m.def("section", &section, py::arg("shell"), py::arg("plane"), py::arg("options") = SectionOptions{},
+        "Section of a closed shell with a plane: closed loops oriented with the solid on the left "
+        "(outer counter-clockwise, holes clockwise in the plane coordinates).");
+  m.def("critical_heights", &critical_heights, py::arg("shell"), py::arg("direction"),
+        py::arg("tolerance") = Tolerance{},
+        "Sorted heights along `direction` at which the topology of the planar sections can change.");
+  m.def("is_extrusion_band", &is_extrusion_band, py::arg("shell"), py::arg("direction"), py::arg("h0"),
+        py::arg("h1"), py::arg("tolerance") = Tolerance{},
+        "True if all faces meeting the band h0 < p . direction < h1 are parallel to `direction` there.");
   m.def("intersect", py::overload_cast<const NurbsCurve&, const Plane&, const Tolerance&>(&intersect),
         py::arg("curve"), py::arg("plane"), py::arg("tolerance") = Tolerance{},
         "Intersection points of a curve with a plane.");

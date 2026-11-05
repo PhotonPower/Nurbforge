@@ -37,7 +37,10 @@ embeddable into solver codes.
    tessellation.
 2. **Value semantics, immutability.** Geometry objects are immutable values; operations return
    new objects (`curve.transformed(t)`, `curve.insert_knot(u)`). This makes them thread-safe and
-   easy to expose to Python.
+   easy to expose to Python: all `const` member functions and free query functions (evaluation,
+   closest points, intersections, sections, `critical_heights`, properties, STEP reading/writing)
+   may be called concurrently on shared objects; caches (trim polylines) are built in constructors.
+   The ThreadSanitizer CI job runs the concurrent-query tests (`[threads]`).
 3. **Validated invariants.** Constructors validate knot vectors, weights and net sizes and throw
    `nf::GeometryError` (Python: `nurbforge.GeometryError`, a `ValueError`).
 4. **Headless & scriptable.** Every operation is reachable from Python; the LLM layer only

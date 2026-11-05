@@ -26,6 +26,7 @@
 #include "nurbforge/analysis/intersect.hpp"
 #include "nurbforge/analysis/surface_intersect.hpp"
 #include "nurbforge/analysis/section.hpp"
+#include "nurbforge/analysis/shell_section.hpp"
 #include "nurbforge/fitting/fit.hpp"
 #include "nurbforge/optics/surfaces.hpp"
 #include "nurbforge/topology/trimmed_surface.hpp"

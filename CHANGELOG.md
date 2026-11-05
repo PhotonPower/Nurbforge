@@ -29,6 +29,11 @@ versioning: [SemVer](https://semver.org).
   predicted parameter change.
 
 ### Added
+- STEP: length unit micrometre (`StepLengthUnit::Micrometre`, `SI_UNIT(.MICRO.,.METRE.)`, Python
+  `unit="um"`) for writing and reading; shell names (`StepOptions::shell_names`, Python `names=`)
+  written as solid names and read back by `read_step_named` / `from_step_named` (Python: lists of
+  `(name, Shell)`; fallback: the product name); `StepReadOptions::file_unit_metres` reports the
+  length unit declared in the file.
 - Booleans with tangential contacts: spheres touching at a point (outside, inside, on the seam,
   at a pole), spheres and cylinders touching box faces along a point or a line, a cylinder
   inside a box touching two of its sides and two cylinders side by side give closed results

@@ -11,7 +11,7 @@ namespace nf {
 
 /// Length unit declared in the STEP file. Coordinates are written unchanged: the unit says what
 /// one model unit means (default: millimetre, the usual CAD convention).
-enum class StepLengthUnit { Millimetre, Centimetre, Metre, Inch };
+enum class StepLengthUnit { Millimetre, Centimetre, Metre, Inch, Micrometre };
 
 struct StepOptions {
   StepLengthUnit unit{StepLengthUnit::Millimetre};
@@ -24,6 +24,10 @@ struct StepOptions {
   /// Modelling uncertainty (UNCERTAINTY_MEASURE_WITH_UNIT, model units); readers such as
   /// OpenCASCADE use it as the initial vertex / edge tolerance.
   double uncertainty{1e-6};
+  /// Names of the shells (one per shell passed to to_step / write_step, or empty): written as the
+  /// name of their MANIFOLD_SOLID_BREP / BREP_WITH_VOIDS (and CLOSED_SHELL / OPEN_SHELL), read back
+  /// by read_step_named. Applications assign materials or roles by these names.
+  std::vector<std::string> shell_names{};
 };
 
 /// The STEP file contents for the given shells (see write_step).
@@ -56,6 +60,16 @@ struct StepReadOptions {
   /// instead of throwing; a message per skipped item is appended to `warnings` (if set).
   bool skip_unsupported{false};
   std::vector<std::string>* warnings{nullptr};
+  /// If set: receives the length unit declared in the file in metres (1e-3 for millimetres; 1e-3 if
+  /// the file declares none), e.g. to detect files written with the wrong unit.
+  double* file_unit_metres{nullptr};
+};
+
+/// A shell read from STEP with its name: the name of its MANIFOLD_SOLID_BREP / BREP_WITH_VOIDS (or of
+/// the OPEN_SHELL / CLOSED_SHELL of a surface model); if that is empty, the PRODUCT name.
+struct NamedShell {
+  std::string name;
+  Shell shell;
 };
 
 /// Reads the B-rep solids and surface models of a STEP (ISO 10303-21) text, see read_step.
@@ -75,5 +89,9 @@ struct StepReadOptions {
 /// assemblies are not applied. Throws GeometryError for unsupported entities (naming the entity
 /// and instance) unless options.skip_unsupported, std::runtime_error if the file cannot be read.
 [[nodiscard]] std::vector<Shell> read_step(const std::string& path, const StepReadOptions& options = {});
+
+/// As from_step / read_step, with the name of every shell (see NamedShell).
+[[nodiscard]] std::vector<NamedShell> from_step_named(const std::string& text, const StepReadOptions& options = {});
+[[nodiscard]] std::vector<NamedShell> read_step_named(const std::string& path, const StepReadOptions& options = {});
 
 }  // namespace nf

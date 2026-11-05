@@ -706,25 +706,31 @@ PYBIND11_MODULE(_core, m) {
         "Boolean union / intersection / difference of two closed shells.");
 
   // ------------------------------------------------------------------ STEP export
+  const auto step_unit = [](const std::string& unit) {
+    if (unit == "mm") return StepLengthUnit::Millimetre;
+    if (unit == "cm") return StepLengthUnit::Centimetre;
+    if (unit == "m") return StepLengthUnit::Metre;
+    if (unit == "inch" || unit == "in") return StepLengthUnit::Inch;
+    if (unit == "um" || unit == "\u00b5m") return StepLengthUnit::Micrometre;
+    throw py::value_error("unit must be 'mm', 'cm', 'm', 'inch' or 'um'");
+  };
   {
     const auto shell_list = [](const py::object& shells) {
       if (py::isinstance<Shell>(shells)) return std::vector<Shell>{shells.cast<Shell>()};
       return shells.cast<std::vector<Shell>>();
     };
-    const auto step_options = [](const std::string& unit, const std::string& name, const std::string& author,
-                                 const std::string& organization, const std::string& timestamp,
-                                 double uncertainty) {
+    const auto step_options = [step_unit](const std::string& unit, const std::string& name,
+                                          const std::string& author, const std::string& organization,
+                                          const std::string& timestamp, double uncertainty,
+                                          const std::vector<std::string>& names) {
       StepOptions o;
-      if (unit == "mm") o.unit = StepLengthUnit::Millimetre;
-      else if (unit == "cm") o.unit = StepLengthUnit::Centimetre;
-      else if (unit == "m") o.unit = StepLengthUnit::Metre;
-      else if (unit == "inch" || unit == "in") o.unit = StepLengthUnit::Inch;
-      else throw py::value_error("unit must be 'mm', 'cm', 'm' or 'inch'");
+      o.unit = step_unit(unit);
       o.name = name;
       o.author = author;
       o.organization = organization;
       o.timestamp = timestamp;
       o.uncertainty = uncertainty;
+      o.shell_names = names;
       return o;
     };
     m.def(
@@ -732,44 +738,44 @@ PYBIND11_MODULE(_core, m) {
         [shell_list, step_options](const py::object& path, const py::object& shells, const std::string& unit,
                                    const std::string& name, const std::string& author,
                                    const std::string& organization, const std::string& timestamp,
-                                   double uncertainty) {
+                                   double uncertainty, const std::vector<std::string>& names) {
           const auto os = py::module_::import("os");
           write_step(os.attr("fspath")(path).cast<std::string>(), shell_list(shells),
-                     step_options(unit, name, author, organization, timestamp, uncertainty));
+                     step_options(unit, name, author, organization, timestamp, uncertainty, names));
         },
         py::arg("path"), py::arg("shells"), py::arg("unit") = "mm", py::arg("name") = "nurbforge",
         py::arg("author") = "", py::arg("organization") = "", py::arg("timestamp") = "",
-        py::arg("uncertainty") = 1e-6,
+        py::arg("uncertainty") = 1e-6, py::arg("names") = std::vector<std::string>{},
         "Write a Shell or a list of Shells to a STEP file (AP214, native writer). Closed shells become "
-        "solids, open shells surface models. `unit` ('mm', 'cm', 'm', 'inch') declares what one model "
-        "unit means; coordinates are written unchanged.");
+        "solids, open shells surface models. `unit` ('mm', 'cm', 'm', 'inch', 'um') declares what one model "
+        "unit means; coordinates are written unchanged. `names`: one name per shell (solid names, read back "
+        "by read_step_named).");
     m.def(
         "to_step",
         [shell_list, step_options](const py::object& shells, const std::string& unit, const std::string& name,
                                    const std::string& author, const std::string& organization,
-                                   const std::string& timestamp, double uncertainty) {
-          return to_step(shell_list(shells), step_options(unit, name, author, organization, timestamp, uncertainty));
+                                   const std::string& timestamp, double uncertainty,
+                                   const std::vector<std::string>& names) {
+          return to_step(shell_list(shells),
+                         step_options(unit, name, author, organization, timestamp, uncertainty, names));
         },
         py::arg("shells"), py::arg("unit") = "mm", py::arg("name") = "nurbforge", py::arg("author") = "",
         py::arg("organization") = "", py::arg("timestamp") = "", py::arg("uncertainty") = 1e-6,
+        py::arg("names") = std::vector<std::string>{},
         "The STEP file contents (see write_step) as a string.");
   }
 
   // ------------------------------------------------------------------ STEP import
   {
     // runs the reader with the given options; skipped items are reported as Python warnings
-    const auto read = [](auto&& reader, const std::string& unit, double tolerance, bool skip_unsupported) {
+    const auto read = [step_unit](auto&& reader, const std::string& unit, double tolerance, bool skip_unsupported) {
       StepReadOptions o;
-      if (unit == "mm") o.unit = StepLengthUnit::Millimetre;
-      else if (unit == "cm") o.unit = StepLengthUnit::Centimetre;
-      else if (unit == "m") o.unit = StepLengthUnit::Metre;
-      else if (unit == "inch" || unit == "in") o.unit = StepLengthUnit::Inch;
-      else throw py::value_error("unit must be 'mm', 'cm', 'm' or 'inch'");
+      o.unit = step_unit(unit);
       o.tolerance = tolerance;
       o.skip_unsupported = skip_unsupported;
       std::vector<std::string> warnings;
       o.warnings = &warnings;
-      std::vector<Shell> shells;
+      decltype(reader(o)) shells;
       {
         py::gil_scoped_release release;
         shells = reader(o);
@@ -801,6 +807,30 @@ PYBIND11_MODULE(_core, m) {
         },
         py::arg("text"), py::kw_only(), py::arg("unit") = "mm", py::arg("tolerance") = 1e-6,
         py::arg("skip_unsupported") = false, "Read shells from STEP file contents (see read_step).");
+    const auto named = [](const std::vector<NamedShell>& v) {
+      py::list out;
+      for (const auto& n : v) out.append(py::make_tuple(n.name, n.shell));
+      return out;
+    };
+    m.def(
+        "read_step_named",
+        [read, named](const py::object& path, const std::string& unit, double tolerance, bool skip_unsupported) {
+          const std::string p = py::module_::import("os").attr("fspath")(path).cast<std::string>();
+          return named(read([&](const StepReadOptions& o) { return read_step_named(p, o); }, unit, tolerance,
+                            skip_unsupported));
+        },
+        py::arg("path"), py::kw_only(), py::arg("unit") = "mm", py::arg("tolerance") = 1e-6,
+        py::arg("skip_unsupported") = false,
+        "As read_step, as a list of (name, Shell): the solid name (write_step(..., names=...)), else the "
+        "product name.");
+    m.def(
+        "from_step_named",
+        [read, named](const std::string& text, const std::string& unit, double tolerance, bool skip_unsupported) {
+          return named(read([&](const StepReadOptions& o) { return from_step_named(text, o); }, unit, tolerance,
+                            skip_unsupported));
+        },
+        py::arg("text"), py::kw_only(), py::arg("unit") = "mm", py::arg("tolerance") = 1e-6,
+        py::arg("skip_unsupported") = false, "As from_step, as a list of (name, Shell).");
   }
 
   // ------------------------------------------------------------------ patterns

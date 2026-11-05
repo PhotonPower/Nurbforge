@@ -848,11 +848,25 @@ class Reader {
     read_units();
   }
 
-  std::vector<Shell> read() {
+  std::vector<NamedShell> read() {
     std::vector<std::size_t> ids;
     for (const auto& [id, in] : inst_) ids.push_back(id);
     std::sort(ids.begin(), ids.end());
-    std::vector<Shell> out;
+    // fallback name: the first PRODUCT's name
+    std::string product;
+    for (std::size_t id : ids) {
+      const Instance& in = inst_.at(id);
+      if (in.size() == 1 && in[0].name == "PRODUCT" && in[0].params.size() > 1 &&
+          in[0].params[1].kind == Value::Kind::String) {
+        product = in[0].params[1].text;
+        break;
+      }
+    }
+    const auto name_of = [&](const Record& r) {
+      const bool named = !r.params.empty() && r.params[0].kind == Value::Kind::String && !r.params[0].text.empty();
+      return named ? r.params[0].text : product;
+    };
+    std::vector<NamedShell> out;
     for (std::size_t id : ids) {
       const Instance& in = inst_.at(id);
       if (in.size() != 1) continue;
@@ -862,12 +876,14 @@ class Reader {
         shell_faces(ref(arg(id, r, 1), id), false, faces);
         if (r.name == "BREP_WITH_VOIDS")
           for (const auto& v : items(arg(id, r, 2), id)) shell_faces(ref(v, id), false, faces);
-        add_shell(out, std::move(faces));
+        add_shell(out, std::move(faces), name_of(r));
       } else if (r.name == "SHELL_BASED_SURFACE_MODEL") {
         for (const auto& s : items(arg(id, r, 1), id)) {
           std::vector<TrimmedSurface> faces;
-          shell_faces(ref(s, id), false, faces);
-          add_shell(out, std::move(faces));
+          const std::size_t sid = ref(s, id);
+          shell_faces(sid, false, faces);
+          const Instance& si = inst(sid);
+          add_shell(out, std::move(faces), si.size() == 1 ? name_of(si[0]) : product);
         }
       } else if (r.name == "FACETED_BREP" || r.name == "FACETED_BREP_SHAPE_REPRESENTATION") {
         problem("unsupported entity " + r.name + " (#" + std::to_string(id) + ")");
@@ -1021,10 +1037,12 @@ class Reader {
         case StepLengthUnit::Centimetre: return 1e-2;
         case StepLengthUnit::Metre: return 1.0;
         case StepLengthUnit::Inch: return 0.0254;
+        case StepLengthUnit::Micrometre: return 1e-6;
       }
       return 1e-3;
     }();
     scale_ = length.value_or(1e-3) / target;
+    if (opt_.file_unit_metres) *opt_.file_unit_metres = length.value_or(1e-3);
     angle_unit_ = angle.value_or(1.0);
   }
 
@@ -1625,17 +1643,17 @@ class Reader {
     }
   }
 
-  void add_shell(std::vector<Shell>& out, std::vector<TrimmedSurface> faces) const {
+  void add_shell(std::vector<NamedShell>& out, std::vector<TrimmedSurface> faces, std::string name) const {
     if (faces.empty()) return;
     Shell sh = Shell::sew(std::move(faces), tol_);
     if (!sh.is_consistently_oriented()) sh = sh.oriented();
-    out.push_back(std::move(sh));
+    out.push_back({std::move(name), std::move(sh)});
   }
 };
 
 }  // namespace
 
-std::vector<Shell> from_step(const std::string& text, const StepReadOptions& options) {
+std::vector<NamedShell> from_step_named(const std::string& text, const StepReadOptions& options) {
   try {
     Reader reader(Parser(text).parse(), options);
     return reader.read();
@@ -1646,12 +1664,28 @@ std::vector<Shell> from_step(const std::string& text, const StepReadOptions& opt
   }
 }
 
-std::vector<Shell> read_step(const std::string& path, const StepReadOptions& options) {
+std::vector<Shell> from_step(const std::string& text, const StepReadOptions& options) {
+  std::vector<Shell> out;
+  for (auto& n : from_step_named(text, options)) out.push_back(std::move(n.shell));
+  return out;
+}
+
+namespace {
+std::string file_text(const std::string& path) {
   std::ifstream f(path, std::ios::binary);
   if (!f) throw std::runtime_error("read_step: cannot open '" + path + "'");
   std::ostringstream ss;
   ss << f.rdbuf();
-  return from_step(ss.str(), options);
+  return ss.str();
+}
+}  // namespace
+
+std::vector<Shell> read_step(const std::string& path, const StepReadOptions& options) {
+  return from_step(file_text(path), options);
+}
+
+std::vector<NamedShell> read_step_named(const std::string& path, const StepReadOptions& options) {
+  return from_step_named(file_text(path), options);
 }
 
 }  // namespace nf

@@ -348,3 +348,33 @@ TEST_CASE("STEP read: errors and skipped entities", "[step_read]") {
   REQUIRE(warnings.size() == 1);
   CHECK(warnings[0].find("OFFSET_SURFACE") != std::string::npos);
 }
+
+TEST_CASE("STEP read: shell names and micrometres", "[step_read]") {
+  // names are written as solid names and read back; one name per shell or none
+  StepOptions w;
+  w.unit = StepLengthUnit::Micrometre;
+  w.name = "cell";
+  w.shell_names = {"Pillar", "Lid"};
+  const std::string text = to_step({box_shell(1.0), sphere_shell({5, 0, 0}, 1.0)}, w);
+  CHECK(text.find("MANIFOLD_SOLID_BREP('Pillar'") != std::string::npos);
+  CHECK(text.find("SI_UNIT(.MICRO.,.METRE.)") != std::string::npos);
+  double declared = 0.0;
+  StepReadOptions r;
+  r.unit = StepLengthUnit::Micrometre;
+  r.file_unit_metres = &declared;
+  const auto named = from_step_named(text, r);
+  REQUIRE(named.size() == 2);
+  CHECK(named[0].name == "Pillar");
+  CHECK(named[1].name == "Lid");
+  CHECK(declared == 1e-6);
+  CHECK(named[0].shell.volume(kRel) == Approx(8.0).epsilon(1e-9));  // um -> um
+  // read in millimetres: lengths / 1000
+  CHECK(from_step(text).front().volume(kRel) == Approx(8e-9).epsilon(1e-9));
+  // without names: the product name
+  w.shell_names.clear();
+  const auto unnamed = from_step_named(to_step({box_shell(1.0)}, w));
+  REQUIRE(unnamed.size() == 1);
+  CHECK(unnamed[0].name == "cell");
+  w.shell_names = {"only one"};
+  CHECK_THROWS_AS(to_step({box_shell(1.0), box_shell(2.0)}, w), GeometryError);
+}

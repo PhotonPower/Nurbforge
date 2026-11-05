@@ -38,6 +38,12 @@
 - Native STEP writer (AP214, no dependencies) ✅
 - Native STEP reader ✅ (B-spline and analytic geometry → exact NURBS, trim loops rebuilt in parameter space, units, voids)
 
+## 0.6 – Slicing (for FourierGrating's CAD slicer) ✅
+- Planar sections of shells as oriented closed loops (`section`), exact for extrusions / revolutions ✅
+- Critical heights and extrusion bands along a direction ✅
+- STEP: micrometre unit, solid names (`read_step_named`) ✅
+- Thread safety of const queries documented and checked under ThreadSanitizer ✅
+
 ## Infrastructure
 - ✅ Wheels via cibuildwheel (manylinux_2_28 for AlmaLinux 10 compatibility, win_amd64)
 - ✅ Sphinx site with Breathe (Doxygen) API docs on GitHub Pages

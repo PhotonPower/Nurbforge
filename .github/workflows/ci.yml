@@ -64,6 +64,26 @@ jobs:
           python -c "import gmsh; print('gmsh', gmsh.__version__)"
           pytest -v
 
+  tsan:
+    name: ThreadSanitizer (concurrent const queries)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build
+          sudo sysctl vm.mmap_rnd_bits=28   # TSAN needs a smaller ASLR range on current kernels
+      - name: Configure & build
+        run: |
+          cmake -S . -B build/tsan -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DNF_BUILD_PYTHON=OFF \
+                -DNF_BUILD_EXAMPLES=OFF -DCMAKE_CXX_FLAGS="-fsanitize=thread -fno-omit-frame-pointer"
+          cmake --build build/tsan --target nurbforge_tests -j
+      - name: Concurrent queries under TSAN
+        env:
+          TSAN_OPTIONS: halt_on_error=1
+        run: ./build/tsan/tests/cpp/nurbforge_tests "[threads]"
+
   lint:
     name: Lint (ruff, clang-format)
     runs-on: ubuntu-latest

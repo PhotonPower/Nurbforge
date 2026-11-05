@@ -25,11 +25,12 @@ std::string text = nf::to_step({drilled}, {.unit = nf::StepLengthUnit::Metre});
 
 | Option | Default | Meaning |
 |---|---|---|
-| `unit` | `"mm"` | Length unit declared in the file: `"mm"`, `"cm"`, `"m"`, `"inch"` (C++: `StepLengthUnit`). Coordinates are written unchanged; the unit says what one model unit means. Readers convert on import (OCC to mm: a 2 × 2 × 2 cube written with `unit="m"` imports with volume 8·10⁹). |
+| `unit` | `"mm"` | Length unit declared in the file: `"mm"`, `"cm"`, `"m"`, `"inch"`, `"um"` (micrometre, `SI_UNIT(.MICRO.,.METRE.)`; C++: `StepLengthUnit`). Coordinates are written unchanged; the unit says what one model unit means. Readers convert on import (OCC to mm: a 2 × 2 × 2 cube written with `unit="m"` imports with volume 8·10⁹). |
 | `name` | `"nurbforge"` | `PRODUCT` name and `FILE_NAME` name |
 | `author`, `organization` | `""` | `FILE_NAME` fields |
 | `timestamp` | current UTC time | ISO 8601 time stamp in `FILE_NAME` (set it for reproducible files) |
 | `uncertainty` | `1e-6` | `UNCERTAINTY_MEASURE_WITH_UNIT` (model units); OCC uses it as initial vertex / edge tolerance |
+| `names` | `[]` | One name per shell (C++: `StepOptions::shell_names`), written as the name of its `MANIFOLD_SOLID_BREP` / `BREP_WITH_VOIDS` (and `CLOSED_SHELL` / `OPEN_SHELL`); read back by `read_step_named`. Applications assign materials or roles by these names. |
 
 ## File structure
 
@@ -126,6 +127,18 @@ std::vector<std::string> warnings;
 auto s = nf::from_step(text, {.unit = nf::StepLengthUnit::Metre, .skip_unsupported = true,
                               .warnings = &warnings});
 ```
+
+Names: `read_step_named` / `from_step_named` return `(name, Shell)` pairs (C++: `NamedShell`) with
+the solid name, or the `PRODUCT` name where that is empty:
+
+```python
+text = nf.to_step([pillar, lid], unit="um", names=["Pillar", "Lid"])
+for name, shell in nf.from_step_named(text, unit="um"):
+    print(name, shell.volume())
+```
+
+`StepReadOptions::file_unit_metres` (C++) receives the length unit declared in the file, e.g. to
+detect a model written in micrometres but declared as millimetres.
 
 Each `MANIFOLD_SOLID_BREP` becomes one shell, a `BREP_WITH_VOIDS` one shell holding the outer
 boundary and the voids (void faces point into the void, as `Shell::oriented` expects, so

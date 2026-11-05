@@ -4,6 +4,8 @@ All notable changes are documented here. Format: [Keep a Changelog](https://keep
 versioning: [SemVer](https://semver.org).
 
 ## [Unreleased]
+
+## [0.6.0] – 2026-11-05
 ### Fixed (found by the new Boolean stress test, `benchmarks/stress.cpp`)
 - `split` (face arrangement) dropped regions thinner than 1e-4 of the parameter domain (its
   region probe was nudged by a fixed 1e-4): a box face overlapping a cylinder by 1e-5 gave open
@@ -29,6 +31,22 @@ versioning: [SemVer](https://semver.org).
   predicted parameter change.
 
 ### Added
+- Slicing of B-rep shells (`analysis/shell_section.hpp`, Python `section`, `critical_heights`,
+  `is_extrusion_band`): `section(shell, plane)` returns closed loops of section pieces (one per face
+  crossing, clipped to the trimmed region, chained within the join tolerance), oriented with the
+  solid on the left (outer loops counter-clockwise, voids clockwise), with the signed area, the
+  source face, its p-curve and the outward normal at every point. Faces whose height along the
+  normal depends on one parameter (extrusions, revolutions about the normal, planes) give exact
+  isoparametric curves; others are traced to 1e-9 of the model size. `critical_heights` finds
+  vertices, planar faces normal to the direction and the height extrema on faces (Newton) and
+  edges; `is_extrusion_band` checks a band for walls parallel to the direction. Tests: box, cylinder,
+  sphere, frustum, torus (both axis directions), box with a spherical cavity, tilted traced section,
+  concurrent queries (ThreadSanitizer CI job).
+- STEP: length unit micrometre (`StepLengthUnit::Micrometre`, `SI_UNIT(.MICRO.,.METRE.)`, Python
+  `unit="um"`) for writing and reading; shell names (`StepOptions::shell_names`, Python `names=`)
+  written as solid names and read back by `read_step_named` / `from_step_named` (Python: lists of
+  `(name, Shell)`; fallback: the product name); `StepReadOptions::file_unit_metres` reports the
+  length unit declared in the file.
 - Booleans with tangential contacts: spheres touching at a point (outside, inside, on the seam,
   at a pole), spheres and cylinders touching box faces along a point or a line, a cylinder
   inside a box touching two of its sides and two cylinders side by side give closed results

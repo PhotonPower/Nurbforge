@@ -317,7 +317,7 @@ double signed_volume(const Shell& sh, const std::vector<std::size_t>& faces) {
 
 /// Solids of a closed shell: MANIFOLD_SOLID_BREP per outer component, BREP_WITH_VOIDS for outer
 /// components containing void components (components with inward normals).
-std::vector<std::size_t> write_solids(Writer& w, const Shell& input) {
+std::vector<std::size_t> write_solids(Writer& w, const Shell& input, const std::string& name) {
   const Shell sh = input.is_consistently_oriented() ? input : input.oriented();
   ShellWriter sw(w, sh);
   const auto comps = components(sh);
@@ -326,7 +326,7 @@ std::vector<std::size_t> write_solids(Writer& w, const Shell& input) {
   const auto closed_shell = [&](const std::vector<std::size_t>& faces, bool flip) {
     std::vector<std::size_t> ids;
     for (std::size_t f : faces) ids.push_back(sw.face(f, flip));
-    return w.add("CLOSED_SHELL(''," + list(ids.size(), [&](std::size_t i) { return ref(ids[i]); }) + ")");
+    return w.add("CLOSED_SHELL(" + str(name) + "," + list(ids.size(), [&](std::size_t i) { return ref(ids[i]); }) + ")");
   };
   // assign every inward component to the smallest outward component containing it
   constexpr std::size_t none = std::numeric_limits<std::size_t>::max();
@@ -361,19 +361,19 @@ std::vector<std::size_t> write_solids(Writer& w, const Shell& input) {
     for (std::size_t i = 0; i < comps.size(); ++i)
       if (owner[i] == j)  // void shell: normals reversed to point out of the void, orientation .F.
         voids.push_back(w.add("ORIENTED_CLOSED_SHELL('',*," + ref(closed_shell(comps[i], true)) + ",.F.)"));
-    if (voids.empty()) solids.push_back(w.add("MANIFOLD_SOLID_BREP(''," + ref(cs) + ")"));
+    if (voids.empty()) solids.push_back(w.add("MANIFOLD_SOLID_BREP(" + str(name) + "," + ref(cs) + ")"));
     else
-      solids.push_back(w.add("BREP_WITH_VOIDS(''," + ref(cs) + "," +
+      solids.push_back(w.add("BREP_WITH_VOIDS(" + str(name) + "," + ref(cs) + "," +
                              list(voids.size(), [&](std::size_t i) { return ref(voids[i]); }) + ")"));
   }
   return solids;
 }
 
-std::size_t write_open_shell(Writer& w, const Shell& sh) {
+std::size_t write_open_shell(Writer& w, const Shell& sh, const std::string& name) {
   ShellWriter sw(w, sh);
   std::vector<std::size_t> ids;
   for (std::size_t f = 0; f < sh.faces().size(); ++f) ids.push_back(sw.face(f, false));
-  return w.add("OPEN_SHELL(''," + list(ids.size(), [&](std::size_t i) { return ref(ids[i]); }) + ")");
+  return w.add("OPEN_SHELL(" + str(name) + "," + list(ids.size(), [&](std::size_t i) { return ref(ids[i]); }) + ")");
 }
 
 std::size_t write_length_unit(Writer& w, StepLengthUnit unit) {
@@ -381,6 +381,7 @@ std::size_t write_length_unit(Writer& w, StepLengthUnit unit) {
     case StepLengthUnit::Millimetre: return w.add("(LENGTH_UNIT() NAMED_UNIT(*) SI_UNIT(.MILLI.,.METRE.))");
     case StepLengthUnit::Centimetre: return w.add("(LENGTH_UNIT() NAMED_UNIT(*) SI_UNIT(.CENTI.,.METRE.))");
     case StepLengthUnit::Metre: return w.add("(LENGTH_UNIT() NAMED_UNIT(*) SI_UNIT($,.METRE.))");
+    case StepLengthUnit::Micrometre: return w.add("(LENGTH_UNIT() NAMED_UNIT(*) SI_UNIT(.MICRO.,.METRE.))");
     case StepLengthUnit::Inch: {
       const std::size_t mm = w.add("(LENGTH_UNIT() NAMED_UNIT(*) SI_UNIT(.MILLI.,.METRE.))");
       const std::size_t factor = w.add("LENGTH_MEASURE_WITH_UNIT(LENGTH_MEASURE(25.4)," + ref(mm) + ")");
@@ -440,13 +441,17 @@ std::string to_step(const std::vector<Shell>& shells, const StepOptions& options
                                  ref(direction(w, {1, 0, 0})) + ")");
 
   // geometry and topology
+  if (!options.shell_names.empty() && options.shell_names.size() != shells.size())
+    throw GeometryError("to_step: shell_names must be empty or have one name per shell");
   std::vector<std::size_t> solids, open_shells;
-  for (const auto& sh : shells) {
+  for (std::size_t k = 0; k < shells.size(); ++k) {
+    const Shell& sh = shells[k];
     if (sh.faces().empty()) continue;
+    const std::string name = options.shell_names.empty() ? std::string() : options.shell_names[k];
     if (sh.is_closed()) {
-      for (std::size_t s : write_solids(w, sh)) solids.push_back(s);
+      for (std::size_t s : write_solids(w, sh, name)) solids.push_back(s);
     } else {
-      open_shells.push_back(write_open_shell(w, sh));
+      open_shells.push_back(write_open_shell(w, sh, name));
     }
   }
   const auto items = [&](const std::vector<std::size_t>& ids) {

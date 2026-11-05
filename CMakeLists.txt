@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.24)
 
 project(Nurbforge
-  VERSION 0.5.0
+  VERSION 0.6.0
   DESCRIPTION "Headless NURBS-based CAD kernel for scientific software"
   HOMEPAGE_URL "https://github.com/PhotonPower/Nurbforge"
   LANGUAGES CXX)
@@ -49,6 +49,7 @@ add_library(nurbforge_core STATIC
   src/analysis/intersect.cpp
   src/analysis/surface_intersect.cpp
   src/analysis/section.cpp
+  src/analysis/shell_section.cpp
   src/fitting/fit.cpp
   src/optics/surfaces.cpp
   src/topology/trimmed_surface.cpp

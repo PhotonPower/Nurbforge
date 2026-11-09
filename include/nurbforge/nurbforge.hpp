@@ -32,4 +32,5 @@
 #include "nurbforge/topology/trimmed_surface.hpp"
 #include "nurbforge/topology/shell.hpp"
 #include "nurbforge/topology/boolean.hpp"
+#include "nurbforge/topology/solids.hpp"
 #include "nurbforge/io/step.hpp"

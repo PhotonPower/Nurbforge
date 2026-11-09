@@ -20,6 +20,24 @@ target_link_libraries(my_solver PRIVATE Nurbforge::core)
 
 or with `add_subdirectory(Nurbforge)` / `FetchContent` and `-DNF_BUILD_PYTHON=OFF`.
 
+## Solids and mass properties
+
+`topology/solids.hpp` builds closed shells with exact NURBS faces and outward normals;
+`Shell::mass_properties()` integrates volume, centroid and inertia tensor over the faces
+(divergence theorem, voids subtracted), and `Shell::transformed()` maps a shell by any affine
+transform:
+
+```cpp
+#include <nurbforge/topology/boolean.hpp>
+#include <nurbforge/topology/solids.hpp>
+nf::Shell part = nf::boolean(nf::make_box({-2, -2, 0}, {4, 4, 1}),
+                             nf::make_cylinder({0, 0, -1}, {0, 0, 1}, 1.0, 3.0),
+                             nf::BooleanOp::Difference);
+nf::MassProperties mp = part.mass_properties();  // volume 16 - pi, centroid (0, 0, 0.5)
+// mp.inertia: row-major 3x3 about the centroid (unit density); mp.principal_moments / _axes
+nf::Shell turned = part.transformed(nf::Transform::rotation({0, 0, 0}, {1, 0, 0}, 0.5));
+```
+
 ## Slicing shells
 
 `analysis/shell_section.hpp` cuts closed B-rep shells into planar sections, e.g. to slice a body into

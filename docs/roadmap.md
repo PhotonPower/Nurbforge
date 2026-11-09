@@ -33,6 +33,7 @@
 
 ## 0.5 – Topology & Booleans
 - B-rep shells (vertex/edge/coedge/face/shell) ✅, watertightness and orientation checks ✅, volume ✅; bodies with several shells ✅ (voids, lumps)
+- Solid primitives as closed shells (box, sphere, cylinder, cone, torus) ✅, mass properties (centroid, inertia tensor, principal axes) ✅, affine transforms of shells ✅ (#18)
 - Boolean union / intersection / difference on trimmed NURBS shells ✅ (incl. coincident faces and tangential contacts)
 - STEP / IGES export via OCC ✅
 - Native STEP writer (AP214, no dependencies) ✅

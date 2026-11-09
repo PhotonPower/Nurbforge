@@ -682,6 +682,7 @@ PYBIND11_MODULE(_core, m) {
       .def("area", &TrimmedSurface::area, py::arg("rel_tol") = 1e-9)
       .def("boundary_curves", &TrimmedSurface::boundary_curves, py::arg("tolerance") = 1e-7)
       .def("with_hole", &TrimmedSurface::with_hole, py::arg("hole"))
+      .def("flipped", &TrimmedSurface::flipped, "The same face with opposite orientation (normal flipped).")
       .def("__repr__", [](const TrimmedSurface& t) {
         return "<TrimmedSurface holes=" + std::to_string(t.holes().size()) + ">";
       });
@@ -707,6 +708,35 @@ PYBIND11_MODULE(_core, m) {
       .def_readonly("v0", &ShellEdge::v0)
       .def_readonly("v1", &ShellEdge::v1)
       .def_readonly("uses", &ShellEdge::uses);
+  py::class_<MassProperties>(m, "MassProperties", "Volume, centroid and inertia of a solid (unit density).")
+      .def_readonly("volume", &MassProperties::volume)
+      .def_readonly("centroid", &MassProperties::centroid)
+      .def_property_readonly(
+          "inertia",
+          [](const MassProperties& mp) {
+            py::array_t<double> a({py::ssize_t{3}, py::ssize_t{3}});
+            auto r = a.mutable_unchecked<2>();
+            for (py::ssize_t i = 0; i < 3; ++i)
+              for (py::ssize_t j = 0; j < 3; ++j) r(i, j) = mp.inertia[static_cast<std::size_t>(3 * i + j)];
+            return a;
+          },
+          "Inertia tensor about the centroid (3 x 3): diagonal moments, off-diagonal -products.")
+      .def_property_readonly("principal_moments",
+                             [](const MassProperties& mp) {
+                               return py::make_tuple(mp.principal_moments[0], mp.principal_moments[1],
+                                                     mp.principal_moments[2]);
+                             })
+      .def_property_readonly("principal_axes",
+                             [](const MassProperties& mp) {
+                               return to_numpy({mp.principal_axes[0], mp.principal_axes[1],
+                                                mp.principal_axes[2]});
+                             },
+                             "Unit axes as rows, in the order of principal_moments.")
+      .def("__repr__", [](const MassProperties& mp) {
+        return "MassProperties(volume=" + std::to_string(mp.volume) + ", centroid=(" +
+               std::to_string(mp.centroid.x) + ", " + std::to_string(mp.centroid.y) + ", " +
+               std::to_string(mp.centroid.z) + "))";
+      });
   py::class_<Shell>(m, "Shell", "Trimmed faces sewn along shared edges.")
       .def_static("sew", &Shell::sew, py::arg("faces"), py::arg("tolerance") = 1e-6)
       .def_property_readonly("faces", &Shell::faces)
@@ -721,6 +751,11 @@ PYBIND11_MODULE(_core, m) {
       .def("oriented", &Shell::oriented)
       .def("area", &Shell::area, py::arg("rel_tol") = 1e-8)
       .def("volume", &Shell::volume, py::arg("rel_tol") = 1e-8)
+      .def("mass_properties", &Shell::mass_properties, py::arg("rel_tol") = 1e-8,
+           "Volume, centroid and inertia tensor (about the centroid, unit density) of the solid.")
+      .def("transformed", &Shell::transformed, py::arg("transform"),
+           "The shell mapped by an affine transform (mirrors keep the normals outward).")
+      .def("__rmul__", [](const Shell& s, const Transform& t) { return s.transformed(t); })
       .def("__repr__", [](const Shell& s) {
         return "<Shell faces=" + std::to_string(s.faces().size()) + " edges=" + std::to_string(s.edges().size()) +
                (s.is_closed() ? " closed>" : " open>");
@@ -733,6 +768,16 @@ PYBIND11_MODULE(_core, m) {
       .value("Difference", BooleanOp::Difference);
   m.def("point_in_shell", &point_in_shell, py::arg("shell"), py::arg("point"), py::arg("tolerance") = 1e-6,
         "True if the point lies inside the closed shell (ray casting).");
+  // closed solid primitives
+  m.def("make_box", &make_box, py::arg("corner"), py::arg("size"),
+        "Axis-aligned box (closed Shell, outward normals) with a corner and edge lengths.");
+  m.def("make_sphere", &make_sphere, py::arg("center"), py::arg("radius"));
+  m.def("make_cylinder", &make_cylinder, py::arg("base"), py::arg("axis"), py::arg("radius"),
+        py::arg("height"), "Cylinder with the base disc centred at `base` along `axis`.");
+  m.def("make_cone", &make_cone, py::arg("base"), py::arg("axis"), py::arg("r0"), py::arg("r1"),
+        py::arg("height"), "Frustum: radius r0 at the base, r1 at the top; one radius may be 0 (apex).");
+  m.def("make_torus", &make_torus, py::arg("center"), py::arg("axis"), py::arg("major_radius"),
+        py::arg("minor_radius"));
   m.def("boolean", &boolean, py::arg("a"), py::arg("b"), py::arg("op"), py::arg("tolerance") = 1e-6,
         "Boolean union / intersection / difference of two closed shells.");
 

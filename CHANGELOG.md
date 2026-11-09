@@ -4,6 +4,16 @@ All notable changes are documented here. Format: [Keep a Changelog](https://keep
 versioning: [SemVer](https://semver.org).
 
 ## [Unreleased]
+### Added
+- Solid primitives as closed shells with exact faces and outward normals: `make_box`,
+  `make_sphere`, `make_cylinder`, `make_cone` (frustum, or cone with apex), `make_torus` (#18).
+- `Shell::mass_properties()`: volume, centroid, inertia tensor about the centroid (unit density),
+  principal moments and axes – face integrals by the divergence theorem relative to the bounding
+  box centre, voids subtracted (#18).
+- `Shell::transformed(transform)` (Python also `transform * shell`): affine maps of shells; mirrors
+  flip the faces so normals stay outward. The LLM tools `translate`, `rotate`, `mirror` now work
+  on shells, and the new tools `solid` and `mass_properties` create and measure solids.
+- `TrimmedSurface.flipped()` in Python.
 
 ## [0.6.0] – 2026-11-05
 ### Fixed (found by the new Boolean stress test, `benchmarks/stress.cpp`)

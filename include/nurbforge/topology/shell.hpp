@@ -2,9 +2,11 @@
 /// @file shell.hpp
 /// B-rep shells: trimmed faces sewn along shared edges.
 
+#include <array>
 #include <cstddef>
 #include <vector>
 
+#include "nurbforge/geometry/transform.hpp"
 #include "nurbforge/nurbs/curve.hpp"
 #include "nurbforge/topology/trimmed_surface.hpp"
 
@@ -22,6 +24,20 @@ struct ShellEdge {
   NurbsCurve curve;              ///< 3D curve (from the first face that uses it)
   std::size_t v0{0}, v1{0};      ///< start / end vertex (equal for closed edges)
   std::vector<Coedge> uses;
+};
+
+/// Volume, centroid and inertia of the solid bounded by a closed shell, for unit density
+/// (multiply volume and inertia by the density for mass and mass moments of inertia).
+struct MassProperties {
+  double volume{0.0};
+  Vec3 centroid;
+  /// Inertia tensor about the centroid, row-major: I_ij = int (|r|^2 delta_ij - r_i r_j) dV with
+  /// r measured from the centroid (diagonal: moments of inertia, off-diagonal: products of
+  /// inertia with the minus sign included).
+  std::array<double, 9> inertia{};
+  /// Eigenvalues of the inertia tensor, ascending, and the corresponding unit axes.
+  std::array<double, 3> principal_moments{};
+  std::array<Vec3, 3> principal_axes{};
 };
 
 /// Faces sewn along shared boundary curves. Degenerate boundary pieces (poles of revolved
@@ -64,6 +80,16 @@ class Shell {
   /// S . (S_u x S_v). Requires a closed, consistently oriented shell (throws otherwise);
   /// positive for outward normals.
   [[nodiscard]] double volume(double rel_tol = 1e-8) const;
+  /// Volume, centroid and inertia tensor by the divergence theorem (face integrals of
+  /// polynomial fields in the coordinates relative to the centre of the bounding box, combined
+  /// with the parallel-axis theorem). Voids (inward-oriented components) are subtracted. Same
+  /// requirements as volume(); throws GeometryError if the volume is not positive.
+  [[nodiscard]] MassProperties mass_properties(double rel_tol = 1e-8) const;
+
+  /// The shell mapped by an affine transformation: every face surface is transformed (trim loops
+  /// unchanged) and the faces are sewn again. Orientation-reversing maps (mirrors, negative
+  /// scale factors) flip the faces, so outward normals stay outward.
+  [[nodiscard]] Shell transformed(const Transform& t) const;
 
  private:
   [[nodiscard]] std::vector<std::vector<std::size_t>> face_components() const;

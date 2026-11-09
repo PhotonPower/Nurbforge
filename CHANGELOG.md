@@ -4,6 +4,23 @@ All notable changes are documented here. Format: [Keep a Changelog](https://keep
 versioning: [SemVer](https://semver.org).
 
 ## [Unreleased]
+### Fixed
+- Boolean difference returned open shells for parts with coplanar lids (#45):
+  - `split` (face arrangement) probed each region only against its own boundary cycle; for a cut
+    around an existing hole (re-drilling a ring with a larger hole) the probe of the outer region
+    landed in the old hole, the region was taken for outside the face and the remaining annulus
+    was lost. The probe ray now stops at the first crossing of any cycle.
+  - On a lid shared with the other solid the cut circle arrived twice – as a fragmented
+    intersection curve (it lies on the boundary of the other solid's side face) and as the
+    projected loop of the coincident lid. `prune_cuts` kept the fragments and dropped the whole
+    loop, so the cut stayed open and the lid was not split (and the arrangement spent ~20 s on the
+    overlapping curves). Longer cuts are now kept first. Coaxial cylinders with both lids
+    coplanar: open shell in 25 s → closed, exact volume, 2.8 s.
+- `TrimmedSurface::boundary_curves` merged break points only closer than 1e-12, but `join` needs
+  the joint at least the parametric resolution (1e-10) inside the joined domain: a trim curve
+  with a break ~1e-11 from a knot threw "remove_knot: … is not an interior knot" (hit by the
+  coaxial overlapping cylinders after the fix above). Breaks closer than 10 · 1e-10 are merged,
+  the domain ends kept exactly.
 
 ## [0.6.0] – 2026-11-05
 ### Fixed (found by the new Boolean stress test, `benchmarks/stress.cpp`)

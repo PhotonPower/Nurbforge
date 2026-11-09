@@ -157,6 +157,22 @@ TEST_CASE("general split of trimmed faces (planar arrangement)", "[trim][arrange
   CHECK(split(TrimmedSurface(sq), {make_line({0.2, 0.2, 0}, {0.6, 0.5, 0})}).size() == 1);
 }
 
+TEST_CASE("split along a closed cut around an existing hole", "[trim][arrangement]") {
+  // the region probe of a cycle must stop at the hole inside it: the centre of the square (and of
+  // the cut circle) lies in the hole, and both regions used to be lost (issue #45)
+  const auto sq = make_rectangle({0, 0, 0}, {1, 0, 0}, {0, 1, 0});
+  const auto holed = TrimmedSurface(sq).with_hole(circle_loop(0.5, 0.5, 0.2));
+  auto parts = split(holed, {make_circle({0.5, 0.5, 0}, {0, 0, 1}, 0.3)});
+  REQUIRE(parts.size() == 2);
+  std::sort(parts.begin(), parts.end(), [](const auto& x, const auto& y) { return x.area(1e-9) < y.area(1e-9); });
+  CHECK(rel_close(parts[0].area(1e-9), pi * (0.09 - 0.04), 1e-6));  // annulus 0.2 ... 0.3
+  CHECK(parts[0].holes().size() == 1);
+  CHECK(rel_close(parts[1].area(1e-9), 1.0 - pi * 0.09, 1e-6));  // square minus the disk 0.3
+  CHECK(parts[1].holes().size() == 1);
+  CHECK_FALSE(parts[0].contains(0.5, 0.5));
+  CHECK_FALSE(parts[1].contains(0.5, 0.5));
+}
+
 TEST_CASE("containment is exact near curved trim loops", "[trim]") {
   // the polygon of a trim circle deviates from the circle by ~6e-4; near the loop the side is
   // decided on the exact curve

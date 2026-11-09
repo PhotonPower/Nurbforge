@@ -4,6 +4,7 @@
 #include <cmath>
 #include <limits>
 #include <numbers>
+#include <optional>
 #include <string>
 #include <utility>
 #include <vector>
@@ -16,6 +17,8 @@
 #include "nurbforge/geometry/primitives.hpp"
 #include "nurbforge/modeling/loft.hpp"
 #include "nurbforge/modeling/offset.hpp"
+#include "nurbforge/nurbs/join.hpp"
+#include "nurbforge/nurbs/knot_vector.hpp"
 
 namespace nf {
 
@@ -345,6 +348,109 @@ SurfaceFillet fillet_surfaces(const NurbsSurface& s1, const NurbsSurface& s2, do
     }
     secs = std::move(next);
   }
+}
+
+// ------------------------------------------------------------------ fillet_corners
+
+NurbsCurve fillet_corners(const NurbsCurve& curve, double radius, double tolerance) {
+  if (!(radius > 0.0)) throw GeometryError("fillet_corners: radius must be > 0");
+  // plane: Newell normal of the control polygon (closed up)
+  const auto& P = curve.control_points();
+  Vec3 n{0, 0, 0};
+  for (std::size_t i = 0; i < P.size(); ++i) {
+    const Vec3& a = P[i];
+    const Vec3& b = P[(i + 1) % P.size()];
+    n += Vec3{(a.y - b.y) * (a.z + b.z), (a.z - b.z) * (a.x + b.x), (a.x - b.x) * (a.y + b.y)};
+  }
+  double size = 0.0;
+  for (const auto& p : P) size = std::max(size, distance(p, P.front()));
+  if (!(norm(n) > 1e-14 * size * size)) return curve;  // straight: no corners
+  n = normalized(n);
+  for (const auto& p : P)
+    if (std::abs(dot(p - P.front(), n)) > std::max(tolerance, 1e-12 * size))
+      throw GeometryError("fillet_corners: the curve is not planar");
+
+  // pieces between interior knots of full multiplicity
+  std::vector<NurbsCurve> pieces;
+  {
+    const auto [k, m] = unique_knots(curve.knots());
+    std::vector<double> cuts{curve.domain_start()};
+    for (std::size_t i = 0; i < k.size(); ++i)
+      if (k[i] > curve.domain_start() && k[i] < curve.domain_end() &&
+          static_cast<std::size_t>(m[i]) >= curve.degree())
+        cuts.push_back(k[i]);
+    cuts.push_back(curve.domain_end());
+    for (std::size_t i = 0; i + 1 < cuts.size(); ++i)
+      pieces.push_back(cuts.size() == 2 ? curve : curve.sub_curve(cuts[i], cuts[i + 1]));
+  }
+  const std::size_t np = pieces.size();
+  const bool closed = distance(curve.evaluate(curve.domain_start()),
+                               curve.evaluate(curve.domain_end())) <= tolerance;
+  const auto tangent_at = [](const NurbsCurve& c, bool end) {
+    return normalized(c.derivatives(end ? c.domain_end() : c.domain_start(), 1)[1]);
+  };
+  // corners: between piece i and piece (i + 1) % np
+  struct Corner {
+    std::size_t a, b;
+    CurveFillet fillet;
+  };
+  std::vector<Corner> corners;
+  std::vector<double> lo(np), hi(np);
+  for (std::size_t i = 0; i < np; ++i) {
+    lo[i] = pieces[i].domain_start();
+    hi[i] = pieces[i].domain_end();
+  }
+  const std::size_t ncorner = closed ? np : np - 1;
+  for (std::size_t i = 0; i < ncorner; ++i) {
+    const std::size_t j = (i + 1) % np;
+    const Vec3 ta = tangent_at(pieces[i], true), tb = tangent_at(pieces[j], false);
+    const double angle = std::atan2(norm(cross(ta, tb)), dot(ta, tb));
+    if (angle <= 1e-9) continue;
+    if (angle >= std::numbers::pi - 1e-9)
+      throw GeometryError("fillet_corners: the curve turns back on itself at a corner");
+    if (np == 1) {
+      // a single closed piece with a corner at its start: split it so a and b are distinct
+      throw GeometryError("fillet_corners: corner at the seam of a single closed piece");
+    }
+    CurveFilletOptions opt;
+    opt.corner = pieces[i].evaluate(pieces[i].domain_end());
+    opt.trim = false;
+    opt.tolerance = tolerance;
+    CurveFillet f = fillet_curves(pieces[i], pieces[j], radius, n, opt);
+    // the tangent points must lie on the kept parts next to the corner
+    if (f.param_a > hi[i] || f.param_b < lo[j])
+      throw GeometryError("fillet_corners: fillet outside the corner (radius too large)");
+    hi[i] = f.param_a;
+    lo[j] = f.param_b;
+    corners.push_back({i, j, std::move(f)});
+  }
+  if (corners.empty()) return curve;
+  for (std::size_t i = 0; i < np; ++i)
+    if (!(hi[i] > lo[i]))
+      throw GeometryError("fillet_corners: radius " + std::to_string(radius) +
+                          " too large for piece " + std::to_string(i) +
+                          " (the tangent points of its fillets overlap)");
+  // chain: for a closed curve start right after the first corner's arc
+  const auto trimmed = [&](std::size_t i) {
+    return lo[i] > pieces[i].domain_start() || hi[i] < pieces[i].domain_end()
+               ? pieces[i].sub_curve(lo[i], hi[i])
+               : pieces[i];
+  };
+  const auto arc_after = [&](std::size_t i) -> const CurveFillet* {
+    for (const auto& c : corners)
+      if (c.a == i) return &c.fillet;
+    return nullptr;
+  };
+  const std::size_t first = closed ? corners.front().b : 0;
+  const double jtol = std::max(tolerance, 1e-9 * size);
+  std::optional<NurbsCurve> out;
+  for (std::size_t k = 0; k < np; ++k) {
+    const std::size_t i = (first + k) % np;
+    out = out ? join(*out, trimmed(i), jtol) : trimmed(i);
+    const CurveFillet* f = arc_after(i);
+    if (f) out = join(*out, f->arc, jtol);  // closed: the last arc returns to the start
+  }
+  return *out;
 }
 
 }  // namespace nf

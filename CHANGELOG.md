@@ -4,6 +4,14 @@ All notable changes are documented here. Format: [Keep a Changelog](https://keep
 versioning: [SemVer](https://semver.org).
 
 ## [Unreleased]
+### Added
+- Curve constructors (#16): `make_circle_3pt`, `make_arc_3pt` (exact), `make_polygon` (regular
+  n-gon), `make_rectangle_curve` (closed outline), `make_helix` (cylindrical or conical helix,
+  planar Archimedean spiral, left- or right-handed; parameter = number of turns; C2 quintic
+  Hermite spline verified against the exact curve, span count from the h^6 convergence).
+- `fillet_corners(curve, radius)`: rounds every corner of a planar curve with exact arcs
+  (`fillet_curves` per corner, also the closing corner) and joins it into one G1 curve.
+- LLM tools `make_polygon`, `make_helix`, `round_corners`.
 
 ## [0.6.0] – 2026-11-05
 ### Fixed (found by the new Boolean stress test, `benchmarks/stress.cpp`)

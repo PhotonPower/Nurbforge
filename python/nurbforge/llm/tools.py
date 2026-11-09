@@ -81,6 +81,32 @@ def _build_tools() -> list[Tool]:
     def _(ws, name, center, x_axis, y_axis, radius, start_deg, end_deg):
         return ws.put(name, nf.make_arc(center, x_axis, y_axis, radius, _deg(start_deg), _deg(end_deg)))
 
+    @add("make_polygon", "Create a closed regular polygon (n vertices on a circle of the given "
+         "radius about center, in the plane with the given normal).",
+         {"name": _NAME, "center": _VEC, "normal": _VEC, "radius": {"type": "number"},
+          "n": {"type": "integer", "minimum": 3}}, ["name", "center", "normal", "radius", "n"])
+    def _(ws, name, center, normal, radius, n):
+        return ws.put(name, nf.make_polygon(center, normal, radius, n))
+
+    @add("make_helix", "Create a helix about an axis starting at a point (its distance from the "
+         "axis is the radius): pitch = rise per turn (0: planar spiral), turns > 0, optional "
+         "end_radius for a conical helix or spiral, left_handed to wind clockwise.",
+         {"name": _NAME, "axis_point": _VEC, "axis_dir": _VEC, "start": _VEC,
+          "pitch": {"type": "number"}, "turns": {"type": "number"},
+          "end_radius": {"type": "number"}, "left_handed": {"type": "boolean"}},
+         ["name", "axis_point", "axis_dir", "start", "pitch", "turns"])
+    def _(ws, name, axis_point, axis_dir, start, pitch, turns, end_radius=-1.0,
+          left_handed=False):
+        return ws.put(name, nf.make_helix(axis_point, axis_dir, start, pitch, turns, end_radius,
+                                          left_handed))
+
+    @add("round_corners", "Round all corners of a planar curve (polyline, polygon, rectangle "
+         "outline) with circular arcs of the given radius; one smooth curve.",
+         {"name": _NAME, "source": _NAME, "radius": {"type": "number"}},
+         ["name", "source", "radius"])
+    def _(ws, name, source, radius):
+        return ws.put(name, nf.fillet_corners(ws.get(source), radius))
+
     @add("make_rectangle", "Create a planar rectangular surface.",
          {"name": _NAME, "origin": _VEC, "edge_u": _VEC, "edge_v": _VEC},
          ["name", "origin", "edge_u", "edge_v"])

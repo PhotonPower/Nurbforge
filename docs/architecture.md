@@ -58,8 +58,9 @@ embeddable into solver codes.
 
 `TrimmedSurface`: surface + closed parameter-space loops (outer CCW, holes CW).
 `Shell`: trimmed faces sewn along shared edges (vertices, edges, coedges).
-Planned: `Body` (several shells, solids),
-tolerance context per model.
+A shell may consist of several connected components (`components()`): the outer boundary and
+the voids of a hollow solid, or separate lumps. Planned: a dedicated `Body` type, a tolerance
+context per model.
 
 ## Error handling
 

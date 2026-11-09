@@ -54,6 +54,44 @@ TEST_CASE("circular aperture, hole and nested loops on a plate", "[trim]") {
     for (const auto& p : c.sample(100)) CHECK(std::abs((p.x - 2) * (p.x - 2) + 4 * (p.y - 1) * (p.y - 1) - 1) < 1e-7);
 }
 
+TEST_CASE("boundary curves are exact on planes and along iso lines", "[trim]") {
+  // a plane maps a trim circle affinely (it stays a rational quadratic), a straight trim segment
+  // along an iso line maps to the iso-curve; both keep the parametrisation of the trim curve
+  // (they used to be cubic interpolants with hundreds of control points, issue #46)
+  const auto s = plate();
+  const TrimmedSurface disk(s, circle_loop(0.5, 0.5, 0.25));
+  const auto b = disk.boundary_curves(1e-8);
+  REQUIRE(b.size() == 1);
+  for (std::size_t k = 0; k < b[0].size(); ++k) {
+    const NurbsCurve& c = b[0][k];
+    const NurbsCurve& pc = disk.outer().curves[k];
+    CHECK(c.degree() == 2);
+    CHECK(c.control_points().size() == pc.control_points().size());
+    for (int i = 0; i <= 50; ++i) {
+      const double t = pc.domain_start() + (pc.domain_end() - pc.domain_start()) * i / 50.0;
+      const Vec3 w = pc.evaluate(t), p = c.evaluate(t);
+      CHECK(distance(p, s.evaluate(w.x, w.y)) < 1e-13);
+      CHECK(std::abs((p.x - 2) * (p.x - 2) + 4 * (p.y - 1) * (p.y - 1) - 1) < 1e-13);
+    }
+  }
+  const double R = 0.7;
+  const auto side = extrude(make_circle({0, 0, 0}, {0, 0, 1}, R), {0, 0, 2});
+  const auto loops = TrimmedSurface(side).boundary_curves(1e-8);
+  REQUIRE(loops.size() == 1);
+  REQUIRE(loops[0].size() == 4);
+  const TrimmedSurface full(side);
+  for (std::size_t k = 0; k < 4; ++k) {
+    const NurbsCurve& c = loops[0][k];
+    const NurbsCurve& pc = full.outer().curves[k];
+    CHECK(c.control_points().size() <= 9);  // a full circle or a straight line
+    for (int i = 0; i <= 50; ++i) {
+      const double t = pc.domain_start() + (pc.domain_end() - pc.domain_start()) * i / 50.0;
+      const Vec3 w = pc.evaluate(t);
+      CHECK(distance(c.evaluate(t), side.evaluate(w.x, w.y)) < 1e-12);
+    }
+  }
+}
+
 TEST_CASE("loop validation and orientation", "[trim]") {
   const auto s = plate();
   // clockwise outer loop is reversed on construction

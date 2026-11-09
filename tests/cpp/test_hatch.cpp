@@ -6,10 +6,12 @@
 #include <utility>
 #include <vector>
 
+#include "nurbforge/analysis/closest_point.hpp"
 #include "nurbforge/analysis/hatch.hpp"
 #include "nurbforge/analysis/properties.hpp"
 #include "nurbforge/core/error.hpp"
 #include "nurbforge/geometry/primitives.hpp"
+#include "nurbforge/geometry/transform.hpp"
 #include "nurbforge/modeling/construct.hpp"
 #include "nurbforge/topology/shell.hpp"
 #include "nurbforge/topology/trimmed_surface.hpp"
@@ -61,6 +63,41 @@ double total_length(const Hatching& h) {
   double s = 0;
   for (const auto& g : h.segments) s += g.length();
   return s;
+}
+
+double signed_area(const std::vector<NurbsCurve>& cs) {  // Green, Gauss-Legendre per span
+  static const double gx[5] = {-0.9061798459386640, -0.5384693101056831, 0.0, 0.5384693101056831,
+                               0.9061798459386640};
+  static const double gw[5] = {0.2369268850561891, 0.4786286704993665, 0.5688888888888889,
+                               0.4786286704993665, 0.2369268850561891};
+  double a = 0;
+  for (const auto& c : cs) {
+    const double u0 = c.domain_start(), u1 = c.domain_end();
+    for (int k = 0; k < 400; ++k) {
+      const double a0 = u0 + (u1 - u0) * k / 400, a1 = u0 + (u1 - u0) * (k + 1) / 400;
+      for (int g = 0; g < 5; ++g) {
+        const auto d = c.derivatives(0.5 * (a0 + a1) + 0.5 * (a1 - a0) * gx[g], 1);
+        a += 0.25 * (a1 - a0) * gw[g] * (d[0].x * d[1].y - d[0].y * d[1].x);
+      }
+    }
+  }
+  return a;
+}
+
+/// Contour points lie at distance d from the nearest loop, consecutive curves meet and close.
+void check_contour(const std::vector<Loop>& loops, const HatchContour& hc, double d) {
+  REQUIRE(!hc.curves.empty());
+  for (std::size_t i = 0; i < hc.curves.size(); ++i) {
+    const auto& c = hc.curves[i];
+    const auto& n = hc.curves[(i + 1) % hc.curves.size()];
+    CHECK(distance(c.evaluate(c.domain_end()), n.evaluate(n.domain_start())) < 1e-4);
+    for (const auto& p : c.sample(15)) {
+      double dist = 1e300;
+      for (const auto& l : loops)
+        for (const auto& lc : l) dist = std::min(dist, closest_point(lc, p).distance);
+      CHECK(dist == Approx(d).margin(1e-6));
+    }
+  }
 }
 
 }  // namespace
@@ -257,13 +294,76 @@ TEST_CASE("hatch: contours", "[hatch]") {
         CHECK(std::hypot(dx, dy) == Approx(0.25).margin(1e-6));
       }
   }
-  SECTION("too large distances throw") {
-    CHECK_THROWS_AS(hatch({square(0, 0, 1)}, {1, 0, 0}, 0.5, {.contours = {1.2}}), GeometryError);
-    CHECK_THROWS_AS(hatch({circle(0, 0, 1)}, {1, 0, 0}, 0.5, {.contours = {1.5}}), GeometryError);
-    // two holes 0.4 apart: contours at 0.3 overlap
-    CHECK_THROWS_AS(hatch({circle(0, 0, 5), circle(-1.2, 0, 1, false), circle(1.2, 0, 1, false)},
-                          {1, 0, 0}, 0.5, {.contours = {0.3}}),
-                    GeometryError);
+  SECTION("vanishing contours") {
+    CHECK(hatch({square(0, 0, 1)}, {1, 0, 0}, 0.5, {.contours = {1.2}}).contours.empty());
+    CHECK(hatch({circle(0, 0, 1)}, {1, 0, 0}, 0.5, {.contours = {1.5}}).contours.empty());
+    // island survives at 0.2, vanishes at 0.6; the outer circle keeps its contour
+    const auto res =
+        hatch({circle(0, 0, 3), square(0, 0, 0.5)}, {1, 0, 0}, 0.5, {.contours = {0.2, 0.6}});
+    REQUIRE(res.contours.size() == 3);
+    CHECK(res.contours[2].loops == std::vector<std::size_t>{1});
+    CHECK(res.contours[2].index == 0);
+  }
+}
+
+TEST_CASE("hatch: contours split, merge and lose cusps", "[hatch]") {
+  SECTION("two holes 0.4 apart merge at 0.3") {
+    const std::vector<Loop> loops{circle(0, 0, 5), circle(-1.2, 0, 1, false),
+                                  circle(1.2, 0, 1, false)};
+    const auto res = hatch(loops, {1, 0, 0}, 0.5, {.contours = {0.3}});
+    REQUIRE(res.contours.size() == 2);
+    CHECK(res.contours[0].loops == std::vector<std::size_t>{0});
+    CHECK(res.contours[1].loops == std::vector<std::size_t>{1, 2});
+    for (const auto& hc : res.contours) check_contour(loops, hc, 0.3);
+    // the merged hole contour: two arcs of radius 1.3 meeting on the axis (area by Green)
+    const double a = std::acos(1.2 / 1.3);  // half angle of the arcs at the waist
+    const double area = 2 * ((pi - a) * 1.3 * 1.3 + 1.2 * 1.3 * std::sin(a));
+    CHECK(std::abs(signed_area(res.contours[1].curves)) == Approx(area).epsilon(1e-7));
+  }
+  SECTION("hole close to the outer loop merges with it") {
+    const std::vector<Loop> loops{circle(0, 0, 5), circle(3.7, 0, 1, false)};
+    const auto res = hatch(loops, {1, 0, 0}, 0.5, {.contours = {0.25}});
+    REQUIRE(res.contours.size() == 1);
+    CHECK(res.contours[0].loops == std::vector<std::size_t>{0, 1});
+    check_contour(loops, res.contours[0], 0.25);
+  }
+  SECTION("dumbbell: a neck narrower than 2 d splits the contour") {
+    const std::vector<Loop> loops{polygon({{-3, -1, 0},
+                                           {-1, -1, 0},
+                                           {-1, -0.2, 0},
+                                           {1, -0.2, 0},
+                                           {1, -1, 0},
+                                           {3, -1, 0},
+                                           {3, 1, 0},
+                                           {1, 1, 0},
+                                           {1, 0.2, 0},
+                                           {-1, 0.2, 0},
+                                           {-1, 1, 0},
+                                           {-3, 1, 0}})};
+    const auto one = hatch(loops, {1, 0, 0}, 0.5, {.contours = {0.1}});
+    REQUIRE(one.contours.size() == 1);
+    check_contour(loops, one.contours[0], 0.1);
+    const auto two = hatch(loops, {1, 0, 0}, 0.5, {.contours = {0.3}});
+    REQUIRE(two.contours.size() == 2);
+    for (const auto& hc : two.contours) {
+      CHECK(hc.loops == std::vector<std::size_t>{0});
+      // the lobe shrunk to a square of side 1.4, bulging into the neck between arcs of radius 0.3
+      // about the reflex corners: 3 + 2 sides, 2 arcs
+      CHECK(hc.curves.size() == 7);
+      const double bulge = 2 * (0.06 - 0.5 * (0.2 * std::sqrt(0.05) + 0.09 * std::asin(2.0 / 3.0)));
+      CHECK(signed_area(hc.curves) == Approx(1.4 * 1.4 + bulge).epsilon(1e-8));
+      check_contour(loops, hc, 0.3);
+    }
+  }
+  SECTION("ellipse: the offset beyond the radius of curvature loses its swallowtails") {
+    // a = 3, b = 1: radius of curvature 1/3 at the tips, d = 0.5
+    const auto e = make_circle({0, 0, 0}, {0, 0, 1}, 1)
+                       .transformed(Transform::scaling({0, 0, 0}, Vec3{3, 1, 1}));
+    const std::vector<Loop> loops{{e}};
+    const auto res = hatch(loops, {1, 0, 0}, 0.5, {.contours = {0.5}});
+    REQUIRE(res.contours.size() == 1);
+    check_contour(loops, res.contours[0], 0.5);
+    CHECK(res.contours[0].curves.size() >= 2);  // trimmed where the two halves cross
   }
 }
 

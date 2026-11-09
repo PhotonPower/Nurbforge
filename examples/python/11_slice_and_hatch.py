@@ -27,11 +27,9 @@ for i in range(int(H / dz)):
     z = (i + 0.5) * dz
     layer = nf.section(lens, nf.Plane((0, 0, z), (0, 0, 1)))
     angle = (i % 2) * math.pi / 2  # 0° and 90° in turn
-    try:
-        segments, contours = nf.hatch(layer, (math.cos(angle), math.sin(angle)), spacing,
-                                      contours=[contour])
-    except nf.GeometryError:  # the layer is too small for a contour: hatch lines only
-        segments, contours = nf.hatch(layer, (math.cos(angle), math.sin(angle)), spacing)
+    # contours vanish by themselves in layers narrower than 2 x the inset
+    segments, contours = nf.hatch(layer, (math.cos(angle), math.sin(angle)), spacing,
+                                  contours=[contour])
     length = sum(s.length for s in segments)
     written += spacing * dz * length
     if i % 4 == 0:

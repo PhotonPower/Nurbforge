@@ -62,9 +62,12 @@ for (const auto& c : h.contours)     // c.curves: closed chain, region on the le
 The lines are intersected exactly with the loop curves (sign changes of the rational height of each
 Bézier piece); inside and outside follow the loop orientation (winding number), so holes and
 islands in holes are handled. Lines that only touch a loop or run along an edge without crossing it
-are not split, so tangent lines give no zero-length segments. Contours are `offset_curve`s of the
-loop pieces, trimmed at convex corners and joined by arcs at reflex corners; a distance that exceeds
-the local half-width of the region (the contour would split or vanish) throws `GeometryError`.
+are not split, so tangent lines give no zero-length segments. Contours are the boundaries of the region
+shrunk by each distance: the raw offsets (`offset_curve` of the loop pieces, arcs about reflex
+corners, cusp parts left out) are split at all their intersections and the fragments at the full
+distance from the loops are chained. So contours are trimmed at convex corners, split at necks
+narrower than twice the distance, merge where holes come close (`HatchContour::loops` lists the
+source loops), and vanish where the region is too thin.
 
 Reference documentation: `doxygen docs/Doxyfile` → `build/docs/html/index.html`.
 

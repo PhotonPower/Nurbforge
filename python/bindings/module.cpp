@@ -370,9 +370,11 @@ PYBIND11_MODULE(_core, m) {
         return "HatchSegment(line=" + std::to_string(s.line) + ", length=" + std::to_string(s.length()) +
                ", region=" + std::to_string(s.region) + ")";
       });
-  py::class_<HatchContour>(m, "HatchContour", "Closed inward contour of one loop.")
+  py::class_<HatchContour>(m, "HatchContour",
+                           "Closed contour: boundary of the region shrunk by `distance`.")
       .def_readonly("curves", &HatchContour::curves)
-      .def_readonly("loop", &HatchContour::loop)
+      .def_readonly("loop", &HatchContour::loop, "First of `loops`.")
+      .def_readonly("loops", &HatchContour::loops, "Loops it was offset from (merged contours: several).")
       .def_readonly("index", &HatchContour::index, "Index of the distance in `contours`.")
       .def_readonly("distance", &HatchContour::distance);
   m.def(

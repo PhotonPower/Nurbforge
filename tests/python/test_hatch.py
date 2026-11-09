@@ -54,11 +54,24 @@ def test_ring_regions_and_tangent_lines():
     assert {s.region for s in segments} == {0}
 
 
+def test_contours_vanish_and_merge():
+    outer = nf.make_circle((0, 0, 0), (0, 0, 1), 5.0)
+    holes = [nf.make_circle((x, 0, 0), (0, 0, 1), 1.0).reversed() for x in (-1.2, 1.2)]
+    _, contours = nf.hatch([[outer], [holes[0]], [holes[1]]], (1, 0), 1.0,
+                           contours=[0.1, 0.3, 6.0])
+    by_distance = {}
+    for c in contours:
+        by_distance.setdefault(c.distance, []).append(sorted(c.loops))
+    assert sorted(by_distance[0.1]) == [[0], [1], [2]]
+    assert sorted(by_distance[0.3]) == [[0], [1, 2]]  # holes 0.4 apart: contours merge
+    assert 6.0 not in by_distance  # thinner than 12 everywhere: vanishes
+
+
 def test_errors():
     circle = nf.make_circle((0, 0, 0), (0, 0, 1), 1.0)
     with pytest.raises(nf.GeometryError):
         nf.hatch([circle], (1, 0), 0.0)
     with pytest.raises(nf.GeometryError):
-        nf.hatch([circle], (1, 0), 0.1, contours=[1.5])
+        nf.hatch([circle], (1, 0), 0.1, contours=[-0.1])
     with pytest.raises(ValueError):
         nf.hatch([circle], (1,), 0.1)

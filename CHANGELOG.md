@@ -4,6 +4,18 @@ All notable changes are documented here. Format: [Keep a Changelog](https://keep
 versioning: [SemVer](https://semver.org).
 
 ## [Unreleased]
+### Added
+- `hatch(loops, direction, spacing, options)`: hatch and contour lines of the region bounded by
+  section loops, e.g. the writing paths of a layer in two-photon lithography (#44). Hatch lines
+  n · p = phase + k · spacing are intersected exactly with the loop curves (sign changes of the
+  rational height of every Bézier piece, transversal roots refined to machine precision); the
+  region follows the loop orientation (winding number), so holes and islands in holes are right.
+  Tangential contacts and edges lying on a line do not split it (no zero-length segments).
+  Segments carry their line index, the outer loop of their region and the loops they start and
+  end on. Contours are inward offsets of every loop (trimmed at convex corners, arcs at reflex
+  corners); contours that would split or vanish throw `GeometryError`. Python:
+  `nf.hatch(loops, direction, spacing, phase=…, contours=[…], min_length=…)` →
+  `(segments, contours)`; example `examples/python/11_slice_and_hatch.py`.
 
 ## [0.6.0] – 2026-11-05
 ### Fixed (found by the new Boolean stress test, `benchmarks/stress.cpp`)

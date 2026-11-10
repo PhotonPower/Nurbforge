@@ -45,6 +45,27 @@ re-imported solid agrees).
 Without gmsh, `nf.write_step(path, shells)` writes STEP files with the kernel's native writer
 (shared edges kept, units selectable) – see [io.md](io.md).
 
+## Physical groups from face labels
+
+Faces carry a label (`TrimmedSurface.label`). The solid primitives label their faces (box
+`bottom`/`top`/`front`/`back`/`left`/`right`, cylinder and cone `side`/`bottom`/`top`),
+`Shell.with_face_labels` sets them, and Booleans, transforms and STEP keep them – every piece of
+a split face inherits the label of its face. `add_shell(shell, physical_groups=True)` turns them
+into named physical surface groups (unlabelled faces: `"unlabeled"`) plus a physical volume, so
+boundary conditions are assigned by name after any chain of operations:
+
+```python
+import nurbforge as nf
+from nurbforge.mesh import GmshSession, add_shell
+
+pipe = nf.make_cylinder((0, 0, 0), (0, 0, 1), 1.0, 5.0).with_face_labels(["wall", "inlet", "outlet"])
+part = nf.boolean(pipe, nf.make_box((-2, -0.2, 2), (4, 0.4, 1)), nf.BooleanOp.Difference)
+with GmshSession() as g:
+    add_shell(part, physical_groups=True)     # wall, inlet, outlet, bottom/top/... of the slot, volume
+    g.mesh(dim=3, size=0.3)
+    g.write("pipe.msh")
+```
+
 ## Implementation notes
 
 - Control-point indexing differs: Nurbforge is row-major with v fastest; gmsh expects u fastest.

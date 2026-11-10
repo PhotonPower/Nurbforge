@@ -4,6 +4,7 @@
 
 #include <array>
 #include <functional>
+#include <string>
 #include <vector>
 
 #include "nurbforge/core/tolerance.hpp"
@@ -68,6 +69,14 @@ class TrimmedSurface {
   /// loops are mirrored accordingly. The normal S_u x S_v flips.
   [[nodiscard]] TrimmedSurface flipped() const;
 
+  /// Free-form label of the face, e.g. a boundary-condition or physical-group name ("" if none).
+  /// Kept by flipped(), with_hole(), split(), Booleans (every piece of a split face keeps the
+  /// label of the face it came from), Shell::oriented() / transformed(), and written to / read
+  /// from STEP as the ADVANCED_FACE name; the solid primitives label their faces.
+  [[nodiscard]] const std::string& label() const noexcept { return label_; }
+  /// The same face with the given label.
+  [[nodiscard]] TrimmedSurface with_label(std::string label) const;
+
   /// The boundary loops mapped to 3D: each trim curve composed with the surface, fitted to
   /// `tolerance` (cubic interpolation with adaptive refinement). Outer loop first.
   [[nodiscard]] std::vector<std::vector<NurbsCurve>> boundary_curves(double tolerance = 1e-7) const;
@@ -81,6 +90,7 @@ class TrimmedSurface {
   std::vector<TrimLoop> holes_;
   std::vector<std::vector<std::array<double, 2>>> poly_;  // outer + holes polylines (cached)
   std::vector<double> band_;  // per loop: max deviation of the curves from their polyline
+  std::string label_;
   [[nodiscard]] bool left_of_loop(const TrimLoop& loop, double u, double v) const;
   void build_polylines();
 };

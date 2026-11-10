@@ -30,7 +30,7 @@ from code (C++ or Python), from a local LLM (Ollama), and meshed with [gmsh](htt
 | Arrays | Linear, grid, polar | Path arrays |
 | Analysis | Point, tangent, normal (incl. poles), partial derivatives of any order, global closest point / point inversion, curve–curve, curve–surface and surface–surface intersection, planar sections, sections of B-rep shells (oriented loops, critical heights, extrusion bands), hatching of section loops (exact hatch lines, inward contours that split, merge and vanish), curvature/torsion, Gaussian/mean/principal curvatures, arc length, area, sampling | – |
 | Topology | Trimmed surfaces (parameter-space loops, exact circles), split along surface intersections, area by Green's theorem, exact gmsh export; B-rep shells (sewing, watertightness, orientation, volume, centroid, inertia tensor), STEP export (native AP214 writer, or via gmsh/OCC) and import (native reader: B-spline and analytic faces), Boolean union/intersection/difference (incl. coincident faces and tangential contacts), point-in-solid; shells with several components (voids, lumps) | Dedicated `Body` type |
-| Meshing | Exact NURBS transfer to gmsh (OCC), 2D meshing, high order, `.msh/.vtk/.stl/.step` | Physical groups, size fields, BEM-ready closed shells |
+| Meshing | Exact NURBS transfer to gmsh (OCC), 2D meshing, high order, `.msh/.vtk/.stl/.step`, physical groups from face labels (kept through Booleans, transforms and STEP) | Size fields, BEM-ready closed shells |
 | LLM | Ollama tool-calling agent with whitelisted geometry tools (incl. solids, mass properties, polygons, helices, rounded corners), CLI, verification rounds (`inspect` / `check`), constraint solving (`solve`) | – |
 
 ## Quick start

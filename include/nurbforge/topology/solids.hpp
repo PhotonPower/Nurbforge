@@ -2,7 +2,9 @@
 
 /// @file solids.hpp
 /// Closed solid primitives as B-rep shells with exact NURBS faces and outward normals: box,
-/// sphere, cylinder, cone (frustum) and torus. Combine them with boolean(), map them with
+/// sphere, cylinder, cone (frustum) and torus. Faces are labelled (TrimmedSurface::label): box
+/// "bottom", "top" (z), "front", "back" (y), "left", "right" (x); cylinder and cone "side",
+/// "bottom" (at the base), "top"; sphere and torus "surface". Combine them with boolean(), map them with
 /// Shell::transformed(), query them with Shell::volume() / mass_properties() / point_in_shell().
 
 #include "nurbforge/core/vec.hpp"

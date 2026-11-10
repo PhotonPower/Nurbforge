@@ -762,6 +762,9 @@ PYBIND11_MODULE(_core, m) {
       .def("boundary_curves", &TrimmedSurface::boundary_curves, py::arg("tolerance") = 1e-7)
       .def("with_hole", &TrimmedSurface::with_hole, py::arg("hole"))
       .def("flipped", &TrimmedSurface::flipped, "The same face with opposite orientation (normal flipped).")
+      .def_property_readonly("label", &TrimmedSurface::label,
+                             "Face label (boundary condition / physical group); kept by Booleans, transforms, STEP.")
+      .def("with_label", &TrimmedSurface::with_label, py::arg("label"), "The same face with the given label.")
       .def("__repr__", [](const TrimmedSurface& t) {
         return "<TrimmedSurface holes=" + std::to_string(t.holes().size()) + ">";
       });
@@ -832,6 +835,15 @@ PYBIND11_MODULE(_core, m) {
       .def("volume", &Shell::volume, py::arg("rel_tol") = 1e-8)
       .def("mass_properties", &Shell::mass_properties, py::arg("rel_tol") = 1e-8,
            "Volume, centroid and inertia tensor (about the centroid, unit density) of the solid.")
+      .def("with_face_labels", &Shell::with_face_labels, py::arg("labels"),
+           "The same shell with one label per face (they survive Booleans, transforms and STEP).")
+      .def("faces_labeled", &Shell::faces_labeled, py::arg("label"), "Indices of the faces with this label.")
+      .def_property_readonly("face_labels",
+                             [](const Shell& s) {
+                               std::vector<std::string> l;
+                               for (const auto& f : s.faces()) l.push_back(f.label());
+                               return l;
+                             })
       .def("transformed", &Shell::transformed, py::arg("transform"),
            "The shell mapped by an affine transform (mirrors keep the normals outward).")
       .def("__rmul__", [](const Shell& s, const Transform& t) { return s.transformed(t); })

@@ -5,6 +5,14 @@ versioning: [SemVer](https://semver.org).
 
 ## [Unreleased]
 ### Added
+- Face labels (#18, stable identification across operations): `TrimmedSurface::label()` /
+  `with_label()`, `Shell::with_face_labels()` / `faces_labeled()`; kept by `flipped`,
+  `with_hole`, `split`, Booleans (each piece of a split face inherits its label), `oriented`,
+  `transformed`, and written to / read from STEP as the `ADVANCED_FACE` name. The solid
+  primitives label their faces (box `bottom`/`top`/`front`/`back`/`left`/`right`, cylinder and
+  cone `side`/`bottom`/`top`, sphere and torus `surface`).
+- `nurbforge.mesh.add_shell(shell, physical_groups=True)`: one named gmsh physical surface group
+  per face label and a physical volume, for boundary conditions after Booleans.
 - Wheels workflow: a `release` job publishes the GitHub release for every `v*` tag (wheels,
   sdist, the tag's CHANGELOG section as notes); existing tags can be released by running the
   workflow manually with `release_tag`.

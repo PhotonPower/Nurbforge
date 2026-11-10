@@ -291,7 +291,8 @@ std::vector<TrimmedSurface> split(const TrimmedSurface& face, const std::vector<
   }
   std::vector<TrimmedSurface> result;
   for (std::size_t r = 0; r < regions.size(); ++r)
-    result.emplace_back(surf, loop_of(cycles[regions[r]]), std::move(holes[r]), tol);
+    result.push_back(
+        TrimmedSurface(surf, loop_of(cycles[regions[r]]), std::move(holes[r]), tol).with_label(face.label()));
   return result;
 }
 

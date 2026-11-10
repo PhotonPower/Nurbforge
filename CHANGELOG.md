@@ -4,6 +4,12 @@ All notable changes are documented here. Format: [Keep a Changelog](https://keep
 versioning: [SemVer](https://semver.org).
 
 ## [Unreleased]
+
+## [0.7.0] – 2026-11-10
+Writing paths for two-photon lithography (hatching of section loops), solid primitives with mass
+properties, curve constructors, and much faster Booleans of STEP shells. The API is not yet
+stable (0.x).
+
 ### Added
 - `hatch(loops, direction, spacing, options)`: hatch and contour lines of the region bounded by
   section loops, e.g. the writing paths of a layer in two-photon lithography (#44). Hatch lines

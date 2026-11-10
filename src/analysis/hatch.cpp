@@ -1,12 +1,15 @@
 #include "nurbforge/analysis/hatch.hpp"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstdio>
 #include <limits>
+#include <numbers>
 #include <optional>
 #include <string>
 
+#include "nurbforge/analysis/closest_point.hpp"
 #include "nurbforge/analysis/intersect.hpp"
 #include "nurbforge/core/error.hpp"
 #include "nurbforge/geometry/primitives.hpp"
@@ -228,6 +231,28 @@ void loop_crossings(const std::vector<Bez>& bez, const std::vector<NurbsCurve>& 
 
 // ------------------------------------------------------------------ contours
 
+/// Bezier pieces of all loops with heights along n.
+std::vector<std::vector<Bez>> make_bez(const std::vector<std::vector<NurbsCurve>>& loops,
+                                       const Vec3& n) {
+  std::vector<std::vector<Bez>> bez(loops.size());
+  for (std::size_t li = 0; li < loops.size(); ++li)
+    for (std::size_t ci = 0; ci < loops[li].size(); ++ci)
+      for (const auto& b : loops[li][ci].decompose_bezier()) {
+        Bez z;
+        z.curve = ci;
+        z.u0 = b.domain_start();
+        z.u1 = b.domain_end();
+        if (!(z.u1 > z.u0)) continue;
+        z.w = b.weights();
+        z.h.reserve(b.num_control_points());
+        for (const auto& p : b.control_points()) z.h.push_back(dot2(n, p));
+        z.hmin = *std::min_element(z.h.begin(), z.h.end());
+        z.hmax = *std::max_element(z.h.begin(), z.h.end());
+        bez[li].push_back(std::move(z));
+      }
+  return bez;
+}
+
 /// Splits a curve at interior knots of full multiplicity (possible tangent discontinuities).
 std::vector<NurbsCurve> split_at_c0_knots(const NurbsCurve& c) {
   const auto [k, m] = unique_knots(c.knots());
@@ -252,91 +277,314 @@ Vec3 unit_xy(const Vec3& v) {
 Vec3 start_tangent(const NurbsCurve& c) { return unit_xy(c.derivatives(c.domain_start(), 1)[1]); }
 Vec3 end_tangent(const NurbsCurve& c) { return unit_xy(c.derivatives(c.domain_end(), 1)[1]); }
 
-/// Inward offset of one loop by d (see the header).
-std::vector<NurbsCurve> contour(const std::vector<NurbsCurve>& loop, std::size_t li, double d,
-                                double fit_tol, double eps) {
-  std::vector<NurbsCurve> pieces;
-  for (const auto& c : loop)
-    for (auto& p : split_at_c0_knots(c)) pieces.push_back(std::move(p));
-  const std::size_t n = pieces.size();
-  const auto fail = [&](const std::string& why) {
-    throw GeometryError("hatch: contour at distance " + fmt(d) + " of loop " + std::to_string(li) +
-                        ": " + why);
-  };
-  std::vector<NurbsCurve> off;
-  off.reserve(n);
-  for (std::size_t i = 0; i < n; ++i) {
-    try {
-      off.push_back(offset_curve(pieces[i], d, {0, 0, 1}, fit_tol));
-    } catch (const GeometryError& e) {
-      fail(std::string("offset of piece ") + std::to_string(i) + " failed (" + e.what() + ")");
+/// Signed curvature in the xy plane (> 0 turning left).
+double signed_curvature(const NurbsCurve& c, double u) {
+  const auto d = c.derivatives(u, 2);
+  const double s = std::hypot(d[1].x, d[1].y);
+  return s > 0 ? cross2(d[1], d[2]) / (s * s * s) : 0.0;
+}
+
+/// Parameter intervals of c on which d * signed curvature < limit (the offset by d to the left
+/// is regular there); the rest would give cusps and lies in the swallowtail of the offset.
+std::vector<std::pair<double, double>> regular_intervals(const NurbsCurve& c, double d,
+                                                         double limit, int samples) {
+  const auto g = [&](double u) { return limit - d * signed_curvature(c, u); };
+  const auto k = unique_knots(c.knots()).first;
+  std::vector<std::pair<double, double>> out;
+  bool open = false;
+  double start = 0.0;
+  for (std::size_t i = 0; i + 1 < k.size(); ++i) {
+    if (k[i + 1] <= k[i] || k[i + 1] <= c.domain_start() || k[i] >= c.domain_end()) continue;
+    double ua = k[i], ga = g(ua);
+    if (i == 0 || !open) {
+      if (ga > 0 && !open) {
+        open = true;
+        start = ua;
+      }
     }
-  }
-  std::vector<double> lo(n), hi(n);
-  for (std::size_t i = 0; i < n; ++i) {
-    lo[i] = off[i].domain_start();
-    hi[i] = off[i].domain_end();
-  }
-  // corner between piece i and piece i + 1: 0 smooth, arc for reflex corners
-  std::vector<std::optional<NurbsCurve>> arcs(n);
-  for (std::size_t i = 0; i < n; ++i) {
-    const std::size_t j = (i + 1) % n;
-    const Vec3 ta = end_tangent(pieces[i]), tb = start_tangent(pieces[j]);
-    const double cr = cross2(ta, tb), dt = dot2(ta, tb);
-    if (std::abs(cr) <= 1e-9 && dt > 0) continue;  // tangent continuous
-    if (std::abs(cr) <= 1e-9) fail("the loop reverses its direction at a corner");
-    const Vec3 v = pieces[i].evaluate(pieces[i].domain_end());
-    if (cr > 0) {
-      // convex corner (left turn): the offsets overlap, trim both at their intersection
-      const auto xs = intersect(off[i], off[j], Tolerance{eps, 1e-12, 1e-9});
-      const Vec3 corner = v + (d / std::cos(0.5 * std::atan2(cr, dt))) *
-                                  unit_xy(Vec3{-ta.y, ta.x, 0} + Vec3{-tb.y, tb.x, 0});
-      double best = std::numeric_limits<double>::max();
-      double s = 0, t = 0;
-      for (const auto& x : xs) {
-        const double dist = distance(Vec3{x.point.x, x.point.y, 0}, Vec3{corner.x, corner.y, 0});
-        if (dist < best) {
-          best = dist;
-          s = x.s;
-          t = x.t;
+    for (int s = 1; s <= samples; ++s) {
+      const double ub = k[i] + (k[i + 1] - k[i]) * s / samples, gb = g(ub);
+      if ((ga > 0) != (gb > 0)) {
+        double a = ua, b = ub;  // bisection of the sign change
+        for (int it = 0; it < 60; ++it) {
+          const double m = 0.5 * (a + b);
+          if ((g(m) > 0) == (ga > 0))
+            a = m;
+          else
+            b = m;
+        }
+        const double r = 0.5 * (a + b);
+        if (ga > 0) {
+          if (r > start) out.emplace_back(start, r);
+          open = false;
+        } else {
+          open = true;
+          start = r;
         }
       }
-      if (xs.empty()) fail("the offsets of the pieces at a corner do not meet (a piece vanishes)");
-      hi[i] = std::min(hi[i], s);
-      lo[j] = std::max(lo[j], t);
-    } else {
-      // reflex corner (right turn): arc about the corner from left(ta) clockwise to left(tb)
-      const Vec3 x_axis{-ta.y, ta.x, 0}, y_axis{ta.x, ta.y, 0};
-      const double phi = std::atan2(-cr, dt);
-      arcs[i] = make_arc(Vec3{v.x, v.y, off[i].evaluate(hi[i]).z}, x_axis, y_axis, d, 0.0, phi);
+      ua = ub;
+      ga = gb;
     }
   }
-  std::vector<NurbsCurve> out;
-  for (std::size_t i = 0; i < n; ++i) {
-    const double span = off[i].domain_end() - off[i].domain_start();
-    if (hi[i] - lo[i] <= 1e-12 * span) fail("piece " + std::to_string(i) + " vanishes at a corner");
-    out.push_back(lo[i] > off[i].domain_start() || hi[i] < off[i].domain_end()
-                      ? off[i].sub_curve(lo[i], hi[i])
-                      : off[i]);
-    if (arcs[i]) out.push_back(*arcs[i]);
-  }
+  if (open && c.domain_end() > start) out.emplace_back(start, c.domain_end());
   return out;
 }
 
-/// True if two pieces of contours intersect away from a shared end point.
-bool pieces_cross(const NurbsCurve& a, const NurbsCurve& b, bool adjacent_ab, bool adjacent_ba,
-                  double eps) {
-  const auto xs = intersect(a, b, Tolerance{eps, 1e-12, 1e-9});
-  const Vec3 ae = a.evaluate(a.domain_end()), as = a.evaluate(a.domain_start());
-  const Vec3 bs = b.evaluate(b.domain_start()), be = b.evaluate(b.domain_end());
-  for (const auto& x : xs) {
-    if (adjacent_ab && distance(x.point, ae) <= 100 * eps && distance(x.point, bs) <= 100 * eps)
-      continue;
-    if (adjacent_ba && distance(x.point, as) <= 100 * eps && distance(x.point, be) <= 100 * eps)
-      continue;
-    return true;
+/// Splits a curve into pieces whose tangent turns by at most pi/2 (such pieces are simple, so
+/// all self-intersections of the offset are found as intersections between pieces).
+void split_by_turning(const NurbsCurve& c, std::vector<NurbsCurve>& out) {
+  const auto k = unique_knots(c.knots()).first;
+  std::vector<double> cuts{c.domain_start()};
+  double turned = 0.0;
+  Vec3 prev = start_tangent(c);
+  for (std::size_t i = 0; i + 1 < k.size(); ++i) {
+    if (k[i + 1] <= k[i] || k[i + 1] <= c.domain_start() || k[i] >= c.domain_end()) continue;
+    for (int s = 1; s <= 8; ++s) {
+      const double u = k[i] + (k[i + 1] - k[i]) * s / 8;
+      const Vec3 t = unit_xy(c.derivatives(u, 1)[1]);
+      turned += std::abs(std::atan2(cross2(prev, t), dot2(prev, t)));
+      prev = t;
+      if (turned > 0.5 * std::numbers::pi && u < c.domain_end()) {
+        cuts.push_back(u);
+        turned = 0.0;
+      }
+    }
   }
-  return false;
+  cuts.push_back(c.domain_end());
+  for (std::size_t i = 0; i + 1 < cuts.size(); ++i)
+    if (cuts[i + 1] > cuts[i])
+      out.push_back(cuts.size() == 2 ? c : c.sub_curve(cuts[i], cuts[i + 1]));
+}
+
+struct Raw {
+  NurbsCurve curve;
+  std::size_t loop{0};
+};
+
+/// Raw inward offset of every loop by d: regular parts of the piece offsets plus arcs about the
+/// corner at reflex corners; at convex corners and cusps the raw offset overlaps itself.
+void raw_offsets(const std::vector<std::vector<NurbsCurve>>& loops, double d, double fit_tol,
+                 std::vector<Raw>& raw) {
+  for (std::size_t li = 0; li < loops.size(); ++li) {
+    std::vector<NurbsCurve> pieces;
+    for (const auto& c : loops[li])
+      for (auto& p : split_at_c0_knots(c)) pieces.push_back(std::move(p));
+    const std::size_t n = pieces.size();
+    for (std::size_t i = 0; i < n; ++i) {
+      const auto& c = pieces[i];
+      for (const int samples : {16, 128}) {
+        try {
+          std::vector<NurbsCurve> offs;
+          for (const auto& [a, b] : regular_intervals(c, d, 1.0 - 1e-6, samples)) {
+            const auto part = a > c.domain_start() || b < c.domain_end() ? c.sub_curve(a, b) : c;
+            offs.push_back(offset_curve(part, d, {0, 0, 1}, fit_tol));
+          }
+          for (auto& o : offs) {
+            std::vector<NurbsCurve> parts;
+            split_by_turning(o, parts);
+            for (auto& q : parts) raw.push_back({std::move(q), li});
+          }
+          break;
+        } catch (const GeometryError&) {
+          if (samples == 128) throw;
+        }
+      }
+      // corner to the next piece
+      const std::size_t j = (i + 1) % n;
+      const Vec3 ta = end_tangent(pieces[i]), tb = start_tangent(pieces[j]);
+      const double cr = cross2(ta, tb), dt = dot2(ta, tb);
+      if (cr < -1e-9 || (std::abs(cr) <= 1e-9 && dt < 0)) {
+        // reflex corner (right turn): arc about the corner from left(ta) clockwise to left(tb)
+        const Vec3 v = pieces[i].evaluate(pieces[i].domain_end());
+        const double phi = std::atan2(std::abs(cr), dt);
+        std::vector<NurbsCurve> parts;
+        split_by_turning(make_arc(v, {-ta.y, ta.x, 0}, {ta.x, ta.y, 0}, d, 0.0, phi), parts);
+        for (auto& q : parts) raw.push_back({std::move(q), li});
+      }
+    }
+  }
+}
+
+struct Fragment {
+  NurbsCurve curve;
+  std::size_t loop{0};
+  Vec3 a, b, ta, tb;
+  double length{0.0};
+  bool used{false};
+};
+
+double chord_length(const NurbsCurve& c) {
+  double l = 0.0;
+  Vec3 p = c.evaluate(c.domain_start());
+  for (int i = 1; i <= 16; ++i) {
+    const Vec3 q = c.evaluate(c.domain_start() + (c.domain_end() - c.domain_start()) * i / 16);
+    l += distance(p, q);
+    p = q;
+  }
+  return l;
+}
+
+/// Winding number of the loops about p (crossings of the line y = p.y left of p).
+int winding(const std::vector<std::vector<Bez>>& bez_y,
+            const std::vector<std::vector<NurbsCurve>>& loops, const Vec3& p, double eps) {
+  std::vector<Run> runs;
+  std::vector<Crossing> xs;
+  for (std::size_t li = 0; li < loops.size(); ++li)
+    loop_crossings(bez_y[li], loops[li], li, p.y, eps, {1, 0, 0}, runs, xs);
+  int w = 0;
+  for (const auto& x : xs)
+    if (x.x < p.x) w += x.wind;
+  return w;
+}
+
+/// Inward offset of the region bounded by the loops at distance d: the raw offsets are split at
+/// all their intersections, the fragments farther than d from the boundary (and inside the
+/// region) are kept and chained into closed contours (at junctions the leftmost continuation).
+std::vector<HatchContour> contours_at(const std::vector<std::vector<NurbsCurve>>& loops,
+                                      const std::vector<std::vector<Bez>>& bez_y, double d,
+                                      double fit_tol, double eps, double join_gap) {
+  std::vector<Raw> raw;
+  try {
+    raw_offsets(loops, d, fit_tol, raw);
+  } catch (const GeometryError& e) {
+    throw GeometryError("hatch: contour at distance " + fmt(d) + ": " + e.what());
+  }
+  const double ctol = std::max(100.0 * fit_tol, 10.0 * join_gap);
+  const std::size_t n = raw.size();
+  std::vector<std::array<double, 4>> box(n);
+  std::vector<Vec3> rs(n), re(n);
+  for (std::size_t i = 0; i < n; ++i) {
+    box[i] = {1e300, 1e300, -1e300, -1e300};
+    for (const auto& q : raw[i].curve.control_points())
+      box[i] = {std::min(box[i][0], q.x), std::min(box[i][1], q.y), std::max(box[i][2], q.x),
+                std::max(box[i][3], q.y)};
+    rs[i] = raw[i].curve.evaluate(raw[i].curve.domain_start());
+    re[i] = raw[i].curve.evaluate(raw[i].curve.domain_end());
+  }
+  // split points at all intersections
+  std::vector<std::vector<double>> cuts(n);
+  for (std::size_t i = 0; i < n; ++i)
+    for (std::size_t j = i + 1; j < n; ++j) {
+      if (box[i][0] > box[j][2] + ctol || box[j][0] > box[i][2] + ctol ||
+          box[i][1] > box[j][3] + ctol || box[j][1] > box[i][3] + ctol)
+        continue;
+      for (const auto& x : intersect(raw[i].curve, raw[j].curve, Tolerance{fit_tol, 1e-12, 1e-9})) {
+        // the end of one piece touching the end of the other: a connection, not a crossing
+        const auto joint = [&](const Vec3& p, const Vec3& q) {
+          return distance(x.point, p) <= ctol && distance(x.point, q) <= ctol &&
+                 distance(p, q) <= ctol;
+        };
+        if (joint(re[i], rs[j]) || joint(rs[i], re[j]) || joint(re[i], re[j]) ||
+            joint(rs[i], rs[j]))
+          continue;
+        cuts[i].push_back(x.s);  // fragments shorter than ctol next to an end are dropped
+        cuts[j].push_back(x.t);
+      }
+    }
+  // fragments; keep those at distance >= d from the boundary and inside the region
+  std::vector<std::array<double, 4>> lbox;
+  std::vector<const NurbsCurve*> lcurve;
+  for (const auto& l : loops)
+    for (const auto& c : l) {
+      std::array<double, 4> b{1e300, 1e300, -1e300, -1e300};
+      for (const auto& q : c.control_points())
+        b = {std::min(b[0], q.x), std::min(b[1], q.y), std::max(b[2], q.x), std::max(b[3], q.y)};
+      lbox.push_back(b);
+      lcurve.push_back(&c);
+    }
+  const double dmin = d - 2.0 * fit_tol - join_gap;
+  std::vector<Fragment> frags;
+  for (std::size_t i = 0; i < n; ++i) {
+    const auto& c = raw[i].curve;
+    auto& cu = cuts[i];
+    cu.push_back(c.domain_start());
+    cu.push_back(c.domain_end());
+    std::sort(cu.begin(), cu.end());
+    const double ptol = 1e-12 * (c.domain_end() - c.domain_start());
+    for (std::size_t k = 0; k + 1 < cu.size(); ++k) {
+      if (cu[k + 1] - cu[k] <= ptol) continue;
+      const double um = 0.5 * (cu[k] + cu[k + 1]);
+      const Vec3 m = c.evaluate(um);
+      bool keep = true;
+      for (std::size_t q = 0; q < lcurve.size() && keep; ++q) {
+        const auto& b = lbox[q];
+        const double bx = std::max({b[0] - m.x, 0.0, m.x - b[2]}),
+                     by = std::max({b[1] - m.y, 0.0, m.y - b[3]});
+        if (std::hypot(bx, by) >= dmin) continue;
+        if (closest_point(*lcurve[q], Vec3{m.x, m.y, lcurve[q]->control_points()[0].z}).distance <
+            dmin)
+          keep = false;
+      }
+      if (!keep || winding(bez_y, loops, m, eps) <= 0) continue;
+      auto fc = cu[k] > c.domain_start() || cu[k + 1] < c.domain_end()
+                    ? c.sub_curve(cu[k], cu[k + 1])
+                    : c;
+      Fragment f{fc,
+                 raw[i].loop,
+                 fc.evaluate(fc.domain_start()),
+                 fc.evaluate(fc.domain_end()),
+                 start_tangent(fc),
+                 end_tangent(fc),
+                 chord_length(fc),
+                 false};
+      if (f.length <= ctol) continue;
+      frags.push_back(std::move(f));
+    }
+  }
+  // chain into closed loops, longest fragments first
+  std::vector<std::size_t> order(frags.size());
+  for (std::size_t i = 0; i < order.size(); ++i) order[i] = i;
+  std::sort(order.begin(), order.end(),
+            [&](std::size_t x, std::size_t y) { return frags[x].length > frags[y].length; });
+  std::vector<HatchContour> out;
+  for (const std::size_t first : order) {
+    if (frags[first].used) continue;
+    std::vector<std::size_t> chain{first};
+    frags[first].used = true;
+    bool closed = false;
+    for (;;) {
+      const auto& cur = frags[chain.back()];
+      if (distance(cur.b, frags[first].a) <= ctol) {
+        closed = true;
+        break;
+      }
+      std::size_t next = frags.size();
+      double best = -10.0;
+      for (std::size_t j = 0; j < frags.size(); ++j) {
+        if (frags[j].used || distance(frags[j].a, cur.b) > ctol) continue;
+        const double turn = std::atan2(cross2(cur.tb, frags[j].ta), dot2(cur.tb, frags[j].ta));
+        if (turn > best) {
+          best = turn;
+          next = j;
+        }
+      }
+      if (next == frags.size()) break;
+      frags[next].used = true;
+      chain.push_back(next);
+    }
+    double len = 0.0;
+    for (const auto i : chain) len += frags[i].length;
+    if (!closed) {
+      if (len < d) continue;  // a leftover overlap at a nearly smooth corner
+      throw GeometryError("hatch: contour at distance " + fmt(d) + " does not close near (" +
+                          fmt(frags[chain.back()].b.x) + ", " + fmt(frags[chain.back()].b.y) + ")");
+    }
+    HatchContour hc;
+    hc.distance = d;
+    for (const auto i : chain) {
+      hc.curves.push_back(frags[i].curve);
+      hc.loops.push_back(frags[i].loop);
+    }
+    if (std::abs(loop_area(hc.curves)) <= ctol * len) continue;  // degenerate sliver
+    std::sort(hc.loops.begin(), hc.loops.end());
+    hc.loops.erase(std::unique(hc.loops.begin(), hc.loops.end()), hc.loops.end());
+    hc.loop = hc.loops.front();
+    // start the chain at the beginning of a piece of the lowest source loop
+    out.push_back(std::move(hc));
+  }
+  std::sort(out.begin(), out.end(),
+            [](const HatchContour& x, const HatchContour& y) { return x.loops < y.loops; });
+  return out;
 }
 
 }  // namespace
@@ -461,34 +709,22 @@ Hatching hatch(const std::vector<std::vector<NurbsCurve>>& loops, const Vec3& di
   // contours
   for (const double dist : options.contours)
     if (!(dist > 0.0)) throw GeometryError("hatch: contour distances must be > 0");
-  for (std::size_t li = 0; li < loops.size(); ++li)
+  if (!options.contours.empty()) {
+    double join_gap = 0.0;  // largest gap between consecutive curves of a loop
+    for (const auto& l : loops)
+      for (std::size_t i = 0; i < l.size(); ++i)
+        join_gap = std::max(
+            join_gap,
+            distance(l[i].evaluate(l[i].domain_end()),
+                     l[(i + 1) % l.size()].evaluate(l[(i + 1) % l.size()].domain_start())));
+    const auto bez_y = make_bez(loops, {0, 1, 0});
     for (std::size_t ci = 0; ci < options.contours.size(); ++ci)
-      out.contours.push_back({contour(loops[li], li, options.contours[ci], fit_tol, eps), li, ci,
-                              options.contours[ci]});
-
-  // the contours of one distance must be simple and disjoint
-  for (std::size_t ci = 0; ci < options.contours.size(); ++ci) {
-    std::vector<const HatchContour*> cs;
-    for (const auto& hc : out.contours)
-      if (hc.index == ci) cs.push_back(&hc);
-    for (std::size_t a = 0; a < cs.size(); ++a)
-      for (std::size_t b = a; b < cs.size(); ++b) {
-        const auto& A = cs[a]->curves;
-        const auto& B = cs[b]->curves;
-        for (std::size_t i = 0; i < A.size(); ++i)
-          for (std::size_t j = (a == b ? i + 1 : 0); j < B.size(); ++j) {
-            const bool ab = a == b && j == i + 1;
-            const bool ba = a == b && i == 0 && j + 1 == A.size();
-            if (pieces_cross(A[i], B[j], ab, ba, fit_tol)) {
-              throw GeometryError(
-                  "hatch: contour at distance " + fmt(options.contours[ci]) + " of loop " +
-                  std::to_string(cs[a]->loop) +
-                  (a == b ? " intersects itself"
-                          : " intersects the contour of loop " + std::to_string(cs[b]->loop)) +
-                  " (the distance exceeds the local half-width of the region)");
-            }
-          }
+      for (auto& hc : contours_at(loops, bez_y, options.contours[ci], fit_tol, eps, join_gap)) {
+        hc.index = ci;
+        out.contours.push_back(std::move(hc));
       }
+    std::stable_sort(out.contours.begin(), out.contours.end(),
+                     [](const HatchContour& x, const HatchContour& y) { return x.loop < y.loop; });
   }
   return out;
 }

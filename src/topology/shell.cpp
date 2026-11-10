@@ -307,4 +307,131 @@ double Shell::volume(double rel_tol) const {
   return V;
 }
 
+namespace {
+
+/// Eigen decomposition of a symmetric 3x3 matrix (cyclic Jacobi rotations); eigenvalues
+/// ascending, eigenvectors as unit columns.
+void symmetric_eigen(std::array<double, 9> a, std::array<double, 3>& values,
+                     std::array<Vec3, 3>& vectors) {
+  std::array<double, 9> v{1, 0, 0, 0, 1, 0, 0, 0, 1};
+  const auto A = [&](int i, int j) -> double& { return a[static_cast<std::size_t>(3 * i + j)]; };
+  const auto V = [&](int i, int j) -> double& { return v[static_cast<std::size_t>(3 * i + j)]; };
+  for (int sweep = 0; sweep < 50; ++sweep) {
+    const double off = A(0, 1) * A(0, 1) + A(0, 2) * A(0, 2) + A(1, 2) * A(1, 2);
+    const double diag = A(0, 0) * A(0, 0) + A(1, 1) * A(1, 1) + A(2, 2) * A(2, 2);
+    if (off <= 1e-32 * diag || off == 0.0) break;
+    for (int p = 0; p < 2; ++p)
+      for (int q = p + 1; q < 3; ++q) {
+        if (A(p, q) == 0.0) continue;
+        const double theta = 0.5 * (A(q, q) - A(p, p)) / A(p, q);
+        const double t = (theta >= 0 ? 1.0 : -1.0) / (std::abs(theta) + std::sqrt(theta * theta + 1));
+        const double c = 1 / std::sqrt(t * t + 1), sn = t * c;
+        for (int k = 0; k < 3; ++k) {  // A <- A J
+          const double akp = A(k, p), akq = A(k, q);
+          A(k, p) = c * akp - sn * akq;
+          A(k, q) = sn * akp + c * akq;
+        }
+        for (int k = 0; k < 3; ++k) {  // A <- J^T A
+          const double apk = A(p, k), aqk = A(q, k);
+          A(p, k) = c * apk - sn * aqk;
+          A(q, k) = sn * apk + c * aqk;
+        }
+        for (int k = 0; k < 3; ++k) {
+          const double vkp = V(k, p), vkq = V(k, q);
+          V(k, p) = c * vkp - sn * vkq;
+          V(k, q) = sn * vkp + c * vkq;
+        }
+      }
+  }
+  std::array<int, 3> idx{0, 1, 2};
+  std::sort(idx.begin(), idx.end(), [&](int x, int y) { return A(x, x) < A(y, y); });
+  for (std::size_t k = 0; k < 3; ++k) {
+    const int c = idx[k];
+    values[k] = A(c, c);
+    vectors[k] = normalized(Vec3{V(0, c), V(1, c), V(2, c)});
+  }
+}
+
+}  // namespace
+
+MassProperties Shell::mass_properties(double rel_tol) const {
+  if (!is_closed()) throw GeometryError("shell: mass properties require a closed shell");
+  if (!is_consistently_oriented())
+    throw GeometryError("shell: mass properties require a consistently oriented shell");
+  // reference point: centre of the bounding box of the control points (conditioning)
+  Vec3 lo{1e300, 1e300, 1e300}, hi{-1e300, -1e300, -1e300};
+  for (const auto& f : faces_)
+    for (const auto& p : f.surface().control_points()) {
+      lo = {std::min(lo.x, p.x), std::min(lo.y, p.y), std::min(lo.z, p.z)};
+      hi = {std::max(hi.x, p.x), std::max(hi.y, p.y), std::max(hi.z, p.z)};
+    }
+  const Vec3 c0 = 0.5 * (lo + hi);
+  const double L = std::max(0.5 * distance(lo, hi), 1e-300);
+  const double A = std::max(area(1e-6), 1e-300);
+  const double nf_ = static_cast<double>(faces_.size());
+  // integral over the solid of x^a y^b z^c (relative to c0) as a sum of face integrals of a
+  // field whose divergence it is
+  enum Field { kV, kX, kY, kZ, kXX, kYY, kZZ, kXY, kXZ, kYZ };
+  const auto integral = [&](Field fld, int order) {
+    const double abs_tol = rel_tol * A * std::pow(L, order + 1) / nf_;
+    double sum = 0.0;
+    for (const auto& f : faces_) {
+      const NurbsSurface& srf = f.surface();
+      sum += f.integrate(
+          [&](double u, double v) {
+            const auto d = srf.first_derivatives(u, v);
+            const Vec3 p = d[0] - c0, n = cross(d[1], d[2]);
+            switch (fld) {
+              case kV: return dot(p, n) / 3.0;
+              case kX: return 0.5 * p.x * p.x * n.x;
+              case kY: return 0.5 * p.y * p.y * n.y;
+              case kZ: return 0.5 * p.z * p.z * n.z;
+              case kXX: return p.x * p.x * p.x * n.x / 3.0;
+              case kYY: return p.y * p.y * p.y * n.y / 3.0;
+              case kZZ: return p.z * p.z * p.z * n.z / 3.0;
+              case kXY: return 0.5 * p.x * p.x * p.y * n.x;
+              case kXZ: return 0.5 * p.x * p.x * p.z * n.x;
+              case kYZ: return 0.5 * p.y * p.y * p.z * n.y;
+            }
+            return 0.0;
+          },
+          rel_tol, abs_tol);
+    }
+    return sum;
+  };
+  MassProperties mp;
+  mp.volume = integral(kV, 0);
+  if (!(mp.volume > 0.0))
+    throw GeometryError("shell: mass properties need a positive volume (normals outwards)");
+  const Vec3 m{integral(kX, 1) / mp.volume, integral(kY, 1) / mp.volume,
+               integral(kZ, 1) / mp.volume};
+  mp.centroid = c0 + m;
+  // second moments about the centroid (parallel-axis theorem), then the inertia tensor
+  const double V = mp.volume;
+  const double cxx = integral(kXX, 2) - V * m.x * m.x, cyy = integral(kYY, 2) - V * m.y * m.y,
+               czz = integral(kZZ, 2) - V * m.z * m.z, cxy = integral(kXY, 2) - V * m.x * m.y,
+               cxz = integral(kXZ, 2) - V * m.x * m.z, cyz = integral(kYZ, 2) - V * m.y * m.z;
+  mp.inertia = {cyy + czz, -cxy, -cxz, -cxy, cxx + czz, -cyz, -cxz, -cyz, cxx + cyy};
+  symmetric_eigen(mp.inertia, mp.principal_moments, mp.principal_axes);
+  return mp;
+}
+
+Shell Shell::transformed(const Transform& t) const {
+  const auto& M = t.matrix();
+  const double det = M[0] * (M[5] * M[10] - M[6] * M[9]) - M[1] * (M[4] * M[10] - M[6] * M[8]) +
+                     M[2] * (M[4] * M[9] - M[5] * M[8]);
+  if (det == 0.0) throw GeometryError("shell: transformed by a singular map");
+  double scale = 0.0;  // largest column norm: bound for the stretch of the sewing tolerance
+  for (int c = 0; c < 3; ++c)
+    scale = std::max(scale, std::hypot(M[static_cast<std::size_t>(c)], M[static_cast<std::size_t>(4 + c)],
+                                       M[static_cast<std::size_t>(8 + c)]));
+  std::vector<TrimmedSurface> faces;
+  faces.reserve(faces_.size());
+  for (const auto& f : faces_) {
+    TrimmedSurface g(f.surface().transformed(t), f.outer(), f.holes());
+    faces.push_back(det < 0 ? g.flipped() : std::move(g));
+  }
+  return sew(std::move(faces), tol_ * std::max(scale, 1.0));
+}
+
 }  // namespace nf

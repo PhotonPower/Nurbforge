@@ -214,6 +214,21 @@ def test_boolean_tool():
     assert out.startswith("stored lens: closed shell, volume 1.30")
 
 
+def test_solid_and_mass_properties_tools():
+    ws = Workspace()
+    out = call_tool(ws, "solid", {"name": "c", "kind": "cylinder", "point": [0, 0, 0],
+                                  "axis": [0, 0, 1], "radius": 1, "height": 2})
+    assert out == "stored c: closed shell, volume 6.28319"
+    call_tool(ws, "solid", {"name": "b", "kind": "box", "point": [-2, -2, 0.5], "size": [4, 4, 1]})
+    call_tool(ws, "boolean", {"name": "d", "a": "b", "b": "c", "op": "difference"})
+    call_tool(ws, "rotate", {"name": "r", "source": "d", "axis_point": [0, 0, 0],
+                             "axis_dir": [1, 0, 0], "angle_deg": 90})
+    out = call_tool(ws, "mass_properties", {"name": "r"})
+    assert out.startswith("r: volume 12.8584, centroid (0, -1, 0), inertia [21.6195 0 0; 0 41.0959 0;")
+    assert "solid 'sphere' needs radius" in call_tool(ws, "solid", {"name": "s", "kind": "sphere",
+                                                                     "point": [0, 0, 0]})
+
+
 def test_export_step_tool(tmp_path):
     ws = Workspace()
     call_tool(ws, "make_rectangle", {"name": "plate", "origin": [0, 0, 0], "edge_u": [1, 0, 0],

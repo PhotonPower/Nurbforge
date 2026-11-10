@@ -33,6 +33,7 @@
 
 ## 0.5 – Topology & Booleans
 - B-rep shells (vertex/edge/coedge/face/shell) ✅, watertightness and orientation checks ✅, volume ✅; bodies with several shells ✅ (voids, lumps)
+- Solid primitives as closed shells (box, sphere, cylinder, cone, torus) ✅, mass properties (centroid, inertia tensor, principal axes) ✅, affine transforms of shells ✅ (#18)
 - Boolean union / intersection / difference on trimmed NURBS shells ✅ (incl. coincident faces and tangential contacts)
 - STEP / IGES export via OCC ✅
 - Native STEP writer (AP214, no dependencies) ✅
@@ -46,7 +47,7 @@
 
 ## 0.7 – Writing paths (for Voxelspaetzle's 2PP process model)
 - Hatching of section loops: exact hatch lines (holes, islands, tangential contacts) and inward contours ✅ (#44)
-- Contours that split into several loops (offset beyond the local half-width)
+- Contours that split, merge and vanish (offset beyond the local half-width) ✅
 
 ## Infrastructure
 - ✅ Wheels via cibuildwheel (manylinux_2_28 for AlmaLinux 10 compatibility, win_amd64)

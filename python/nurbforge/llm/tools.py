@@ -322,6 +322,56 @@ def _build_tools() -> list[Tool]:
             return f"stored {name}: closed shell, volume {shell.volume(1e-7):.6g}"
         return f"stored {name}: open shell with {len(shell.free_edges())} free edges"
 
+    @add("solid", "Create a closed solid (shell with outward normals): kind 'box' (corner = "
+         "'point', edge lengths = 'size'), 'sphere' (center, radius), 'cylinder' (base center, "
+         "axis, radius, height), 'cone' (base, axis, radius = base radius, radius2 = top radius, "
+         "0 for an apex, height) or 'torus' (center, axis, radius = major, radius2 = tube).",
+         {"name": _NAME, "kind": {"type": "string",
+                                  "enum": ["box", "sphere", "cylinder", "cone", "torus"]},
+          "point": _VEC, "axis": _VEC, "size": _VEC, "radius": {"type": "number"},
+          "radius2": {"type": "number"}, "height": {"type": "number"}},
+         ["name", "kind", "point"])
+    def _(ws, name, kind, point, axis=(0, 0, 1), size=None, radius=None, radius2=None,
+          height=None):
+        def need(**kw):
+            missing = [k for k, v in kw.items() if v is None]
+            if missing:
+                raise ValueError(f"solid '{kind}' needs {', '.join(missing)}")
+        if kind == "box":
+            need(size=size)
+            shell = nf.make_box(point, size)
+        elif kind == "sphere":
+            need(radius=radius)
+            shell = nf.make_sphere(point, radius)
+        elif kind == "cylinder":
+            need(radius=radius, height=height)
+            shell = nf.make_cylinder(point, axis, radius, height)
+        elif kind == "cone":
+            need(radius=radius, radius2=radius2, height=height)
+            shell = nf.make_cone(point, axis, radius, radius2, height)
+        else:
+            need(radius=radius, radius2=radius2)
+            shell = nf.make_torus(point, axis, radius, radius2)
+        ws.put(name, shell)
+        return f"stored {name}: closed shell, volume {shell.volume(1e-7):.6g}"
+
+    @add("mass_properties", "Volume, centroid and inertia tensor (about the centroid, unit "
+         "density; principal moments and axes) of a closed shell.",
+         {"name": _NAME}, ["name"])
+    def _(ws, name):
+        mp = ws.get(name).mass_properties()
+        c = mp.centroid
+        size = mp.volume ** (1 / 3)
+        imax = max(abs(x) for row in mp.inertia for x in row)
+
+        def g(x, scale, digits=6):  # rounding noise far below the scale shows as 0
+            return f"{0.0 if abs(x) < 1e-7 * scale else x:.{digits}g}"
+        rows = "; ".join(" ".join(g(x, imax) for x in row) for row in mp.inertia)
+        moments = ", ".join(g(x, imax) for x in mp.principal_moments)
+        axes = "; ".join(" ".join(g(x, 1.0, 4) for x in a) for a in mp.principal_axes)
+        return (f"{name}: volume {mp.volume:.6g}, centroid ({g(c.x, size)}, {g(c.y, size)}, "
+                f"{g(c.z, size)}), inertia [{rows}], principal moments {moments}, axes [{axes}]")
+
     @add("boolean", "Boolean operation of two closed shells (from 'sew'): union, intersection or "
          "difference (a minus b). Reports the volume of the result.",
          {"name": _NAME, "a": _NAME, "b": _NAME,

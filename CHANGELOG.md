@@ -12,10 +12,23 @@ versioning: [SemVer](https://semver.org).
   region follows the loop orientation (winding number), so holes and islands in holes are right.
   Tangential contacts and edges lying on a line do not split it (no zero-length segments).
   Segments carry their line index, the outer loop of their region and the loops they start and
-  end on. Contours are inward offsets of every loop (trimmed at convex corners, arcs at reflex
-  corners); contours that would split or vanish throw `GeometryError`. Python:
+  end on. Contours are the boundaries of the region shrunk by each distance: the raw offsets of
+  all loops (arcs at reflex corners, parts beyond the radius of curvature left out) are split at
+  all intersections, and the fragments at the full distance from the loops and inside the region
+  are chained – so contours are trimmed at convex corners, split at necks narrower than twice the
+  distance, merge where holes come close (`HatchContour.loops`) and vanish where the region is too
+  thin. Checked against shapely's `buffer(-d)` on ~2000 random polygons and spline loops. Python:
   `nf.hatch(loops, direction, spacing, phase=…, contours=[…], min_length=…)` →
   `(segments, contours)`; example `examples/python/11_slice_and_hatch.py`.
+- Solid primitives as closed shells with exact faces and outward normals: `make_box`,
+  `make_sphere`, `make_cylinder`, `make_cone` (frustum, or cone with apex), `make_torus` (#18).
+- `Shell::mass_properties()`: volume, centroid, inertia tensor about the centroid (unit density),
+  principal moments and axes – face integrals by the divergence theorem relative to the bounding
+  box centre, voids subtracted (#18).
+- `Shell::transformed(transform)` (Python also `transform * shell`): affine maps of shells; mirrors
+  flip the faces so normals stay outward. The LLM tools `translate`, `rotate`, `mirror` now work
+  on shells, and the new tools `solid` and `mass_properties` create and measure solids.
+- `TrimmedSurface.flipped()` in Python.
 
 ### Fixed
 - Boolean difference returned open shells for parts with coplanar lids (#45):

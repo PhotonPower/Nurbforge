@@ -43,10 +43,14 @@ struct HatchSegment {
   [[nodiscard]] double length() const { return distance(start, end); }
 };
 
-/// Closed contour line: inward offset of one loop, oriented like the loop (region on the left).
+/// Closed contour line: boundary of the region shrunk by `distance`, oriented like the loops
+/// (region on the left). Usually the offset of one loop; where the region splits (a neck narrower
+/// than 2 distance) a loop gives several contours, and where a hole comes closer than 2 distance
+/// to another loop their contours merge into one.
 struct HatchContour {
   std::vector<NurbsCurve> curves;  ///< consecutive pieces (offsets, arcs at reflex corners)
-  std::size_t loop{0};             ///< index of the loop it was offset from
+  std::size_t loop{0};             ///< loops.front()
+  std::vector<std::size_t> loops;  ///< indices of the loops it was offset from (sorted)
   std::size_t index{0};            ///< index of the distance in HatchOptions::contours
   double distance{0.0};
 };
@@ -54,7 +58,7 @@ struct HatchContour {
 struct Hatching {
   /// Sorted by line index, then along the direction.
   std::vector<HatchSegment> segments;
-  /// Sorted by loop, then by the order of the distances in HatchOptions::contours.
+  /// Sorted by (first) source loop, then by the order of the distances in HatchOptions::contours.
   std::vector<HatchContour> contours;
 };
 
@@ -77,14 +81,16 @@ struct Hatching {
 /// Consequently tangent lines give no zero-length segments, and edges lying exactly on a hatch
 /// line are not hatched themselves (write them as contours).
 ///
-/// Contours (options.contours) are inward offsets of every loop (offset_curve to the left of the
-/// direction of travel, i.e. into the region, also for holes): the offset pieces are trimmed at
-/// their intersection at convex corners and joined by circular arcs about the corner at reflex
-/// corners (the exact offset of the region there). Throws GeometryError if a contour is not
-/// simple: an offset distance reaches the radius of curvature of a concave part, a piece
-/// vanishes at a corner, or contours of the same distance intersect themselves or each other
-/// (the distance exceeds the local half-width of the region; splitting a region into several
-/// contours is not supported).
+/// Contours (options.contours) are the boundaries of the region shrunk by each distance d, i.e.
+/// of the points of the region at distance >= d from all loops. The raw offset of every loop
+/// (offset_curve of its pieces to the left, i.e. into the region, also for holes; circular arcs
+/// about reflex corners; parts where d reaches the radius of curvature of a concave piece left
+/// out) is split at all its self- and mutual intersections; the fragments at distance >= d from
+/// the loops (within the fit tolerance) and inside the region are chained into closed contours.
+/// So contours are trimmed at convex corners, split where the region is narrower than 2 d,
+/// merged where a hole comes closer than 2 d to another loop, and vanish where the region is
+/// thinner than 2 d everywhere (no contour for that loop). Consecutive contour curves meet within
+/// max(100 contour_tolerance, 10 x the largest gap between consecutive loop curves).
 ///
 /// Throws GeometryError if spacing <= 0, the direction is zero in the xy plane, or the number of
 /// lines exceeds 10^7.

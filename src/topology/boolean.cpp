@@ -277,14 +277,33 @@ std::vector<NurbsCurve> projected_loops(const TrimmedSurface& from, const NurbsS
   return out;
 }
 
-// Drops cuts that run along the face's loops or along an earlier cut (9 samples within 1e-6 of
+// Drops cuts that run along the face's loops or along a longer cut (9 samples within 1e-6 of
 // the parameter domain): the same boundary often arrives twice – as the projected loop of a
 // coincident face and as an intersection curve with an adjacent face – with slightly different
 // fits. Nearly coincident curves would make the curve/curve intersection in the arrangement
-// subdivide down to its size limit everywhere.
+// subdivide down to its size limit everywhere. Longer cuts are kept first: an intersection curve
+// along the other face's boundary is often broken into pieces (its in/out test flips on that
+// boundary) while the projected loop is whole; keeping the pieces and dropping the loop would
+// leave the cut open and the face unsplit.
 std::vector<NurbsCurve> prune_cuts(const TrimmedSurface& face, std::vector<NurbsCurve> cuts) {
   const auto du = face.surface().domain_u(), dv = face.surface().domain_v();
   const double eps = 1e-6 * std::max(du[1] - du[0], dv[1] - dv[0]);
+  const auto length = [](const NurbsCurve& c) {
+    double l = 0.0;
+    Vec3 p = c.evaluate(c.domain_start());
+    for (int k = 1; k <= 32; ++k) {
+      const Vec3 q = c.evaluate(c.domain_start() + (c.domain_end() - c.domain_start()) * k / 32.0);
+      l += distance(p, q);
+      p = q;
+    }
+    return l;
+  };
+  std::vector<std::pair<double, std::size_t>> order;
+  for (std::size_t k = 0; k < cuts.size(); ++k) order.emplace_back(-length(cuts[k]), k);
+  std::stable_sort(order.begin(), order.end());
+  std::vector<NurbsCurve> sorted;
+  for (const auto& [l, k] : order) sorted.push_back(std::move(cuts[k]));
+  cuts = std::move(sorted);
   std::vector<const NurbsCurve*> ref;
   for (const auto& c : face.outer().curves) ref.push_back(&c);
   for (const auto& h : face.holes())

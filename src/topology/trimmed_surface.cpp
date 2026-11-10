@@ -366,7 +366,17 @@ std::vector<std::vector<NurbsCurve>> TrimmedSurface::boundary_curves(double tole
       crossings(1, std::vector<double>(kv.begin() + 1, kv.end() - 1), 1e-9 * (kv.back() - kv.front()));
       br.insert(br.end(), extra.begin(), extra.end());
       std::sort(br.begin(), br.end());
-      br.erase(std::unique(br.begin(), br.end(), [](double x, double y) { return y - x <= 1e-12; }), br.end());
+      // breaks closer than the parametric resolution would give pieces that join() cannot fuse
+      // (it removes the knot at the joint, which must be interior to the joined domain); the
+      // domain ends are kept exactly
+      const double close = std::max(10.0 * tol::kParametric, 1e-12 * (br.back() - br.front()));
+      std::vector<double> kept{br.front()};
+      for (std::size_t k = 1; k < br.size(); ++k) {
+        if (br[k] - kept.back() > close) kept.push_back(br[k]);
+        else if (k + 1 == br.size() && kept.size() > 1) kept.back() = br[k];
+      }
+      if (kept.size() == 1) kept.push_back(br.back());
+      br = std::move(kept);
     }
     for (std::size_t s = 0; s + 1 < br.size(); ++s) {
       const double a = br[s], b = br[s + 1];

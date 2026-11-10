@@ -151,6 +151,26 @@ TEST_CASE("Booleans with coincident faces (cylinders)", "[boolean][coincident]")
   }
 }
 
+TEST_CASE("Booleans with coincident lids and holes (issue #45)", "[boolean][coincident]") {
+  // parts standing on a substrate: coaxial cylinders sharing both lids, and a ring (a cylinder
+  // with a through hole) drilled again with a larger hole
+  const double h = 5.0, big = pi * 400.0 * h, mid = pi * 196.0 * h, small = pi * 144.0 * h;
+  SECTION("coaxial cylinders, both lids coplanar") {
+    // the cut circle on the top lid arrived both as a fragmented intersection curve (it lies on
+    // the boundary of the inner cylinder's side) and as the projected lid loop; the fragments
+    // were kept, the loop dropped, and the lid was not split
+    check_volumes(cylinder_shell(20, 0, h), cylinder_shell(14, 0, h), big, mid, big - mid);
+  }
+  SECTION("re-cutting a hole") {
+    // the old inner trim loop lies in the removed region; the probe of the outer region used to
+    // land in that hole and the remaining annulus was dropped
+    const Shell ring = boolean(cylinder_shell(20, 0, h), cylinder_shell(12, -1, h + 1), BooleanOp::Difference);
+    REQUIRE(ring.is_closed());
+    REQUIRE(rel_close(ring.volume(1e-10), big - small, 1e-9));
+    check_volumes(ring, cylinder_shell(14, -1, h + 1), big + pi * 196.0 * 2.0, mid - small, big - mid);
+  }
+}
+
 // ------------------------------------------------------------------ bodies with several shells
 
 namespace {

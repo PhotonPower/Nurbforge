@@ -2,12 +2,19 @@ name: Wheels
 
 # Binary wheels (manylinux_2_28 x86_64, win_amd64; CPython 3.10-3.13) and an sdist.
 # cibuildwheel is configured in pyproject.toml ([tool.cibuildwheel]); every wheel is tested
-# with the pytest suite before it is uploaded as an artifact.
+# with the pytest suite before it is uploaded as an artifact. For a v* tag the release job then
+# creates the GitHub release with the wheels, the sdist and the tag's CHANGELOG section; an
+# existing tag can be (re)released by running the workflow manually with `release_tag`.
 
 on:
   push:
     tags: ["v*"]
   workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Existing tag (e.g. v0.7.0) to build from and publish as a GitHub release"
+        required: false
+        default: ""
   # Only packaging changes trigger wheel builds on PRs. Source changes (incl. CMakeLists.txt,
   # which nearly every feature PR touches) are built and tested on both platforms by ci.yml;
   # wheels are built for tags and on demand (workflow_dispatch).
@@ -33,6 +40,8 @@ jobs:
         os: [ubuntu-latest, windows-latest]
     steps:
       - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.release_tag || github.ref }}
       - name: Build and test wheels
         uses: pypa/cibuildwheel@v3.2.1
         with:
@@ -48,6 +57,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.release_tag || github.ref }}
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
@@ -61,6 +72,49 @@ jobs:
           name: sdist
           path: dist/*.tar.gz
           if-no-files-found: error
+
+  release:
+    name: GitHub release
+    needs: [wheels, sdist]
+    if: >-
+      startsWith(github.ref, 'refs/tags/v') ||
+      (github.event_name == 'workflow_dispatch' && inputs.release_tag != '')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      TAG: ${{ inputs.release_tag || github.ref_name }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.release_tag || github.ref }}
+      - uses: actions/download-artifact@v5
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Release notes from CHANGELOG.md
+        run: |
+          python3 - <<'PY'
+          import os, re
+          version = os.environ["TAG"].removeprefix("v")
+          text = open("CHANGELOG.md", encoding="utf-8").read()
+          m = re.search(r"^## \[" + re.escape(version) + r"\][^\n]*\n(.*?)(?=^## \[)", text, re.S | re.M)
+          notes = m.group(1).strip() if m else f"Nurbforge {version}"
+          notes += ("\n\n### Install\nBinary wheels for Linux (manylinux_2_28 x86_64) and Windows "
+                    "(win_amd64), CPython 3.10-3.13, and the sdist are attached, e.g.\n\n"
+                    f"```bash\npip install nurbforge-{version}-cp312-cp312-win_amd64.whl\n```\n")
+          open("notes.md", "w", encoding="utf-8").write(notes)
+          PY
+      - name: Create or update the release
+        run: |
+          ls -l dist
+          if gh release view "$TAG" > /dev/null 2>&1; then
+            gh release upload "$TAG" dist/* --clobber
+            gh release edit "$TAG" --notes-file notes.md
+          else
+            gh release create "$TAG" dist/* --verify-tag --title "Nurbforge ${TAG#v}" --notes-file notes.md
+          fi
 
   # Publishing is intentionally disabled. To enable it, configure a PyPI "trusted publisher"
   # for this repository/workflow (environment "pypi"), then uncomment the job below. No API

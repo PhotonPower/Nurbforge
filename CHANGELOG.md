@@ -4,6 +4,10 @@ All notable changes are documented here. Format: [Keep a Changelog](https://keep
 versioning: [SemVer](https://semver.org).
 
 ## [Unreleased]
+### Added
+- Wheels workflow: a `release` job publishes the GitHub release for every `v*` tag (wheels,
+  sdist, the tag's CHANGELOG section as notes); existing tags can be released by running the
+  workflow manually with `release_tag`.
 
 ## [0.7.0] – 2026-11-10
 Writing paths for two-photon lithography (hatching of section loops), solid primitives with mass

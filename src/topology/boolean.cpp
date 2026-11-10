@@ -10,6 +10,8 @@
 #include "nurbforge/core/error.hpp"
 #include "nurbforge/fitting/fit.hpp"
 #include "nurbforge/geometry/primitives.hpp"
+#include "nurbforge/nurbs/join.hpp"
+#include "nurbforge/nurbs/knot_vector.hpp"
 
 namespace nf {
 
@@ -202,7 +204,11 @@ Relation relation(const NurbsSurface& a, const NurbsSurface& b, double tol) {
 // surface `onto` (coincident faces: the other face's boundary becomes a cut). The 3D loop is
 // S_from(pc(t)); runs of samples within tolerance of `onto` are located (end points by
 // bisection), and each run is interpolated through its projections at the loop parameter,
-// doubling the samples until the midpoint error is below 1e-9 of the parameter domain.
+// doubling the samples until the midpoint error is below 1e-8 of the parameter domain. The run
+// is interpolated piecewise between the knots where pc is less smooth than C2 (e.g. the C1
+// joints of a rational circle) and the pieces are joined: a single cubic across them converges
+// only like h^2 and ran into the sample limit (2049 control points for a trim circle, which made
+// every later intersection with that cut slow).
 std::vector<NurbsCurve> projected_loops(const TrimmedSurface& from, const NurbsSurface& onto, double tol) {
   const auto ou = onto.domain_u(), ov = onto.domain_v();
   const double psize = std::max(ou[1] - ou[0], ov[1] - ov[0]);
@@ -235,6 +241,26 @@ std::vector<NurbsCurve> projected_loops(const TrimmedSurface& from, const NurbsS
       }
       return 0.5 * (lo + hi);
     };
+    // cubic through the projections on [a, b], samples doubled until the midpoint error is small
+    const auto fit_projection = [&](double a, double b) {
+      for (std::size_t N = 5;; N = 2 * N - 1) {
+        std::vector<double> ts(N);
+        std::vector<Vec3> P(N);
+        for (std::size_t k = 0; k < N; ++k) {
+          ts[k] = k + 1 == N ? b : a + (b - a) * static_cast<double>(k) / static_cast<double>(N - 1);
+          const SurfacePoint f = closest_point(onto, X(ts[k]));
+          P[k] = {f.u, f.v, 0.0};
+        }
+        NurbsCurve fit = interpolate_curve(P, 3, ts);
+        double err = 0.0;
+        for (std::size_t k = 0; k + 1 < N; ++k) {
+          const double tm = 0.5 * (ts[k] + ts[k + 1]);
+          const SurfacePoint f = closest_point(onto, X(tm));
+          err = std::max(err, distance(fit.evaluate(tm), Vec3{f.u, f.v, 0.0}));
+        }
+        if (err <= 1e-8 * psize || N > 1025) return fit;
+      }
+    };
     for (int i = 1; i <= n; ++i) {
       const double t = t0 + (t1 - t0) * i / n;
       const bool cur = on(t);
@@ -247,28 +273,26 @@ std::vector<NurbsCurve> projected_loops(const TrimmedSurface& from, const NurbsS
       tp = t;
     }
     if (prev) runs.emplace_back(start, t1);
+    std::vector<double> kinks;  // knots where pc is only C1 (or less)
+    {
+      const auto [vals, mults] = unique_knots(pc.knots());
+      const int need = std::max(1, static_cast<int>(pc.degree()) - 1);
+      for (std::size_t q = 1; q + 1 < vals.size(); ++q)
+        if (mults[q] >= need) kinks.push_back(vals[q]);
+    }
+    const double close = std::max(10.0 * tol::kParametric, 1e-9 * (t1 - t0));
     for (const auto& [r0, r1] : runs) {
       if (r1 - r0 <= 1e-9 * (t1 - t0)) continue;
-      for (std::size_t N = 5;; N = 2 * N - 1) {
-        std::vector<double> ts(N);
-        std::vector<Vec3> P(N);
-        for (std::size_t k = 0; k < N; ++k) {
-          ts[k] = k + 1 == N ? r1 : r0 + (r1 - r0) * static_cast<double>(k) / static_cast<double>(N - 1);
-          const SurfacePoint f = closest_point(onto, X(ts[k]));
-          P[k] = {f.u, f.v, 0.0};
-        }
-        const NurbsCurve fit = interpolate_curve(P, 3, ts);
-        double err = 0.0;
-        for (std::size_t k = 0; k + 1 < N; ++k) {
-          const double tm = 0.5 * (ts[k] + ts[k + 1]);
-          const SurfacePoint f = closest_point(onto, X(tm));
-          err = std::max(err, distance(fit.evaluate(tm), Vec3{f.u, f.v, 0.0}));
-        }
-        if (err <= 1e-8 * psize || N > 1025) {
-          out.push_back(fit);
-          break;
-        }
+      std::vector<double> br{r0};
+      for (double k : kinks)
+        if (k > r0 + close && k < r1 - close) br.push_back(k);
+      br.push_back(r1);
+      std::optional<NurbsCurve> run;
+      for (std::size_t s = 0; s + 1 < br.size(); ++s) {
+        const NurbsCurve piece = fit_projection(br[s], br[s + 1]);
+        run = run ? join(*run, piece, 1e-8 * psize) : piece;
       }
+      out.push_back(std::move(*run));
     }
   };
   for (const auto& c : from.outer().curves) handle(c);
@@ -277,14 +301,33 @@ std::vector<NurbsCurve> projected_loops(const TrimmedSurface& from, const NurbsS
   return out;
 }
 
-// Drops cuts that run along the face's loops or along an earlier cut (9 samples within 1e-6 of
+// Drops cuts that run along the face's loops or along a longer cut (9 samples within 1e-6 of
 // the parameter domain): the same boundary often arrives twice – as the projected loop of a
 // coincident face and as an intersection curve with an adjacent face – with slightly different
 // fits. Nearly coincident curves would make the curve/curve intersection in the arrangement
-// subdivide down to its size limit everywhere.
+// subdivide down to its size limit everywhere. Longer cuts are kept first: an intersection curve
+// along the other face's boundary is often broken into pieces (its in/out test flips on that
+// boundary) while the projected loop is whole; keeping the pieces and dropping the loop would
+// leave the cut open and the face unsplit.
 std::vector<NurbsCurve> prune_cuts(const TrimmedSurface& face, std::vector<NurbsCurve> cuts) {
   const auto du = face.surface().domain_u(), dv = face.surface().domain_v();
   const double eps = 1e-6 * std::max(du[1] - du[0], dv[1] - dv[0]);
+  const auto length = [](const NurbsCurve& c) {
+    double l = 0.0;
+    Vec3 p = c.evaluate(c.domain_start());
+    for (int k = 1; k <= 32; ++k) {
+      const Vec3 q = c.evaluate(c.domain_start() + (c.domain_end() - c.domain_start()) * k / 32.0);
+      l += distance(p, q);
+      p = q;
+    }
+    return l;
+  };
+  std::vector<std::pair<double, std::size_t>> order;
+  for (std::size_t k = 0; k < cuts.size(); ++k) order.emplace_back(-length(cuts[k]), k);
+  std::stable_sort(order.begin(), order.end());
+  std::vector<NurbsCurve> sorted;
+  for (const auto& [l, k] : order) sorted.push_back(std::move(cuts[k]));
+  cuts = std::move(sorted);
   std::vector<const NurbsCurve*> ref;
   for (const auto& c : face.outer().curves) ref.push_back(&c);
   for (const auto& h : face.holes())

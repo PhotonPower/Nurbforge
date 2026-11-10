@@ -34,6 +34,55 @@ P2 end2(const NurbsCurve& c) {
 }
 double dist2(const P2& a, const P2& b) { return std::hypot(a[0] - b[0], a[1] - b[1]); }
 
+// S(pc(t)) as an exact NURBS curve with the parametrisation of pc, where that is possible:
+// - S a planar parallelogram (bilinear, equal weights): S is affine, the image of pc is pc with
+//   mapped control points and the same weights and knots (a trim circle stays a rational circle);
+// - pc a straight segment along an iso-parameter line: the image is the iso-curve of S between
+//   the end parameters, its knots mapped linearly onto the domain of pc.
+// Interpolating these (cubic, doubled to the tolerance) gave curves with hundreds of control
+// points that made every later intersection, containment test and STEP round trip slow.
+std::optional<NurbsCurve> exact_image(const NurbsSurface& S, const NurbsCurve& pc) {
+  const auto du = S.domain_u(), dv = S.domain_v();
+  if (S.degree_u() == 1 && S.degree_v() == 1 && S.num_u() == 2 && S.num_v() == 2) {
+    const auto& W = S.weights();
+    const Vec3 p00 = S.control_point(0, 0), p10 = S.control_point(1, 0), p01 = S.control_point(0, 1),
+               p11 = S.control_point(1, 1);
+    const double size = std::max(norm(p10 - p00), norm(p01 - p00));
+    const bool equal_w = std::all_of(W.begin(), W.end(), [&](double w) { return std::abs(w - W[0]) <= 1e-14 * W[0]; });
+    if (equal_w && norm(p00 + p11 - p10 - p01) <= 1e-13 * size) {
+      std::vector<Vec3> P;
+      for (const Vec3& q : pc.control_points()) {
+        const double fu = (q.x - du[0]) / (du[1] - du[0]), fv = (q.y - dv[0]) / (dv[1] - dv[0]);
+        P.push_back(p00 + fu * (p10 - p00) + fv * (p01 - p00));
+      }
+      return NurbsCurve(pc.degree(), pc.knots(), std::move(P), pc.weights());
+    }
+  }
+  if (pc.degree() != 1 || pc.control_points().size() != 2) return std::nullopt;
+  const Vec3 a = pc.control_points().front(), b = pc.control_points().back();
+  const double t0 = pc.domain_start(), t1 = pc.domain_end();
+  const auto along = [&](double c, double d, const std::array<double, 2>& dom, NurbsCurve iso) -> std::optional<NurbsCurve> {
+    const double eps = 1e-12 * (dom[1] - dom[0]);
+    const double lo = std::clamp(std::min(c, d), dom[0], dom[1]), hi = std::clamp(std::max(c, d), dom[0], dom[1]);
+    if (hi - lo <= 1e3 * eps) return std::nullopt;
+    if (lo > dom[0] + eps || hi < dom[1] - eps) iso = iso.sub_curve(lo, hi);
+    if (c > d) iso = iso.reversed();
+    const double c0 = iso.domain_start(), c1 = iso.domain_end();
+    KnotVector U = iso.knots();
+    for (double& k : U) k = t0 + (k - c0) * (t1 - t0) / (c1 - c0);
+    for (std::size_t i = 0; i <= iso.degree(); ++i) {
+      U[i] = t0;
+      U[U.size() - 1 - i] = t1;
+    }
+    return NurbsCurve::from_homogeneous(iso.degree(), std::move(U), iso.homogeneous_control_points());
+  };
+  if (std::abs(a.y - b.y) <= 1e-14 * (dv[1] - dv[0]) && a.y >= dv[0] && a.y <= dv[1])
+    return along(a.x, b.x, du, S.iso_curve_v(a.y));
+  if (std::abs(a.x - b.x) <= 1e-14 * (du[1] - du[0]) && a.x >= du[0] && a.x <= du[1])
+    return along(a.y, b.y, dv, S.iso_curve_u(a.x));
+  return std::nullopt;
+}
+
 // Even-odd point in polygon test.
 bool inside_polygon(const std::vector<P2>& poly, double u, double v) {
   bool in = false;
@@ -326,7 +375,8 @@ std::vector<std::vector<NurbsCurve>> TrimmedSurface::boundary_curves(double tole
     // piecewise per span of the trim curve and between crossings of the surface's knot lines
     // (where S is only C1, e.g. rational circles – a cubic across them converges like h^2):
     // cubic interpolation of S(pc(t)) at the original parameter, doubled until the midpoint
-    // error is below the tolerance
+    // error is below the tolerance (exact where possible, see exact_image)
+    if (auto exact = exact_image(surface_, pc)) return std::move(*exact);
     std::optional<NurbsCurve> result;
     std::vector<double> br = unique_knots(pc.knots()).first;
     {
@@ -366,7 +416,17 @@ std::vector<std::vector<NurbsCurve>> TrimmedSurface::boundary_curves(double tole
       crossings(1, std::vector<double>(kv.begin() + 1, kv.end() - 1), 1e-9 * (kv.back() - kv.front()));
       br.insert(br.end(), extra.begin(), extra.end());
       std::sort(br.begin(), br.end());
-      br.erase(std::unique(br.begin(), br.end(), [](double x, double y) { return y - x <= 1e-12; }), br.end());
+      // breaks closer than the parametric resolution would give pieces that join() cannot fuse
+      // (it removes the knot at the joint, which must be interior to the joined domain); the
+      // domain ends are kept exactly
+      const double close = std::max(10.0 * tol::kParametric, 1e-12 * (br.back() - br.front()));
+      std::vector<double> kept{br.front()};
+      for (std::size_t k = 1; k < br.size(); ++k) {
+        if (br[k] - kept.back() > close) kept.push_back(br[k]);
+        else if (k + 1 == br.size() && kept.size() > 1) kept.back() = br[k];
+      }
+      if (kept.size() == 1) kept.push_back(br.back());
+      br = std::move(kept);
     }
     for (std::size_t s = 0; s + 1 < br.size(); ++s) {
       const double a = br[s], b = br[s + 1];

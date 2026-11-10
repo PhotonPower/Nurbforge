@@ -40,6 +40,7 @@ add_executable(nurbforge_tests
   test_solids.cpp
   test_step.cpp
   test_step_read.cpp
-  test_shell_section.cpp)
+  test_shell_section.cpp
+  test_hatch.cpp)
 target_link_libraries(nurbforge_tests PRIVATE Nurbforge::core Catch2::Catch2WithMain)
 catch_discover_tests(nurbforge_tests)

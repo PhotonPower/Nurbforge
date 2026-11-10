@@ -98,10 +98,13 @@ seams, complex-entity order and real-number syntax.
 
 ## Limitations
 
-- Edge curves are the shell's 3D edge curves, i.e. the trim curves mapped to 3D and fitted
-  (cubic, within 1/100 of the sewing tolerance), not exact conics; no p-curves
-  (`SURFACE_CURVE` / `PCURVE`) are written – readers project the edges onto the faces (OCC does
-  this without complaint).
+- Edge curves are the shell's 3D edge curves, i.e. the trim curves mapped to 3D. They are exact
+  where the map allows it – on planar faces (the image of a trim circle is a rational circle,
+  written as a rational B-spline) and along iso-parameter lines (the iso-curve of the surface,
+  e.g. the end circles and the seam of a cylinder); otherwise they are fitted (cubic, within
+  1/100 of the sewing tolerance). Conics are written as B-splines, not as `CIRCLE` / `ELLIPSE`
+  entities. No p-curves (`SURFACE_CURVE` / `PCURVE`) are written – readers project the edges
+  onto the faces (OCC does this without complaint).
 - One product, no assembly structure, colours, layers or names per face.
 - gmsh's `importShapes` drops free faces when a file also contains solids (also for files written
   by OCC itself), so mixed files only show the solids there.
@@ -184,6 +187,10 @@ Every edge use is mapped into the parameter space of its face surface:
 
 - planar patches with affine parametrisation (the writer's rectangles, the patches of `PLANE`):
   exactly, by the inverse affine map applied to the edge curve;
+- edges lying on an iso-parameter line of the surface (end circles and seams of cylinders and
+  cones, meridians and parallels of spheres and tori): exactly, as a straight segment – all
+  samples share the fixed parameter (to 1e-9 of the domain), the running parameter is monotone
+  and the iso-curve between neighbouring samples lies on the edge;
 - otherwise by projecting samples (local Newton from the previous sample, global closest point
   as fallback) and interpolating them with the edge parameter; the image of the interpolant is
   verified against the 3D edge between the samples and refined until it lies within

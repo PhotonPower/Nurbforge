@@ -60,6 +60,33 @@ and fitted to `SectionOptions::fit_tolerance` (default 1e-9 of the model size). 
 critical heights (a plane containing a face) are rejected. All these queries are `const` and
 thread-safe (checked under ThreadSanitizer in CI).
 
+### Hatching a layer
+
+`analysis/hatch.hpp` fills the region bounded by section loops with writing paths – parallel hatch
+segments and inward contour lines, as written layer by layer in two-photon lithography:
+
+```cpp
+#include <nurbforge/analysis/hatch.hpp>
+nf::HatchOptions o;
+o.phase = 0.0;                 // lines n . p = phase + k * spacing, n = (-d.y, d.x)
+o.contours = {0.1, 0.2};       // inward offsets of every loop
+nf::Hatching h = nf::hatch(s.loops, {1, 0, 0}, 0.1, o);
+for (const auto& seg : h.segments)   // sorted by line, then along the direction
+  ...;                               // seg.start, seg.end, seg.line, seg.region (outer loop)
+for (const auto& c : h.contours)     // c.curves: closed chain, region on the left
+  ...;
+```
+
+The lines are intersected exactly with the loop curves (sign changes of the rational height of each
+Bézier piece); inside and outside follow the loop orientation (winding number), so holes and
+islands in holes are handled. Lines that only touch a loop or run along an edge without crossing it
+are not split, so tangent lines give no zero-length segments. Contours are the boundaries of the region
+shrunk by each distance: the raw offsets (`offset_curve` of the loop pieces, arcs about reflex
+corners, cusp parts left out) are split at all their intersections and the fragments at the full
+distance from the loops are chained. So contours are trimmed at convex corners, split at necks
+narrower than twice the distance, merge where holes come close (`HatchContour::loops` lists the
+source loops), and vanish where the region is too thin.
+
 Reference documentation: `doxygen docs/Doxyfile` → `build/docs/html/index.html`.
 
 The same Doxygen output (XML) is rendered on the documentation site: [C++ API reference](cpp-reference.md).

@@ -50,6 +50,7 @@ add_library(nurbforge_core STATIC
   src/analysis/surface_intersect.cpp
   src/analysis/section.cpp
   src/analysis/shell_section.cpp
+  src/analysis/hatch.cpp
   src/fitting/fit.cpp
   src/optics/surfaces.cpp
   src/topology/trimmed_surface.cpp

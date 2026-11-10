@@ -45,6 +45,10 @@
 - STEP: micrometre unit, solid names (`read_step_named`) ✅
 - Thread safety of const queries documented and checked under ThreadSanitizer ✅
 
+## 0.7 – Writing paths (for Voxelspaetzle's 2PP process model)
+- Hatching of section loops: exact hatch lines (holes, islands, tangential contacts) and inward contours ✅ (#44)
+- Contours that split, merge and vanish (offset beyond the local half-width) ✅
+
 ## Infrastructure
 - ✅ Wheels via cibuildwheel (manylinux_2_28 for AlmaLinux 10 compatibility, win_amd64)
 - ✅ Sphinx site with Breathe (Doxygen) API docs on GitHub Pages

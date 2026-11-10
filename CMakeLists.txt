@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.24)
 
 project(Nurbforge
-  VERSION 0.6.0
+  VERSION 0.7.0
   DESCRIPTION "Headless NURBS-based CAD kernel for scientific software"
   HOMEPAGE_URL "https://github.com/PhotonPower/Nurbforge"
   LANGUAGES CXX)

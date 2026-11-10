@@ -11,9 +11,10 @@ Nurbforge builds exact 2D/3D curves, surfaces and surface systems for downstream
 tools such as optical design, FEM, BEM and FMM solvers. There is no GUI: geometry is created
 from code (C++ or Python), from a local LLM (Ollama), and meshed with [gmsh](https://gmsh.info).
 
-> **Status: 0.6.0 – early, API not yet stable.** NURBS core and toolbox (refinement, fitting, loft,
+> **Status: 0.7.0 – early, API not yet stable.** NURBS core and toolbox (refinement, fitting, loft,
 > sweep, Coons/Gordon, offsets, fillets), freeform optical surfaces, intersections, trimming,
-> B-rep shells and Boolean operations, shell sections (slicing), gmsh transfer, STEP export and import and the Ollama tool interface
+> B-rep shells, solid primitives and Boolean operations, mass properties, shell sections and
+> hatching (slicing for 2PP), gmsh transfer, STEP export and import and the Ollama tool interface
 > work and are tested. Next steps are on the [roadmap](docs/roadmap.md).
 
 ## Features
@@ -21,16 +22,16 @@ from code (C++ or Python), from a local LLM (Ollama), and meshed with [gmsh](htt
 | Area | Available now | Planned |
 |---|---|---|
 | NURBS core | Basis functions + derivatives, curve/surface evaluation, rational derivatives, knot insertion and refinement, Bézier decomposition, degree elevation and reduction, knot removal, clamping, splitting/joining, reversal, iso-curves | – |
-| Primitives | Point, line, polyline, exact arc and circle, bilinear patch, rectangle | Ellipse |
+| Primitives | Point, line, polyline, exact arc and circle (also through 3 points), regular polygon, rectangle outline, helix / conical helix / spiral (C2, verified tolerance), bilinear patch, rectangle; closed solids: box, sphere, cylinder, cone/frustum, torus | Ellipse |
 | Optics | Exact conic surfaces, even/odd aspheres, Zernike (Fringe/Noll), XY polynomials, arbitrary sag functions – fitted to a tolerance, circular apertures via `TrimmedSurface` | – |
 | Fitting | Curve/surface interpolation (incl. end tangents), least-squares approximation, fit to a tolerance | Constrained fits, smoothing |
-| Construction | Extrusion, revolution (full/partial), ruled surface (auto degree/knot compatibility), loft/skinning, sweep (one/two rails, rotation-minimising frame, twist), Coons patches, Gordon surfaces, extrapolation (natural / linear), offset curves (planar) and surfaces with verified tolerance, fillets (exact arcs between planar curves, rolling-ball fillets between surfaces with contact p-curves) | Variable-radius fillets, trimming of the filleted faces |
-| Transforms | Translate, rotate, scale, mirror, composition | – |
+| Construction | Extrusion, revolution (full/partial), ruled surface (auto degree/knot compatibility), loft/skinning, sweep (one/two rails, rotation-minimising frame, twist), Coons patches, Gordon surfaces, extrapolation (natural / linear), offset curves (planar) and surfaces with verified tolerance, fillets (exact arcs between planar curves, all corners of a planar curve, rolling-ball fillets between surfaces with contact p-curves) | Variable-radius fillets, trimming of the filleted faces |
+| Transforms | Translate, rotate, scale, mirror, composition – of curves, surfaces and shells | – |
 | Arrays | Linear, grid, polar | Path arrays |
-| Analysis | Point, tangent, normal (incl. poles), partial derivatives of any order, global closest point / point inversion, curve–curve, curve–surface and surface–surface intersection, planar sections, sections of B-rep shells (oriented loops, critical heights, extrusion bands), curvature/torsion, Gaussian/mean/principal curvatures, arc length, area, sampling | – |
-| Topology | Trimmed surfaces (parameter-space loops, exact circles), split along surface intersections, area by Green's theorem, exact gmsh export; B-rep shells (sewing, watertightness, orientation, volume), STEP export (native AP214 writer, or via gmsh/OCC) and import (native reader: B-spline and analytic faces), Boolean union/intersection/difference (incl. coincident faces and tangential contacts), point-in-solid; shells with several components (voids, lumps) | Dedicated `Body` type |
+| Analysis | Point, tangent, normal (incl. poles), partial derivatives of any order, global closest point / point inversion, curve–curve, curve–surface and surface–surface intersection, planar sections, sections of B-rep shells (oriented loops, critical heights, extrusion bands), hatching of section loops (exact hatch lines, inward contours that split, merge and vanish), curvature/torsion, Gaussian/mean/principal curvatures, arc length, area, sampling | – |
+| Topology | Trimmed surfaces (parameter-space loops, exact circles), split along surface intersections, area by Green's theorem, exact gmsh export; B-rep shells (sewing, watertightness, orientation, volume, centroid, inertia tensor), STEP export (native AP214 writer, or via gmsh/OCC) and import (native reader: B-spline and analytic faces), Boolean union/intersection/difference (incl. coincident faces and tangential contacts), point-in-solid; shells with several components (voids, lumps) | Dedicated `Body` type |
 | Meshing | Exact NURBS transfer to gmsh (OCC), 2D meshing, high order, `.msh/.vtk/.stl/.step` | Physical groups, size fields, BEM-ready closed shells |
-| LLM | Ollama tool-calling agent with whitelisted geometry tools, CLI, verification rounds (`inspect` / `check`), constraint solving (`solve`) | – |
+| LLM | Ollama tool-calling agent with whitelisted geometry tools (incl. solids, mass properties, polygons, helices, rounded corners), CLI, verification rounds (`inspect` / `check`), constraint solving (`solve`) | – |
 
 ## Quick start
 
@@ -85,7 +86,7 @@ Wheels for Linux (`manylinux_2_28` x86_64 – installs on AlmaLinux/RHEL 8, 9 an
 for every `v*` tag and can be downloaded from its run artifacts:
 
 ```bash
-pip install nurbforge-0.6.0-cp312-cp312-win_amd64.whl   # no compiler needed
+pip install nurbforge-0.7.0-cp312-cp312-win_amd64.whl   # no compiler needed
 ```
 
 ## Documentation

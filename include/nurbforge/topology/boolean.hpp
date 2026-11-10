@@ -24,7 +24,8 @@ enum class BooleanOp { Union, Intersection, Difference };
 /// each other's boundary; their common part is classified "on" with the same or the opposite
 /// outward normal: kept once for union and intersection if the normals agree, kept from A for a
 /// difference if they are opposite, dropped otherwise. An empty result is an empty shell.
-/// The inputs are oriented outwards first. Limitations: tangential contacts, coincident faces
+/// Tangential contacts (at a point or along a line) and overlaps thinner than the tolerance are
+/// treated as contacts. The inputs are oriented outwards first. Limitation: coincident faces
 /// whose common part crosses the seam of a closed surface. Throws GeometryError for open input
 /// shells.
 [[nodiscard]] Shell boolean(const Shell& a, const Shell& b, BooleanOp op, double tolerance = 1e-6);

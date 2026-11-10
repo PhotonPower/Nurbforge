@@ -20,17 +20,17 @@ from code (C++ or Python), from a local LLM (Ollama), and meshed with [gmsh](htt
 
 | Area | Available now | Planned |
 |---|---|---|
-| NURBS core | Basis functions + derivatives, curve/surface evaluation, rational derivatives, knot insertion and refinement, Bézier decomposition, degree elevation and reduction, knot removal, clamping, splitting/joining, reversal, iso-curves | Interpolation, approximation |
+| NURBS core | Basis functions + derivatives, curve/surface evaluation, rational derivatives, knot insertion and refinement, Bézier decomposition, degree elevation and reduction, knot removal, clamping, splitting/joining, reversal, iso-curves | – |
 | Primitives | Point, line, polyline, exact arc and circle, bilinear patch, rectangle | Ellipse |
-| Optics | Exact conic surfaces, even/odd aspheres, Zernike (Fringe/Noll), XY polynomials, arbitrary sag functions – fitted to a tolerance | Trimmed circular apertures |
+| Optics | Exact conic surfaces, even/odd aspheres, Zernike (Fringe/Noll), XY polynomials, arbitrary sag functions – fitted to a tolerance, circular apertures via `TrimmedSurface` | – |
 | Fitting | Curve/surface interpolation (incl. end tangents), least-squares approximation, fit to a tolerance | Constrained fits, smoothing |
 | Construction | Extrusion, revolution (full/partial), ruled surface (auto degree/knot compatibility), loft/skinning, sweep (one/two rails, rotation-minimising frame, twist), Coons patches, Gordon surfaces, extrapolation (natural / linear), offset curves (planar) and surfaces with verified tolerance, fillets (exact arcs between planar curves, rolling-ball fillets between surfaces with contact p-curves) | Variable-radius fillets, trimming of the filleted faces |
 | Transforms | Translate, rotate, scale, mirror, composition | – |
 | Arrays | Linear, grid, polar | Path arrays |
-| Analysis | Point, tangent, normal (incl. poles), partial derivatives of any order, global closest point / point inversion, curve–curve, curve–surface and surface–surface intersection, planar sections, curvature/torsion, Gaussian/mean/principal curvatures, arc length, area, sampling | Booleans |
-| Topology | Trimmed surfaces (parameter-space loops, exact circles), split along surface intersections, area by Green's theorem, exact gmsh export; B-rep shells (sewing, watertightness, orientation, volume), STEP export (native AP214 writer, or via gmsh/OCC) and import (native reader: B-spline and analytic faces), Boolean union/intersection/difference (incl. coincident faces), point-in-solid | Multi-shell bodies |
+| Analysis | Point, tangent, normal (incl. poles), partial derivatives of any order, global closest point / point inversion, curve–curve, curve–surface and surface–surface intersection, planar sections, sections of B-rep shells (oriented loops, critical heights, extrusion bands), curvature/torsion, Gaussian/mean/principal curvatures, arc length, area, sampling | – |
+| Topology | Trimmed surfaces (parameter-space loops, exact circles), split along surface intersections, area by Green's theorem, exact gmsh export; B-rep shells (sewing, watertightness, orientation, volume), STEP export (native AP214 writer, or via gmsh/OCC) and import (native reader: B-spline and analytic faces), Boolean union/intersection/difference (incl. coincident faces and tangential contacts), point-in-solid; shells with several components (voids, lumps) | Dedicated `Body` type |
 | Meshing | Exact NURBS transfer to gmsh (OCC), 2D meshing, high order, `.msh/.vtk/.stl/.step` | Physical groups, size fields, BEM-ready closed shells |
-| LLM | Ollama tool-calling agent with whitelisted geometry tools, CLI | Constraint-aware planning, verification loop |
+| LLM | Ollama tool-calling agent with whitelisted geometry tools, CLI, verification rounds (`inspect` / `check`), constraint solving (`solve`) | – |
 
 ## Quick start
 

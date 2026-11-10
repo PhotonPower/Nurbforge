@@ -5,6 +5,30 @@ versioning: [SemVer](https://semver.org).
 
 ## [Unreleased]
 ### Added
+- `hatch(loops, direction, spacing, options)`: hatch and contour lines of the region bounded by
+  section loops, e.g. the writing paths of a layer in two-photon lithography (#44). Hatch lines
+  n · p = phase + k · spacing are intersected exactly with the loop curves (sign changes of the
+  rational height of every Bézier piece, transversal roots refined to machine precision); the
+  region follows the loop orientation (winding number), so holes and islands in holes are right.
+  Tangential contacts and edges lying on a line do not split it (no zero-length segments).
+  Segments carry their line index, the outer loop of their region and the loops they start and
+  end on. Contours are the boundaries of the region shrunk by each distance: the raw offsets of
+  all loops (arcs at reflex corners, parts beyond the radius of curvature left out) are split at
+  all intersections, and the fragments at the full distance from the loops and inside the region
+  are chained – so contours are trimmed at convex corners, split at necks narrower than twice the
+  distance, merge where holes come close (`HatchContour.loops`) and vanish where the region is too
+  thin. Checked against shapely's `buffer(-d)` on ~2000 random polygons and spline loops. Python:
+  `nf.hatch(loops, direction, spacing, phase=…, contours=[…], min_length=…)` →
+  `(segments, contours)`; example `examples/python/11_slice_and_hatch.py`.
+- Solid primitives as closed shells with exact faces and outward normals: `make_box`,
+  `make_sphere`, `make_cylinder`, `make_cone` (frustum, or cone with apex), `make_torus` (#18).
+- `Shell::mass_properties()`: volume, centroid, inertia tensor about the centroid (unit density),
+  principal moments and axes – face integrals by the divergence theorem relative to the bounding
+  box centre, voids subtracted (#18).
+- `Shell::transformed(transform)` (Python also `transform * shell`): affine maps of shells; mirrors
+  flip the faces so normals stay outward. The LLM tools `translate`, `rotate`, `mirror` now work
+  on shells, and the new tools `solid` and `mass_properties` create and measure solids.
+- `TrimmedSurface.flipped()` in Python.
 - Curve constructors (#16): `make_circle_3pt`, `make_arc_3pt` (exact), `make_polygon` (regular
   n-gon), `make_rectangle_curve` (closed outline), `make_helix` (cylindrical or conical helix,
   planar Archimedean spiral, left- or right-handed; parameter = number of turns; C2 quintic
@@ -12,6 +36,40 @@ versioning: [SemVer](https://semver.org).
 - `fillet_corners(curve, radius)`: rounds every corner of a planar curve with exact arcs
   (`fillet_curves` per corner, also the closing corner) and joins it into one G1 curve.
 - LLM tools `make_polygon`, `make_helix`, `round_corners`.
+
+### Fixed
+- Boolean difference returned open shells for parts with coplanar lids (#45):
+  - `split` (face arrangement) probed each region only against its own boundary cycle; for a cut
+    around an existing hole (re-drilling a ring with a larger hole) the probe of the outer region
+    landed in the old hole, the region was taken for outside the face and the remaining annulus
+    was lost. The probe ray now stops at the first crossing of any cycle.
+  - On a lid shared with the other solid the cut circle arrived twice – as a fragmented
+    intersection curve (it lies on the boundary of the other solid's side face) and as the
+    projected loop of the coincident lid. `prune_cuts` kept the fragments and dropped the whole
+    loop, so the cut stayed open and the lid was not split (and the arrangement spent ~20 s on the
+    overlapping curves). Longer cuts are now kept first. Coaxial cylinders with both lids
+    coplanar: open shell in 25 s → closed, exact volume, 2.8 s.
+- `TrimmedSurface::boundary_curves` merged break points only closer than 1e-12, but `join` needs
+  the joint at least the parametric resolution (1e-10) inside the joined domain: a trim curve
+  with a break ~1e-11 from a knot threw "remove_knot: … is not an interior knot" (hit by the
+  coaxial overlapping cylinders after the fix above). Breaks closer than 10 · 1e-10 are merged,
+  the domain ends kept exactly.
+- Booleans of shells read from STEP were ~10x slower than of the originals (#46): every edge
+  went through cubic interpolation twice and came back with hundreds of control points.
+  - `TrimmedSurface::boundary_curves` (used by `sew` and the STEP writer) is exact where it can
+    be: on a planar parallelogram the edge is the affine image of the trim curve (a trim circle
+    stays a rational circle), and a straight trim segment along an iso line gives the iso-curve.
+    Both keep the trim curve's parametrisation. A cylinder with lids: STEP file 155 kB → 6 kB.
+  - STEP reader: edges lying on an iso line of their face (circles at the ends of a cylinder,
+    seams, meridians) become straight trim segments instead of interpolants (the end circle on a
+    cylinder's side face: 1521 control points → 2).
+  - `projected_loops` (cuts of coincident faces) interpolates piecewise between the C1 knots of
+    the trim curve; a single cubic across them ran into the sample limit (2049 control points
+    for a circle).
+
+  Issue cases (intersection): disjoint cylinder/ring 2.6 s / 23 s (from STEP) → 0.3 s / 0.2 s;
+  nested cylinders with coplanar lids 34 s / 73 s → 0.2 s / 0.2 s. `nf_stress 3`: 1.03 → 0.85 s
+  per case.
 
 ## [0.6.0] – 2026-11-05
 ### Fixed (found by the new Boolean stress test, `benchmarks/stress.cpp`)

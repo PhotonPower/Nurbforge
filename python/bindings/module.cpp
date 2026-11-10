@@ -357,6 +357,69 @@ PYBIND11_MODULE(_core, m) {
   m.def("section", &section, py::arg("shell"), py::arg("plane"), py::arg("options") = SectionOptions{},
         "Section of a closed shell with a plane: closed loops oriented with the solid on the left "
         "(outer counter-clockwise, holes clockwise in the plane coordinates).");
+  // hatching of section loops (contour and hatch lines of a layer)
+  py::class_<HatchSegment>(m, "HatchSegment", "Hatch segment inside the region bounded by the loops.")
+      .def_readonly("start", &HatchSegment::start)
+      .def_readonly("end", &HatchSegment::end)
+      .def_readonly("line", &HatchSegment::line, "Index k of the line n . p = phase + k * spacing.")
+      .def_readonly("region", &HatchSegment::region, "Outer loop of the region containing the segment.")
+      .def_readonly("start_loop", &HatchSegment::start_loop)
+      .def_readonly("end_loop", &HatchSegment::end_loop)
+      .def_property_readonly("length", &HatchSegment::length)
+      .def("__repr__", [](const HatchSegment& s) {
+        return "HatchSegment(line=" + std::to_string(s.line) + ", length=" + std::to_string(s.length()) +
+               ", region=" + std::to_string(s.region) + ")";
+      });
+  py::class_<HatchContour>(m, "HatchContour",
+                           "Closed contour: boundary of the region shrunk by `distance`.")
+      .def_readonly("curves", &HatchContour::curves)
+      .def_readonly("loop", &HatchContour::loop, "First of `loops`.")
+      .def_readonly("loops", &HatchContour::loops, "Loops it was offset from (merged contours: several).")
+      .def_readonly("index", &HatchContour::index, "Index of the distance in `contours`.")
+      .def_readonly("distance", &HatchContour::distance);
+  m.def(
+      "hatch",
+      [](const py::object& loops, const py::sequence& direction, double spacing, double phase,
+         const std::vector<double>& contours, double min_length, double tolerance,
+         double contour_tolerance) {
+        if (direction.size() != 2 && direction.size() != 3)
+          throw py::value_error("direction must have 2 or 3 components");
+        const Vec3 d{direction[0].cast<double>(), direction[1].cast<double>(), 0.0};
+        HatchOptions o;
+        o.phase = phase;
+        o.contours = contours;
+        o.min_length = min_length;
+        o.tolerance = tolerance;
+        o.contour_tolerance = contour_tolerance;
+        Hatching h;
+        if (py::isinstance<PlanarSection>(loops)) {
+          h = hatch(loops.cast<const PlanarSection&>().loops, d, spacing, o);
+        } else {
+          std::vector<std::vector<NurbsCurve>> ls;
+          for (const auto& item : loops) {
+            if (py::isinstance<SectionLoop>(item)) {
+              std::vector<NurbsCurve> l;
+              for (const auto& sc : item.cast<const SectionLoop&>().curves) l.push_back(sc.curve);
+              ls.push_back(std::move(l));
+            } else if (py::isinstance<NurbsCurve>(item)) {
+              ls.push_back({item.cast<NurbsCurve>()});
+            } else {
+              ls.push_back(item.cast<std::vector<NurbsCurve>>());
+            }
+          }
+          py::gil_scoped_release release;
+          h = hatch(ls, d, spacing, o);
+        }
+        return py::make_tuple(h.segments, h.contours);
+      },
+      py::arg("loops"), py::arg("direction"), py::arg("spacing"), py::kw_only(), py::arg("phase") = 0.0,
+      py::arg("contours") = std::vector<double>{}, py::arg("min_length") = 0.0,
+      py::arg("tolerance") = 0.0, py::arg("contour_tolerance") = 0.0,
+      "Hatch and contour lines of the region bounded by closed planar loops (region on the left).\n\n"
+      "`loops`: a PlanarSection, its loops, or closed chains of curves in the xy plane (a single closed\n"
+      "curve counts as a loop). Lines n . p = phase + k * spacing along `direction` (2 or 3\n"
+      "components, z ignored), n = (-d.y, d.x). Returns (segments, contours): HatchSegment list sorted\n"
+      "by line and position, and one HatchContour per loop and inward offset distance in `contours`.");
   m.def("critical_heights", &critical_heights, py::arg("shell"), py::arg("direction"),
         py::arg("tolerance") = Tolerance{},
         "Sorted heights along `direction` at which the topology of the planar sections can change.");
@@ -698,6 +761,7 @@ PYBIND11_MODULE(_core, m) {
       .def("area", &TrimmedSurface::area, py::arg("rel_tol") = 1e-9)
       .def("boundary_curves", &TrimmedSurface::boundary_curves, py::arg("tolerance") = 1e-7)
       .def("with_hole", &TrimmedSurface::with_hole, py::arg("hole"))
+      .def("flipped", &TrimmedSurface::flipped, "The same face with opposite orientation (normal flipped).")
       .def("__repr__", [](const TrimmedSurface& t) {
         return "<TrimmedSurface holes=" + std::to_string(t.holes().size()) + ">";
       });
@@ -723,6 +787,35 @@ PYBIND11_MODULE(_core, m) {
       .def_readonly("v0", &ShellEdge::v0)
       .def_readonly("v1", &ShellEdge::v1)
       .def_readonly("uses", &ShellEdge::uses);
+  py::class_<MassProperties>(m, "MassProperties", "Volume, centroid and inertia of a solid (unit density).")
+      .def_readonly("volume", &MassProperties::volume)
+      .def_readonly("centroid", &MassProperties::centroid)
+      .def_property_readonly(
+          "inertia",
+          [](const MassProperties& mp) {
+            py::array_t<double> a({py::ssize_t{3}, py::ssize_t{3}});
+            auto r = a.mutable_unchecked<2>();
+            for (py::ssize_t i = 0; i < 3; ++i)
+              for (py::ssize_t j = 0; j < 3; ++j) r(i, j) = mp.inertia[static_cast<std::size_t>(3 * i + j)];
+            return a;
+          },
+          "Inertia tensor about the centroid (3 x 3): diagonal moments, off-diagonal -products.")
+      .def_property_readonly("principal_moments",
+                             [](const MassProperties& mp) {
+                               return py::make_tuple(mp.principal_moments[0], mp.principal_moments[1],
+                                                     mp.principal_moments[2]);
+                             })
+      .def_property_readonly("principal_axes",
+                             [](const MassProperties& mp) {
+                               return to_numpy({mp.principal_axes[0], mp.principal_axes[1],
+                                                mp.principal_axes[2]});
+                             },
+                             "Unit axes as rows, in the order of principal_moments.")
+      .def("__repr__", [](const MassProperties& mp) {
+        return "MassProperties(volume=" + std::to_string(mp.volume) + ", centroid=(" +
+               std::to_string(mp.centroid.x) + ", " + std::to_string(mp.centroid.y) + ", " +
+               std::to_string(mp.centroid.z) + "))";
+      });
   py::class_<Shell>(m, "Shell", "Trimmed faces sewn along shared edges.")
       .def_static("sew", &Shell::sew, py::arg("faces"), py::arg("tolerance") = 1e-6)
       .def_property_readonly("faces", &Shell::faces)
@@ -737,6 +830,11 @@ PYBIND11_MODULE(_core, m) {
       .def("oriented", &Shell::oriented)
       .def("area", &Shell::area, py::arg("rel_tol") = 1e-8)
       .def("volume", &Shell::volume, py::arg("rel_tol") = 1e-8)
+      .def("mass_properties", &Shell::mass_properties, py::arg("rel_tol") = 1e-8,
+           "Volume, centroid and inertia tensor (about the centroid, unit density) of the solid.")
+      .def("transformed", &Shell::transformed, py::arg("transform"),
+           "The shell mapped by an affine transform (mirrors keep the normals outward).")
+      .def("__rmul__", [](const Shell& s, const Transform& t) { return s.transformed(t); })
       .def("__repr__", [](const Shell& s) {
         return "<Shell faces=" + std::to_string(s.faces().size()) + " edges=" + std::to_string(s.edges().size()) +
                (s.is_closed() ? " closed>" : " open>");
@@ -749,6 +847,16 @@ PYBIND11_MODULE(_core, m) {
       .value("Difference", BooleanOp::Difference);
   m.def("point_in_shell", &point_in_shell, py::arg("shell"), py::arg("point"), py::arg("tolerance") = 1e-6,
         "True if the point lies inside the closed shell (ray casting).");
+  // closed solid primitives
+  m.def("make_box", &make_box, py::arg("corner"), py::arg("size"),
+        "Axis-aligned box (closed Shell, outward normals) with a corner and edge lengths.");
+  m.def("make_sphere", &make_sphere, py::arg("center"), py::arg("radius"));
+  m.def("make_cylinder", &make_cylinder, py::arg("base"), py::arg("axis"), py::arg("radius"),
+        py::arg("height"), "Cylinder with the base disc centred at `base` along `axis`.");
+  m.def("make_cone", &make_cone, py::arg("base"), py::arg("axis"), py::arg("r0"), py::arg("r1"),
+        py::arg("height"), "Frustum: radius r0 at the base, r1 at the top; one radius may be 0 (apex).");
+  m.def("make_torus", &make_torus, py::arg("center"), py::arg("axis"), py::arg("major_radius"),
+        py::arg("minor_radius"));
   m.def("boolean", &boolean, py::arg("a"), py::arg("b"), py::arg("op"), py::arg("tolerance") = 1e-6,
         "Boolean union / intersection / difference of two closed shells.");
 

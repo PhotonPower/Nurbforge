@@ -817,6 +817,43 @@ class FaceMapper {
     return {std::move(pc), ok};
   }
 
+  /// A boundary curve along an iso-parameter line (a circle at the end of a cylinder, a seam, a
+  /// meridian) maps exactly to a straight segment: all samples at one value of the fixed
+  /// parameter (snapped to the domain boundary when within 1e-9), the running parameter
+  /// monotone, and the iso line between neighbouring samples on the curve.
+  std::optional<NurbsCurve> iso_line(const NurbsCurve& c, const std::vector<Smp>& smp) const {
+    if (smp.size() < 3) return std::nullopt;
+    for (int dir = 0; dir < 2; ++dir) {  // 0: fixed v, running u; 1: fixed u, running v
+      const auto fixed = [&](const Smp& s) { return dir == 0 ? s.v : s.u; };
+      const auto running = [&](const Smp& s) { return dir == 0 ? s.u : s.v; };
+      const double f0 = dir == 0 ? v0_ : u0_, f1 = dir == 0 ? v1_ : u1_, range = f1 - f0;
+      double lo = 1e300, hi = -1e300;
+      for (const auto& s : smp) {
+        lo = std::min(lo, fixed(s));
+        hi = std::max(hi, fixed(s));
+      }
+      if (hi - lo > 1e-9 * range) continue;
+      const double sense = running(smp.back()) - running(smp.front());
+      bool monotone = sense != 0.0;
+      for (std::size_t k = 0; k + 1 < smp.size() && monotone; ++k)
+        monotone = (running(smp[k + 1]) - running(smp[k])) * sense > 0.0;
+      if (!monotone) continue;
+      double f = 0.5 * (lo + hi);
+      if (std::abs(f - f0) <= 1e-9 * range) f = f0;
+      else if (std::abs(f - f1) <= 1e-9 * range) f = f1;
+      const auto at_fr = [&](double r) { return dir == 0 ? S_.evaluate(r, f) : S_.evaluate(f, r); };
+      bool on = true;
+      for (std::size_t k = 0; k + 1 < smp.size() && on; ++k) {
+        const double tm = 0.5 * (smp[k].t + smp[k + 1].t), rm = 0.5 * (running(smp[k]) + running(smp[k + 1]));
+        on = closest_point_local(c, at_fr(rm), tm).distance <= fit_tol_ + 1.01 * std::max(smp[k].d, smp[k + 1].d);
+      }
+      if (!on) continue;
+      const double ra = running(smp.front()), rb = running(smp.back());
+      return dir == 0 ? line2({ra, f}, {rb, f}) : line2({f, ra}, {f, rb});
+    }
+    return std::nullopt;
+  }
+
   std::vector<NurbsCurve> map_range(const NurbsCurve& c, double a, double b, int depth) {
     const std::size_t spans = span_count(c, a, b);
     std::size_t per_span = std::max<std::size_t>(2, std::min<std::size_t>(16, 32 / spans));
@@ -828,6 +865,7 @@ class FaceMapper {
           for (auto& pc : map_range(c, *t, b, depth + 1)) out.push_back(std::move(pc));
           return out;
         }
+      if (auto line = iso_line(c, smp)) return {std::move(*line)};
       Fit f = fit(c, smp);
       if (f.ok) return {std::move(f.curve)};
       if (attempt >= 5 || smp.size() > 2048) {

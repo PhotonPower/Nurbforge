@@ -226,9 +226,11 @@ std::vector<TrimmedSurface> split(const TrimmedSurface& face, const std::vector<
   std::vector<std::size_t> regions;
   for (std::size_t i = 0; i < cycles.size(); ++i) {
     if (cycles[i].area <= 0.0) continue;
-    // a point safely inside the cycle: from polyline midpoints a ray is sent to the left
-    // (inwards); the midpoint between the start and the first crossing of the cycle lies inside
-    // even for slivers far thinner than a fixed nudge (the widest such spot is taken)
+    // a point safely inside the region the cycle bounds: from polyline midpoints a ray is sent to
+    // the left (inwards); the midpoint between the start and the first crossing of any cycle lies
+    // inside even for slivers far thinner than a fixed nudge (the widest such spot is taken).
+    // Crossings with the other cycles count too: a hole or a cut inside this cycle bounds the
+    // region, and a probe beyond it (e.g. the centre of an annulus) tests the wrong region.
     std::optional<P2> probe;
     double best_width = 0.0;
     const auto& poly = cycles[i].poly;
@@ -239,14 +241,19 @@ std::vector<TrimmedSurface> split(const TrimmedSurface& face, const std::vector<
       const double mx = 0.5 * (poly[k][0] + poly[k + 1][0]), my = 0.5 * (poly[k][1] + poly[k + 1][1]);
       const double nx = -ey / len, ny = ex / len;
       double s_hit = 1e300;
-      for (std::size_t j = 0; j + 1 < poly.size(); ++j) {
-        if (j == k) continue;
-        const double ax = poly[j][0], ay = poly[j][1], bx = poly[j + 1][0] - ax, by = poly[j + 1][1] - ay;
-        const double den = nx * by - ny * bx;
-        if (std::abs(den) < 1e-300) continue;
-        const double s = ((ax - mx) * by - (ay - my) * bx) / den;
-        const double t = ((ax - mx) * ny - (ay - my) * nx) / den;
-        if (s > 1e-12 * len && t >= 0.0 && t <= 1.0) s_hit = std::min(s_hit, s);
+      for (const Cycle& other : cycles) {
+        const auto& op = other.poly;
+        for (std::size_t j = 0; j < op.size(); ++j) {
+          if (&other == &cycles[i] && j == k) continue;  // own segment
+          const P2& pa = op[j];
+          const P2& pb = op[(j + 1) % op.size()];
+          const double ax = pa[0], ay = pa[1], bx = pb[0] - ax, by = pb[1] - ay;
+          const double den = nx * by - ny * bx;
+          if (std::abs(den) < 1e-300) continue;
+          const double s = ((ax - mx) * by - (ay - my) * bx) / den;
+          const double t = ((ax - mx) * ny - (ay - my) * nx) / den;
+          if (s > 1e-12 * len && t >= 0.0 && t <= 1.0) s_hit = std::min(s_hit, s);
+        }
       }
       if (s_hit >= 1e300 || s_hit <= best_width) continue;
       const P2 p{mx + 0.5 * s_hit * nx, my + 0.5 * s_hit * ny};

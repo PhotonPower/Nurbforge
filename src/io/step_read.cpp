@@ -1659,6 +1659,7 @@ class Reader {
     const NurbsSurface S = s.kind == Surf3::Kind::Spline ? *s.spline : analytic_patch(id, s, loops, same_sense);
     FaceMapper mapper(S, same_sense, tol_, notes);
     TrimmedSurface t = mapper.build(loops);
+    if (!r.params.empty() && r.params[0].kind == Value::Kind::String) t = t.with_label(r.params[0].text);
     return same_sense == shell_reversed ? t.flipped() : t;
   }
 

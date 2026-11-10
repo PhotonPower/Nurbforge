@@ -250,7 +250,7 @@ class ShellWriter {
       bounds.push_back(w_.add(std::string(l == 0 ? "FACE_OUTER_BOUND" : "FACE_BOUND") + "(''," + ref(loop) + "," +
                               logical(!flip) + ")"));
     }
-    return w_.add("ADVANCED_FACE(''," + list(bounds.size(), [&](std::size_t i) { return ref(bounds[i]); }) + "," +
+    return w_.add("ADVANCED_FACE(" + str(t.label()) + "," + list(bounds.size(), [&](std::size_t i) { return ref(bounds[i]); }) + "," +
                   ref(surf) + "," + logical(!flip) + ")");
   }
 

@@ -416,6 +416,22 @@ MassProperties Shell::mass_properties(double rel_tol) const {
   return mp;
 }
 
+Shell Shell::with_face_labels(const std::vector<std::string>& labels) const {
+  if (labels.size() != faces_.size())
+    throw GeometryError("shell: with_face_labels needs one label per face (" + std::to_string(faces_.size()) +
+                        "), got " + std::to_string(labels.size()));
+  Shell out = *this;  // same geometry: the topology stays valid
+  for (std::size_t f = 0; f < faces_.size(); ++f) out.faces_[f] = faces_[f].with_label(labels[f]);
+  return out;
+}
+
+std::vector<std::size_t> Shell::faces_labeled(const std::string& label) const {
+  std::vector<std::size_t> out;
+  for (std::size_t f = 0; f < faces_.size(); ++f)
+    if (faces_[f].label() == label) out.push_back(f);
+  return out;
+}
+
 Shell Shell::transformed(const Transform& t) const {
   const auto& M = t.matrix();
   const double det = M[0] * (M[5] * M[10] - M[6] * M[9]) - M[1] * (M[4] * M[10] - M[6] * M[8]) +
@@ -428,7 +444,7 @@ Shell Shell::transformed(const Transform& t) const {
   std::vector<TrimmedSurface> faces;
   faces.reserve(faces_.size());
   for (const auto& f : faces_) {
-    TrimmedSurface g(f.surface().transformed(t), f.outer(), f.holes());
+    TrimmedSurface g = TrimmedSurface(f.surface().transformed(t), f.outer(), f.holes()).with_label(f.label());
     faces.push_back(det < 0 ? g.flipped() : std::move(g));
   }
   return sew(std::move(faces), tol_ * std::max(scale, 1.0));

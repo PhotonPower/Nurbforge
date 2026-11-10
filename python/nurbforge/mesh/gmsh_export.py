@@ -147,19 +147,53 @@ class GmshSession:
         self.gmsh.write(path)
 
 
-def add_shell(shell: Shell, solid: bool = True) -> list[int]:
+def _interior_point(face: TrimmedSurface) -> tuple[float, float, float]:
+    """A point inside the trimmed face (first grid point of the parameter domain it contains)."""
+    s = face.surface
+    (u0, u1), (v0, v1) = s.domain_u, s.domain_v
+    for n in (8, 32, 128):
+        for i in range(1, n):
+            for j in range(1, n):
+                u, v = u0 + (u1 - u0) * (i + 0.37) / n, v0 + (v1 - v0) * (j + 0.61) / n
+                if u < u1 and v < v1 and face.contains(u, v):
+                    return tuple(s(u, v))
+    return tuple(s(0.5 * (u0 + u1), 0.5 * (v0 + v1)))
+
+
+def add_shell(shell: Shell, solid: bool = True, physical_groups: bool = False,
+              volume_name: str = "volume") -> list[int]:
     """Add all faces of a shell; faces are merged along shared edges. For a closed shell and
     ``solid=True`` a volume is built from the surface loop. Returns the face tags (and the volume
-    tag last, if one was created)."""
+    tag last, if one was created).
+
+    ``physical_groups=True`` creates one physical surface group per face label
+    (``TrimmedSurface.label``, e.g. set with ``Shell.with_face_labels`` before a Boolean;
+    unlabelled faces go to ``"unlabeled"``) and a physical volume ``volume_name``, so boundary
+    conditions can be assigned by name in the solver. Faces are matched to the gmsh surfaces
+    (renumbered by the duplicate removal) by an interior point."""
     gmsh = _gmsh()
     occ = gmsh.model.occ
-    tags = [add_trimmed_surface(f) for f in shell.faces]
+    for f in shell.faces:
+        add_trimmed_surface(f)
     occ.removeAllDuplicates()
     occ.synchronize()
     tags = [t for _, t in gmsh.model.getEntities(2)]
+    if physical_groups:
+        groups: dict[str, list[int]] = {}
+        for f in shell.faces:
+            p = _interior_point(f)
+            tag = min(tags, key=lambda t: sum((a - b) ** 2 for a, b in
+                                              zip(gmsh.model.getClosestPoint(2, t, p)[0], p)))
+            groups.setdefault(f.label or "unlabeled", []).append(tag)
     if solid and shell.is_closed:
         loop = occ.addSurfaceLoop(tags, sewing=True)
         tags.append(occ.addVolume([loop]))
+        occ.synchronize()
+    if physical_groups:
+        for name, group in groups.items():
+            gmsh.model.addPhysicalGroup(2, sorted(set(group)), name=name)
+        if solid and shell.is_closed:
+            gmsh.model.addPhysicalGroup(3, [tags[-1]], name=volume_name)
     return tags
 
 

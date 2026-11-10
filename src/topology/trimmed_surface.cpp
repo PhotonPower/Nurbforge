@@ -313,13 +313,23 @@ TrimmedSurface TrimmedSurface::flipped() const {
   };
   std::vector<TrimLoop> holes;
   for (const auto& h : holes_) holes.push_back(map_loop(h));
-  return {std::move(s), map_loop(outer_), std::move(holes)};
+  TrimmedSurface out{std::move(s), map_loop(outer_), std::move(holes)};
+  out.label_ = label_;
+  return out;
+}
+
+TrimmedSurface TrimmedSurface::with_label(std::string label) const {
+  TrimmedSurface out = *this;
+  out.label_ = std::move(label);
+  return out;
 }
 
 TrimmedSurface TrimmedSurface::with_hole(TrimLoop hole) const {
   std::vector<TrimLoop> h = holes_;
   h.push_back(std::move(hole));
-  return {surface_, outer_, std::move(h)};
+  TrimmedSurface out{surface_, outer_, std::move(h)};
+  out.label_ = label_;
+  return out;
 }
 
 double TrimmedSurface::area(double rel_tol) const {

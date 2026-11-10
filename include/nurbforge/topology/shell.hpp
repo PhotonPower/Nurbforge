@@ -4,6 +4,7 @@
 
 #include <array>
 #include <cstddef>
+#include <string>
 #include <vector>
 
 #include "nurbforge/geometry/transform.hpp"
@@ -90,6 +91,13 @@ class Shell {
   /// unchanged) and the faces are sewn again. Orientation-reversing maps (mirrors, negative
   /// scale factors) flip the faces, so outward normals stay outward.
   [[nodiscard]] Shell transformed(const Transform& t) const;
+
+  /// The same shell with face f labelled labels[f] (TrimmedSurface::label; one label per face,
+  /// "" for none). Labels survive Booleans, so faces can be named before an operation and found
+  /// again afterwards (boundary conditions, physical groups for meshing).
+  [[nodiscard]] Shell with_face_labels(const std::vector<std::string>& labels) const;
+  /// Indices of the faces with the given label.
+  [[nodiscard]] std::vector<std::size_t> faces_labeled(const std::string& label) const;
 
  private:
   [[nodiscard]] std::vector<std::vector<std::size_t>> face_components() const;

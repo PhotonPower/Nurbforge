@@ -36,6 +36,7 @@ add_executable(nurbforge_tests
   test_shell.cpp
   test_offset.cpp
   test_fillet.cpp
+  test_curve_constructors.cpp
   test_boolean.cpp
   test_solids.cpp
   test_step.cpp

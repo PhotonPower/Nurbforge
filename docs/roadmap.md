@@ -21,7 +21,8 @@
 - Sweep (one and two rails) ✅
 - Coons and Gordon patches ✅
 - Offset curves/surfaces ✅
-- Fillets ✅ (rolling ball): curve/curve arcs (exact), surface/surface rolling-ball fillets with verified tolerance
+- Fillets ✅ (rolling ball): curve/curve arcs (exact), surface/surface rolling-ball fillets with verified tolerance; all corners of a planar curve (`fillet_corners`) ✅
+- Curve constructors ✅ (#16): circle/arc through 3 points, regular polygon, rectangle outline, helix/conical helix/spiral with verified tolerance
 - Optical surfaces: conics (exact), aspheres (even/odd), Zernike, XY polynomials, freeform sag functions → NURBS fit with verified tolerance ✅
 
 ## 0.4 – Intersections & trimming

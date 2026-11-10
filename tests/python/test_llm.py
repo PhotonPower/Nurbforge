@@ -119,6 +119,18 @@ def test_fillet_tool():
     assert call_tool(ws, "fillet", {"name": "x", "a": "a", "b": "p", "radius": 0.5}).startswith("ERROR")
 
 
+def test_polygon_helix_round_corners_tools():
+    ws = Workspace()
+    call_tool(ws, "make_polygon", {"name": "hex", "center": [0, 0, 0], "normal": [0, 0, 1],
+                                   "radius": 2, "n": 6})
+    call_tool(ws, "round_corners", {"name": "r", "source": "hex", "radius": 0.3})
+    assert abs(nf.length(ws.get("r")) - (12 - 12 * 0.3 * math.tan(math.pi / 6)
+                                         + 2 * math.pi * 0.3)) < 1e-8
+    call_tool(ws, "make_helix", {"name": "h", "axis_point": [0, 0, 0], "axis_dir": [0, 0, 1],
+                                 "start": [1, 0, 0], "pitch": 0.5, "turns": 2})
+    assert abs(nf.length(ws.get("h")) - 2 * math.hypot(2 * math.pi, 0.5)) < 1e-6
+
+
 def test_loft_tool():
     ws = Workspace()
     for i, z in enumerate((0, 1, 2)):

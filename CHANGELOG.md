@@ -29,6 +29,13 @@ versioning: [SemVer](https://semver.org).
   flip the faces so normals stay outward. The LLM tools `translate`, `rotate`, `mirror` now work
   on shells, and the new tools `solid` and `mass_properties` create and measure solids.
 - `TrimmedSurface.flipped()` in Python.
+- Curve constructors (#16): `make_circle_3pt`, `make_arc_3pt` (exact), `make_polygon` (regular
+  n-gon), `make_rectangle_curve` (closed outline), `make_helix` (cylindrical or conical helix,
+  planar Archimedean spiral, left- or right-handed; parameter = number of turns; C2 quintic
+  Hermite spline verified against the exact curve, span count from the h^6 convergence).
+- `fillet_corners(curve, radius)`: rounds every corner of a planar curve with exact arcs
+  (`fillet_curves` per corner, also the closing corner) and joins it into one G1 curve.
+- LLM tools `make_polygon`, `make_helix`, `round_corners`.
 
 ### Fixed
 - Boolean difference returned open shells for parts with coplanar lids (#45):

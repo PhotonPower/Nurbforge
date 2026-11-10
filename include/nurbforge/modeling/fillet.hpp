@@ -72,6 +72,18 @@ struct CurveFillet {
                                         const Vec3& plane_normal = {0.0, 0.0, 1.0},
                                         const CurveFilletOptions& options = {});
 
+/// Rounds every corner (tangent discontinuity) of a planar curve with an exact circular arc of
+/// the given radius, e.g. a polyline, make_rectangle_curve or make_polygon. The curve is split at
+/// its interior knots of full multiplicity; consecutive pieces meeting with a tangent angle above
+/// 1e-9 rad are filleted with fillet_curves (inside the corner), and so is the closing corner of
+/// a closed curve. Pieces are trimmed at the tangent points and joined with the arcs into one G1
+/// curve (degrees unified by elevation; for a closed curve the start moves to the first tangent
+/// point after the original start). The plane is taken from the control points (Newell normal).
+/// Throws GeometryError if the curve is not planar, a corner turns back on itself (180 degrees),
+/// or the radius is too large for a piece (the tangent points of its two fillets overlap).
+[[nodiscard]] NurbsCurve fillet_corners(const NurbsCurve& curve, double radius,
+                                        double tolerance = 1e-7);
+
 /// Options of fillet_surfaces.
 struct SurfaceFilletOptions {
   /// Side of the ball centre relative to s1: centre = contact point + side1 * r * N1 with the

@@ -529,6 +529,20 @@ PYBIND11_MODULE(_core, m) {
   m.def("make_arc", &make_arc, py::arg("center"), py::arg("x_axis"), py::arg("y_axis"),
         py::arg("radius"), py::arg("start_angle"), py::arg("end_angle"));
   m.def("make_circle", &make_circle, py::arg("center"), py::arg("normal"), py::arg("radius"));
+  m.def("make_circle_3pt", &make_circle_3pt, py::arg("p0"), py::arg("p1"), py::arg("p2"),
+        "Full circle through three points (starts at p0, runs through p1 and p2).");
+  m.def("make_arc_3pt", &make_arc_3pt, py::arg("p0"), py::arg("p1"), py::arg("p2"),
+        "Circular arc from p0 through p1 to p2.");
+  m.def("make_polygon", &make_polygon, py::arg("center"), py::arg("normal"), py::arg("radius"), py::arg("n"),
+        py::arg("x_axis") = Vec3{0, 0, 0},
+        "Closed regular polygon with n vertices on the circle of the given radius (first vertex along x_axis).");
+  m.def("make_rectangle_curve", &make_rectangle_curve, py::arg("origin"), py::arg("edge_u"), py::arg("edge_v"),
+        "Closed rectangle outline (degree 1).");
+  m.def("make_helix", &make_helix, py::arg("axis_point"), py::arg("axis"), py::arg("start"), py::arg("pitch"),
+        py::arg("turns"), py::arg("end_radius") = -1.0, py::arg("left_handed") = false,
+        py::arg("tolerance") = 1e-7,
+        "Helix / conical helix / planar spiral starting at `start`, parameter = turns; C2 quintic within "
+        "`tolerance` of the exact curve. end_radius < 0: cylindrical.");
   m.def("make_bilinear", &make_bilinear, py::arg("p00"), py::arg("p10"), py::arg("p01"), py::arg("p11"));
   m.def("make_rectangle", &make_rectangle, py::arg("origin"), py::arg("edge_u"), py::arg("edge_v"));
 
@@ -619,6 +633,8 @@ PYBIND11_MODULE(_core, m) {
         return "<CurveFillet center=(" + std::to_string(f.center.x) + ", " +
                std::to_string(f.center.y) + ", " + std::to_string(f.center.z) + ")>";
       });
+  m.def("fillet_corners", &fillet_corners, py::arg("curve"), py::arg("radius"), py::arg("tolerance") = 1e-7,
+        "Round every corner of a planar curve (polyline, polygon, ...) with exact arcs; one G1 curve.");
   m.def(
       "fillet_curves",
       [](const NurbsCurve& a, const NurbsCurve& b, double radius, const Vec3& plane_normal,

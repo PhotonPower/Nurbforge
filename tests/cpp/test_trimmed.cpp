@@ -54,6 +54,44 @@ TEST_CASE("circular aperture, hole and nested loops on a plate", "[trim]") {
     for (const auto& p : c.sample(100)) CHECK(std::abs((p.x - 2) * (p.x - 2) + 4 * (p.y - 1) * (p.y - 1) - 1) < 1e-7);
 }
 
+TEST_CASE("boundary curves are exact on planes and along iso lines", "[trim]") {
+  // a plane maps a trim circle affinely (it stays a rational quadratic), a straight trim segment
+  // along an iso line maps to the iso-curve; both keep the parametrisation of the trim curve
+  // (they used to be cubic interpolants with hundreds of control points, issue #46)
+  const auto s = plate();
+  const TrimmedSurface disk(s, circle_loop(0.5, 0.5, 0.25));
+  const auto b = disk.boundary_curves(1e-8);
+  REQUIRE(b.size() == 1);
+  for (std::size_t k = 0; k < b[0].size(); ++k) {
+    const NurbsCurve& c = b[0][k];
+    const NurbsCurve& pc = disk.outer().curves[k];
+    CHECK(c.degree() == 2);
+    CHECK(c.control_points().size() == pc.control_points().size());
+    for (int i = 0; i <= 50; ++i) {
+      const double t = pc.domain_start() + (pc.domain_end() - pc.domain_start()) * i / 50.0;
+      const Vec3 w = pc.evaluate(t), p = c.evaluate(t);
+      CHECK(distance(p, s.evaluate(w.x, w.y)) < 1e-13);
+      CHECK(std::abs((p.x - 2) * (p.x - 2) + 4 * (p.y - 1) * (p.y - 1) - 1) < 1e-13);
+    }
+  }
+  const double R = 0.7;
+  const auto side = extrude(make_circle({0, 0, 0}, {0, 0, 1}, R), {0, 0, 2});
+  const auto loops = TrimmedSurface(side).boundary_curves(1e-8);
+  REQUIRE(loops.size() == 1);
+  REQUIRE(loops[0].size() == 4);
+  const TrimmedSurface full(side);
+  for (std::size_t k = 0; k < 4; ++k) {
+    const NurbsCurve& c = loops[0][k];
+    const NurbsCurve& pc = full.outer().curves[k];
+    CHECK(c.control_points().size() <= 9);  // a full circle or a straight line
+    for (int i = 0; i <= 50; ++i) {
+      const double t = pc.domain_start() + (pc.domain_end() - pc.domain_start()) * i / 50.0;
+      const Vec3 w = pc.evaluate(t);
+      CHECK(distance(c.evaluate(t), side.evaluate(w.x, w.y)) < 1e-12);
+    }
+  }
+}
+
 TEST_CASE("loop validation and orientation", "[trim]") {
   const auto s = plate();
   // clockwise outer loop is reversed on construction
@@ -155,6 +193,22 @@ TEST_CASE("general split of trimmed faces (planar arrangement)", "[trim][arrange
   CHECK(std::abs(a[2] - 0.42) < 1e-9);
   // a dangling cut (ends inside) changes nothing
   CHECK(split(TrimmedSurface(sq), {make_line({0.2, 0.2, 0}, {0.6, 0.5, 0})}).size() == 1);
+}
+
+TEST_CASE("split along a closed cut around an existing hole", "[trim][arrangement]") {
+  // the region probe of a cycle must stop at the hole inside it: the centre of the square (and of
+  // the cut circle) lies in the hole, and both regions used to be lost (issue #45)
+  const auto sq = make_rectangle({0, 0, 0}, {1, 0, 0}, {0, 1, 0});
+  const auto holed = TrimmedSurface(sq).with_hole(circle_loop(0.5, 0.5, 0.2));
+  auto parts = split(holed, {make_circle({0.5, 0.5, 0}, {0, 0, 1}, 0.3)});
+  REQUIRE(parts.size() == 2);
+  std::sort(parts.begin(), parts.end(), [](const auto& x, const auto& y) { return x.area(1e-9) < y.area(1e-9); });
+  CHECK(rel_close(parts[0].area(1e-9), pi * (0.09 - 0.04), 1e-6));  // annulus 0.2 ... 0.3
+  CHECK(parts[0].holes().size() == 1);
+  CHECK(rel_close(parts[1].area(1e-9), 1.0 - pi * 0.09, 1e-6));  // square minus the disk 0.3
+  CHECK(parts[1].holes().size() == 1);
+  CHECK_FALSE(parts[0].contains(0.5, 0.5));
+  CHECK_FALSE(parts[1].contains(0.5, 0.5));
 }
 
 TEST_CASE("containment is exact near curved trim loops", "[trim]") {

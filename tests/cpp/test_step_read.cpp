@@ -234,6 +234,34 @@ TEST_CASE("STEP read: round trip of a cylinder with lids", "[step_read]") {
   CHECK(s.volume(kRel) == Approx(pi * 0.49 * 3.0).epsilon(1e-7));
 }
 
+TEST_CASE("STEP read: trim loops stay compact (issue #46)", "[step_read]") {
+  // circles are written exactly (rational) and come back exactly on planes; edges along iso lines
+  // of the cylinder come back as straight trim segments. Interpolated loops with hundreds of
+  // control points made Booleans of the read shells about 10x slower than of the originals.
+  const Shell cyl = cylinder_shell(10, 0, 5);
+  const std::string text = to_step({cyl});
+  CHECK(text.size() < 20000);
+  const auto read = from_step(text);
+  REQUIRE(read.size() == 1);
+  for (const auto& f : read[0].faces())
+    for (const auto* l : [&] {
+           std::vector<const TrimLoop*> v{&f.outer()};
+           for (const auto& h : f.holes()) v.push_back(&h);
+           return v;
+         }())
+      for (const auto& c : l->curves) CHECK(c.control_points().size() <= 9);
+
+  // the cases of the issue: disjoint (a cylinder in the hole of a ring) and nested coaxial
+  // cylinders with coplanar lids, intersected after a round trip
+  const Shell ring = boolean(cylinder_shell(20, 0, 5), cylinder_shell(12, -1, 6), BooleanOp::Difference);
+  const auto rt = from_step(to_step({cyl, ring, cylinder_shell(14, 0, 5)}));
+  REQUIRE(rt.size() == 3);
+  CHECK(boolean(rt[0].oriented(), rt[1].oriented(), BooleanOp::Intersection).faces().empty());
+  const Shell nested = boolean(rt[0].oriented(), rt[2].oriented(), BooleanOp::Intersection);
+  REQUIRE(nested.is_closed());
+  CHECK(nested.volume(kRel) == Approx(pi * 100.0 * 5.0).epsilon(1e-7));
+}
+
 TEST_CASE("STEP read: round trip of a Boolean union", "[step_read]") {
   const Shell u = boolean(sphere_shell({0, 0, 0}, 1.0), sphere_shell({1, 0, 0}, 1.0), BooleanOp::Union);
   roundtrip(u);

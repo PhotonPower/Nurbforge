@@ -4,6 +4,19 @@ All notable changes are documented here. Format: [Keep a Changelog](https://keep
 versioning: [SemVer](https://semver.org).
 
 ## [Unreleased]
+### Added
+- `hatch(loops, direction, spacing, options)`: hatch and contour lines of the region bounded by
+  section loops, e.g. the writing paths of a layer in two-photon lithography (#44). Hatch lines
+  n · p = phase + k · spacing are intersected exactly with the loop curves (sign changes of the
+  rational height of every Bézier piece, transversal roots refined to machine precision); the
+  region follows the loop orientation (winding number), so holes and islands in holes are right.
+  Tangential contacts and edges lying on a line do not split it (no zero-length segments).
+  Segments carry their line index, the outer loop of their region and the loops they start and
+  end on. Contours are inward offsets of every loop (trimmed at convex corners, arcs at reflex
+  corners); contours that would split or vanish throw `GeometryError`. Python:
+  `nf.hatch(loops, direction, spacing, phase=…, contours=[…], min_length=…)` →
+  `(segments, contours)`; example `examples/python/11_slice_and_hatch.py`.
+
 ### Fixed
 - Boolean difference returned open shells for parts with coplanar lids (#45):
   - `split` (face arrangement) probed each region only against its own boundary cycle; for a cut
@@ -21,6 +34,22 @@ versioning: [SemVer](https://semver.org).
   with a break ~1e-11 from a knot threw "remove_knot: … is not an interior knot" (hit by the
   coaxial overlapping cylinders after the fix above). Breaks closer than 10 · 1e-10 are merged,
   the domain ends kept exactly.
+- Booleans of shells read from STEP were ~10x slower than of the originals (#46): every edge
+  went through cubic interpolation twice and came back with hundreds of control points.
+  - `TrimmedSurface::boundary_curves` (used by `sew` and the STEP writer) is exact where it can
+    be: on a planar parallelogram the edge is the affine image of the trim curve (a trim circle
+    stays a rational circle), and a straight trim segment along an iso line gives the iso-curve.
+    Both keep the trim curve's parametrisation. A cylinder with lids: STEP file 155 kB → 6 kB.
+  - STEP reader: edges lying on an iso line of their face (circles at the ends of a cylinder,
+    seams, meridians) become straight trim segments instead of interpolants (the end circle on a
+    cylinder's side face: 1521 control points → 2).
+  - `projected_loops` (cuts of coincident faces) interpolates piecewise between the C1 knots of
+    the trim curve; a single cubic across them ran into the sample limit (2049 control points
+    for a circle).
+
+  Issue cases (intersection): disjoint cylinder/ring 2.6 s / 23 s (from STEP) → 0.3 s / 0.2 s;
+  nested cylinders with coplanar lids 34 s / 73 s → 0.2 s / 0.2 s. `nf_stress 3`: 1.03 → 0.85 s
+  per case.
 
 ## [0.6.0] – 2026-11-05
 ### Fixed (found by the new Boolean stress test, `benchmarks/stress.cpp`)

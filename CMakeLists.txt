@@ -12,6 +12,14 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
+# macOS: the STEP writer uses std::to_chars for double, which Apple's libc++ provides from
+# macOS 13.3; release wheels target 14.0 (pyproject.toml). Fail early instead of with an
+# "unavailable" compile error deep inside src/io/step.cpp.
+if(APPLE AND CMAKE_OSX_DEPLOYMENT_TARGET AND CMAKE_OSX_DEPLOYMENT_TARGET VERSION_LESS 13.3)
+  message(FATAL_ERROR "Nurbforge needs macOS >= 13.3 (CMAKE_OSX_DEPLOYMENT_TARGET / "
+                      "MACOSX_DEPLOYMENT_TARGET is ${CMAKE_OSX_DEPLOYMENT_TARGET})")
+endif()
+
 option(NF_BUILD_TESTS            "Build C++ unit tests"            ON)
 option(NF_BUILD_PYTHON           "Build Python bindings"           ON)
 option(NF_BUILD_EXAMPLES         "Build C++ examples"              ON)

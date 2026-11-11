@@ -64,6 +64,30 @@ jobs:
           python -c "import gmsh; print('gmsh', gmsh.__version__)"
           pytest -v
 
+  macos:
+    name: macOS (Apple Clang, arm64)
+    runs-on: macos-latest
+    env:
+      MACOSX_DEPLOYMENT_TARGET: "14.0"   # same as the release wheels (pyproject.toml)
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Tools
+        run: pip install --upgrade cmake ninja pybind11 scikit-build-core
+      - name: Configure & build (C++)
+        run: |
+          cmake --preset ci -DNF_BUILD_PYTHON=OFF
+          cmake --build --preset ci -j
+      - name: C++ tests
+        run: ctest --preset ci
+      - name: Python package & tests
+        run: |
+          pip install ".[dev]"
+          python -c "import gmsh; print('gmsh', gmsh.__version__)"
+          pytest -v
+
   tsan:
     name: ThreadSanitizer (concurrent const queries)
     runs-on: ubuntu-latest

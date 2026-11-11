@@ -16,6 +16,13 @@ versioning: [SemVer](https://semver.org).
 - Wheels workflow: a `release` job publishes the GitHub release for every `v*` tag (wheels,
   sdist, the tag's CHANGELOG section as notes); existing tags can be released by running the
   workflow manually with `release_tag`.
+- macOS support (Apple Silicon and Intel, macOS ≥ 14): CI job with Apple Clang (`-Werror`, C++
+  and Python tests), wheels for `arm64` and `x86_64`, build guide `docs/build/macos.md`.
+
+### Fixed
+- STEP reader on macOS: numbers are parsed with `strtod_l` in the "C" locale instead of
+  `std::from_chars(double)`, which Apple's libc++ only provides from macOS 26. A test checks
+  that a decimal-comma `LC_NUMERIC` (e.g. `de_DE`) does not affect parsing.
 
 ## [0.7.0] – 2026-11-10
 Writing paths for two-photon lithography (hatching of section loops), solid primitives with mass

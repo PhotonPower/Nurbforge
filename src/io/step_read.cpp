@@ -18,6 +18,13 @@
 #include <utility>
 #include <vector>
 
+#if defined(__APPLE__)
+#include <xlocale.h>
+
+#include <cerrno>
+#include <cstdlib>
+#endif
+
 #include "nurbforge/analysis/closest_point.hpp"
 #include "nurbforge/core/error.hpp"
 #include "nurbforge/fitting/fit.hpp"
@@ -35,6 +42,26 @@ constexpr double kPi = std::numbers::pi;
 constexpr double kTwoPi = 2.0 * std::numbers::pi;
 
 // ================================================================== Part 21 parser
+
+/// Parses [first, last) as a double; true iff the whole range is a valid, finite number.
+bool parse_double(const char* first, const char* last, double& out) {
+#if defined(__APPLE__)
+  // Apple's libc++ marks floating-point std::from_chars as available only from macOS 26, which
+  // would rule out every older deployment target. strtod_l with the "C" locale is equally
+  // locale-independent and available on all supported macOS versions.
+  static const locale_t c_locale = newlocale(LC_ALL_MASK, "C", nullptr);
+  if (first == last) return false;
+  const std::string text(first, last);  // strtod_l needs a terminated string
+  char* end = nullptr;
+  errno = 0;
+  out = strtod_l(text.c_str(), &end, c_locale);
+  if (end != text.c_str() + text.size()) return false;
+  return !(errno == ERANGE && std::isinf(out));  // reject overflow like from_chars does
+#else
+  const auto res = std::from_chars(first, last, out);
+  return res.ec == std::errc() && res.ptr == last;
+#endif
+}
 
 struct Value {
   enum class Kind { Null, Derived, Number, String, Enum, Ref, List, Typed };
@@ -247,8 +274,7 @@ class Parser {
                                   s_[pos_] == '-' || s_[pos_] == '.' || s_[pos_] == 'E' || s_[pos_] == 'e'))
         ++pos_;
       if (s_[start] == '+') ++start;
-      const auto res = std::from_chars(s_.data() + start, s_.data() + pos_, v.num);
-      if (res.ec != std::errc() || res.ptr != s_.data() + pos_) fail("invalid number");
+      if (!parse_double(s_.data() + start, s_.data() + pos_, v.num)) fail("invalid number");
     } else {
       fail(std::string("unexpected character '") + c + "'");
     }

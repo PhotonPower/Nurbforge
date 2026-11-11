@@ -11,7 +11,7 @@
    cmake --preset debug && cmake --build --preset debug && ctest --preset debug
    pip install -e ".[dev]" && pytest
    ```
-5. Open a pull request; CI must pass on AlmaLinux 10 and Windows 11.
+5. Open a pull request; CI must pass on AlmaLinux 10, Windows 11 and macOS.
 
 ## Documentation
 
@@ -35,7 +35,7 @@ current. The site is rebuilt and deployed by `.github/workflows/docs.yml` on eve
 Wheels are built with [cibuildwheel](https://cibuildwheel.pypa.io) (config in
 `[tool.cibuildwheel]`, `pyproject.toml`) by `.github/workflows/wheels.yml` on `v*` tags, manual
 dispatch and PRs touching `pyproject.toml`/`CMakeLists.txt`. To reproduce one locally (Windows,
-no Docker needed): `pipx run cibuildwheel --only cp312-win_amd64`; Linux builds need Docker.
+no Docker needed): `pipx run cibuildwheel --only cp312-win_amd64`, on a Mac `pipx run cibuildwheel --only cp312-macosx_arm64`; Linux builds need Docker.
 
 ## Code style
 

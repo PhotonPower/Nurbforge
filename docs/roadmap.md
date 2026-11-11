@@ -4,7 +4,7 @@
 - NURBS core (basis, evaluation, rational derivatives, knot insertion)
 - Primitives: line, polyline, arc, circle, bilinear patch, rectangle
 - Extrusion, revolution, ruled surface; affine transforms; linear/grid/polar arrays
-- Python bindings, gmsh transfer, Ollama agent; CI on AlmaLinux 10 and Windows 11
+- Python bindings, gmsh transfer, Ollama agent; CI on AlmaLinux 10, Windows 11 and macOS
 
 ## 0.2 – Complete NURBS toolbox ✅
 - Degree elevation ✅, degree reduction ✅, knot removal ✅
@@ -51,7 +51,7 @@
 - Contours that split, merge and vanish (offset beyond the local half-width) ✅
 
 ## Infrastructure
-- ✅ Wheels via cibuildwheel (manylinux_2_28 for AlmaLinux 10 compatibility, win_amd64)
+- ✅ Wheels via cibuildwheel (manylinux_2_28 for AlmaLinux 10 compatibility, win_amd64, macOS arm64/x86_64)
 - ✅ Sphinx site with Breathe (Doxygen) API docs on GitHub Pages
 - Benchmarks ✅ (`benchmarks/`, smoke-tested in CI); parallel seed search in the surface/surface intersection ✅ (2.3× on 16 threads); OpenMP on Boolean face pairs measured, not adopted (see benchmarks page)
 - LLM: geometry verification step ✅ (`inspect` / `check` tools, verification rounds); constraint reasoning ✅ (`solve`: unknowns from measured targets)

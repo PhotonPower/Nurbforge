@@ -15,6 +15,7 @@
 | [llm.md](llm.md) | Ollama interface and safety model |
 | [build/almalinux10.md](build/almalinux10.md) | Build on AlmaLinux 10 |
 | [build/windows11.md](build/windows11.md) | Build on Windows 11 |
+| [build/macos.md](build/macos.md) | Build on macOS |
 | [roadmap.md](roadmap.md) | Planned features and milestones |
 | [adr/README.md](adr/README.md) | Architecture decision records |
 
@@ -41,6 +42,7 @@ llm
 benchmarks
 build/almalinux10
 build/windows11
+build/macos
 ```
 
 ```{toctree}

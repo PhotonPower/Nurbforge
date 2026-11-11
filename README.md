@@ -78,11 +78,12 @@ cmake --preset release && cmake --build --preset release && ctest --preset relea
 |---|---|---|
 | AlmaLinux 10 | GCC 14, CMake ≥ 3.24, Python ≥ 3.10 | [docs/build/almalinux10.md](docs/build/almalinux10.md) |
 | Windows 11 | Visual Studio 2022 or 2026 (MSVC), CMake ≥ 3.24 (≥ 4.2 for VS 2026), Python ≥ 3.10 | [docs/build/windows11.md](docs/build/windows11.md) |
+| macOS ≥ 14 (Apple Silicon, Intel) | Xcode Command Line Tools (Apple Clang), CMake ≥ 3.24, Python ≥ 3.10 | [docs/build/macos.md](docs/build/macos.md) |
 
 ## Binary wheels
 
-Wheels for Linux (`manylinux_2_28` x86_64 – installs on AlmaLinux/RHEL 8, 9 and 10) and Windows
-(`win_amd64`), CPython 3.10–3.13, are built by the [Wheels workflow](.github/workflows/wheels.yml)
+Wheels for Linux (`manylinux_2_28` x86_64 – installs on AlmaLinux/RHEL 8, 9 and 10), Windows
+(`win_amd64`) and macOS 14+ (`arm64`, `x86_64`), CPython 3.10–3.13, are built by the [Wheels workflow](.github/workflows/wheels.yml)
 for every `v*` tag and attached, with the sdist, to the [GitHub release](https://github.com/PhotonPower/Nurbforge/releases):
 
 ```bash

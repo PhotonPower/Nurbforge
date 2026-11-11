@@ -17,7 +17,10 @@ def test_labels_survive_a_boolean():
 
 
 def test_physical_groups_from_labels(tmp_path):
-    gmsh = pytest.importorskip("gmsh")
+    try:  # gmsh raises OSError (not ImportError) if system libraries are missing
+        import gmsh
+    except (ImportError, OSError) as exc:  # pragma: no cover
+        pytest.skip(f"gmsh not usable: {exc}")
     from nurbforge.mesh import GmshSession, add_shell
 
     part = nf.make_cylinder((0, 0, 0), (0, 0, 1), 1.0, 2.0).with_face_labels(

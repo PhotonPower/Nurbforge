@@ -1,6 +1,7 @@
 name: Wheels
 
-# Binary wheels (manylinux_2_28 x86_64, win_amd64; CPython 3.10-3.13) and an sdist.
+# Binary wheels (manylinux_2_28 x86_64, win_amd64, macOS 14+ arm64/x86_64; CPython 3.10-3.13)
+# and an sdist.
 # cibuildwheel is configured in pyproject.toml ([tool.cibuildwheel]); every wheel is tested
 # with the pytest suite before it is uploaded as an artifact. For a v* tag the release job then
 # creates the GitHub release with the wheels, the sdist and the tag's CHANGELOG section; an
@@ -37,7 +38,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest]
+        os: [ubuntu-latest, windows-latest, macos-latest]
     steps:
       - uses: actions/checkout@v5
         with:
@@ -101,8 +102,9 @@ jobs:
           text = open("CHANGELOG.md", encoding="utf-8").read()
           m = re.search(r"^## \[" + re.escape(version) + r"\][^\n]*\n(.*?)(?=^## \[)", text, re.S | re.M)
           notes = m.group(1).strip() if m else f"Nurbforge {version}"
-          notes += ("\n\n### Install\nBinary wheels for Linux (manylinux_2_28 x86_64) and Windows "
-                    "(win_amd64), CPython 3.10-3.13, and the sdist are attached, e.g.\n\n"
+          notes += ("\n\n### Install\nBinary wheels for Linux (manylinux_2_28 x86_64), Windows "
+                    "(win_amd64) and macOS 14+ (arm64, x86_64), CPython 3.10-3.13, and the sdist "
+                    "are attached, e.g.\n\n"
                     f"```bash\npip install nurbforge-{version}-cp312-cp312-win_amd64.whl\n```\n")
           open("notes.md", "w", encoding="utf-8").write(notes)
           PY

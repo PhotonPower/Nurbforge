@@ -17,6 +17,7 @@ classifiers = [
   "License :: OSI Approved :: MIT License",
   "Operating System :: POSIX :: Linux",
   "Operating System :: Microsoft :: Windows",
+  "Operating System :: MacOS",
   "Topic :: Scientific/Engineering",
 ]
 
@@ -46,7 +47,8 @@ if.platform-system = "win32"
 cmake.version = ">=4.2"
 
 # Binary wheels (.github/workflows/wheels.yml). manylinux_2_28 (glibc 2.28) wheels install on
-# AlmaLinux/RHEL 8, 9 and 10; Windows wheels need CMake >= 4.2 only for VS 2026 (override above).
+# AlmaLinux/RHEL 8, 9 and 10; Windows wheels need CMake >= 4.2 only for VS 2026 (override above);
+# macOS wheels (arm64, x86_64) need macOS >= 14.
 [tool.cibuildwheel]
 build = "cp310-* cp311-* cp312-* cp313-*"
 skip = "*-musllinux_* *-win32 *_i686"
@@ -64,6 +66,12 @@ archs = ["x86_64"]
 
 [tool.cibuildwheel.windows]
 archs = ["AMD64"]
+
+# macOS: Apple Silicon and Intel, built on an arm64 runner (x86_64 cross-compiled, tested under
+# Rosetta 2). 14.0 because the STEP writer needs std::to_chars(double) (libc++: macOS >= 13.3).
+[tool.cibuildwheel.macos]
+archs = ["arm64", "x86_64"]
+environment = { MACOSX_DEPLOYMENT_TARGET = "14.0" }
 
 [tool.pytest.ini_options]
 testpaths = ["tests/python"]

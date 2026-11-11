@@ -1,7 +1,9 @@
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 
+#include <clocale>
 #include <cmath>
+#include <initializer_list>
 #include <numbers>
 #include <string>
 #include <vector>
@@ -346,6 +348,22 @@ TEST_CASE("STEP read: spheres from SPHERICAL_SURFACE", "[step_read]") {
   CHECK(h.is_closed());
   CHECK(h.volume(kRel) == Approx(2.0 / 3.0 * pi).epsilon(1e-7));
   CHECK(h.area() == Approx(3.0 * pi).epsilon(1e-7));
+}
+
+TEST_CASE("STEP read: numbers do not depend on the C locale", "[step_read]") {
+  // A decimal comma in LC_NUMERIC (e.g. de_DE, set by a host application) must not change how
+  // "1." or "1.5E-01" are parsed. Skipped where no such locale is installed.
+  const std::string previous = std::setlocale(LC_NUMERIC, nullptr);
+  bool switched = false;
+  for (const char* name : {"de_DE.UTF-8", "de_DE.utf8", "de_DE", "German_Germany.1252"})
+    if (std::setlocale(LC_NUMERIC, name) != nullptr) {
+      switched = true;
+      break;
+    }
+  if (!switched) SKIP("no locale with a decimal comma installed");
+  const Shell h = read_one(wrap(kHemisphere));
+  std::setlocale(LC_NUMERIC, previous.c_str());
+  CHECK(h.volume(kRel) == Approx(2.0 / 3.0 * pi).epsilon(1e-7));
 }
 
 TEST_CASE("STEP read: errors and skipped entities", "[step_read]") {

@@ -83,7 +83,7 @@ cmake --preset release && cmake --build --preset release && ctest --preset relea
 ## Binary wheels
 
 Wheels for Linux (`manylinux_2_28` x86_64 – installs on AlmaLinux/RHEL 8, 9 and 10), Windows
-(`win_amd64`) and macOS 14+ (`arm64`, `x86_64`), CPython 3.10–3.13, are built by the [Wheels workflow](.github/workflows/wheels.yml)
+(`win_amd64`) and macOS 14+ (`arm64`, `x86_64`), CPython 3.10–3.14, are built by the [Wheels workflow](.github/workflows/wheels.yml)
 for every `v*` tag and attached, with the sdist, to the [GitHub release](https://github.com/PhotonPower/Nurbforge/releases):
 
 ```bash

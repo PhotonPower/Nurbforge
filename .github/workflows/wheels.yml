@@ -1,6 +1,6 @@
 name: Wheels
 
-# Binary wheels (manylinux_2_28 x86_64, win_amd64, macOS 14+ arm64/x86_64; CPython 3.10-3.13)
+# Binary wheels (manylinux_2_28 x86_64, win_amd64, macOS 14+ arm64/x86_64; CPython 3.10-3.14)
 # and an sdist.
 # cibuildwheel is configured in pyproject.toml ([tool.cibuildwheel]); every wheel is tested
 # with the pytest suite before it is uploaded as an artifact. For a v* tag the release job then
@@ -47,7 +47,7 @@ jobs:
         uses: pypa/cibuildwheel@v3.2.1
         with:
           output-dir: wheelhouse
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: wheels-${{ matrix.os }}
           path: wheelhouse/*.whl
@@ -68,7 +68,7 @@ jobs:
           python -m pip install --upgrade build twine
           python -m build --sdist --outdir dist
           python -m twine check dist/*
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: sdist
           path: dist/*.tar.gz
@@ -103,7 +103,7 @@ jobs:
           m = re.search(r"^## \[" + re.escape(version) + r"\][^\n]*\n(.*?)(?=^## \[)", text, re.S | re.M)
           notes = m.group(1).strip() if m else f"Nurbforge {version}"
           notes += ("\n\n### Install\nBinary wheels for Linux (manylinux_2_28 x86_64), Windows "
-                    "(win_amd64) and macOS 14+ (arm64, x86_64), CPython 3.10-3.13, and the sdist "
+                    "(win_amd64) and macOS 14+ (arm64, x86_64), CPython 3.10-3.14, and the sdist "
                     "are attached, e.g.\n\n"
                     f"```bash\npip install nurbforge-{version}-cp312-cp312-win_amd64.whl\n```\n")
           open("notes.md", "w", encoding="utf-8").write(notes)

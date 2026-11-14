@@ -4,6 +4,12 @@ All notable changes are documented here. Format: [Keep a Changelog](https://keep
 versioning: [SemVer](https://semver.org).
 
 ## [Unreleased]
+### Added
+- Wheels for CPython 3.14 (all platforms).
+
+### Changed
+- Wheels workflow: `actions/upload-artifact` v4 → v7 (runs on Node.js 24; Node.js 20 is
+  deprecated on GitHub runners).
 
 ## [0.8.0] – 2026-11-14
 macOS as a third supported platform (Apple Silicon and Intel, macOS ≥ 14, with binary wheels),

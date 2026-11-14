@@ -50,6 +50,10 @@
 - Hatching of section loops: exact hatch lines (holes, islands, tangential contacts) and inward contours ✅ (#44)
 - Contours that split, merge and vanish (offset beyond the local half-width) ✅
 
+## 0.8 – macOS and face labels ✅
+- macOS (Apple Silicon and Intel, macOS ≥ 14): CI and binary wheels ✅
+- Face labels through Booleans, transforms and STEP; gmsh physical groups ✅ (#18)
+
 ## Infrastructure
 - ✅ Wheels via cibuildwheel (manylinux_2_28 for AlmaLinux 10 compatibility, win_amd64, macOS arm64/x86_64)
 - ✅ Sphinx site with Breathe (Doxygen) API docs on GitHub Pages

@@ -4,6 +4,12 @@ All notable changes are documented here. Format: [Keep a Changelog](https://keep
 versioning: [SemVer](https://semver.org).
 
 ## [Unreleased]
+
+## [0.8.0] – 2026-11-14
+macOS as a third supported platform (Apple Silicon and Intel, macOS ≥ 14, with binary wheels),
+face labels that survive Booleans, transforms and STEP, and gmsh physical groups from them. The
+API is not yet stable (0.x).
+
 ### Added
 - Face labels (#18, stable identification across operations): `TrimmedSurface::label()` /
   `with_label()`, `Shell::with_face_labels()` / `faces_labeled()`; kept by `flipped`,
@@ -23,6 +29,8 @@ versioning: [SemVer](https://semver.org).
 - STEP reader on macOS: numbers are parsed with `strtod_l` in the "C" locale instead of
   `std::from_chars(double)`, which Apple's libc++ only provides from macOS 26. A test checks
   that a decimal-comma `LC_NUMERIC` (e.g. `de_DE`) does not affect parsing.
+- The gmsh physical-group test is skipped instead of failing when gmsh cannot load its system
+  libraries (manylinux wheel tests).
 
 ## [0.7.0] – 2026-11-10
 Writing paths for two-photon lithography (hatching of section loops), solid primitives with mass

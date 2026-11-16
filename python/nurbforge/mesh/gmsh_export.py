@@ -15,6 +15,7 @@ Example
 """
 from __future__ import annotations
 
+import math
 from collections.abc import Iterable
 
 from .._core import NurbsCurve, NurbsSurface, Shell, TrimmedSurface, unique_knots
@@ -102,12 +103,20 @@ def add_trimmed_surface(trimmed: TrimmedSurface) -> int:
 
 
 class GmshSession:
-    """Context manager around ``gmsh.initialize()`` / ``gmsh.finalize()``."""
+    """Context manager around ``gmsh.initialize()`` / ``gmsh.finalize()``.
+
+    Shells added with :meth:`add_shell` keep their face labels, which :meth:`face_tags` maps to
+    gmsh surfaces and :meth:`refine` uses for local mesh sizes."""
 
     def __init__(self, model_name: str = "nurbforge", verbose: bool = False):
         self.model_name = model_name
         self.verbose = verbose
         self.gmsh = _gmsh()
+        # (label, interior point) of every face added with add_shell; matched to the gmsh surfaces
+        # only when needed, because removeAllDuplicates renumbers surfaces
+        self._faces: list[tuple[str, tuple[float, float, float]]] = []
+        self._refinements: list[tuple[list[str | int], float, float]] = []
+        self._fields: list[int] = []
 
     def __enter__(self) -> GmshSession:  # noqa: PYI034
         g = self.gmsh
@@ -128,9 +137,47 @@ class GmshSession:
             return add_trimmed_surface(surface)
         return add_surface(surface)
 
+    def add_shell(self, shell: Shell, solid: bool = True, physical_groups: bool = False,
+                  volume_name: str = "volume") -> list[int]:
+        """As the module function :func:`add_shell`; in addition the session remembers the face
+        labels for :meth:`face_tags` and :meth:`refine`."""
+        tags = add_shell(shell, solid=solid, physical_groups=physical_groups,
+                         volume_name=volume_name)
+        self._faces += [(f.label or "unlabeled", _interior_point(f)) for f in shell.faces]
+        return tags
+
+    def face_tags(self) -> dict[str, list[int]]:
+        """The current gmsh surface tags of every face label of the shells added with
+        :meth:`add_shell` (unlabelled faces: ``"unlabeled"``)."""
+        g = self.gmsh
+        g.model.occ.synchronize()
+        tags = [t for _, t in g.model.getEntities(2)]
+        out: dict[str, set[int]] = {}
+        for label, p in self._faces:
+            out.setdefault(label, set()).add(_closest_surface(g, tags, p))
+        return {k: sorted(v) for k, v in out.items()}
+
+    def refine(self, where: str | int | Iterable[str | int], size: float,
+               distance: float = 0.0) -> None:
+        """Local mesh size ``size`` on the given faces: face labels of shells added with
+        :meth:`add_shell` and/or gmsh surface tags. With ``distance > 0`` the size grows linearly
+        from ``size`` on the faces to the global size (``mesh(size=...)``) at that distance, also
+        into the volume; with ``distance = 0`` only the faces themselves are refined. Applied by
+        :meth:`mesh`; several refinements combine by taking the smallest size."""
+        if not size > 0:
+            raise ValueError("refine: size must be positive")
+        if not distance >= 0:
+            raise ValueError("refine: distance must be non-negative")
+        items = [where] if isinstance(where, (str, int)) else list(where)
+        if not items:
+            raise ValueError("refine: no faces given")
+        self._refinements.append((items, float(size), float(distance)))
+
     def mesh(self, dim: int = 2, size: float | None = None, order: int = 1,
-             heal: bool = True) -> None:
-        """Synchronise the OCC model and generate a mesh."""
+             heal: bool = True, curvature: int | None = None) -> None:
+        """Synchronise the OCC model and generate a mesh. ``size`` is the global maximum element
+        size, ``curvature`` the number of elements per 2*pi of curvature (smaller elements on
+        strongly curved faces), local sizes come from :meth:`refine`."""
         g = self.gmsh
         if heal:
             # merges duplicate control-point vertices and fixes seams/poles
@@ -138,9 +185,65 @@ class GmshSession:
         g.model.occ.synchronize()
         if size is not None:
             g.option.setNumber("Mesh.MeshSizeMax", size)
+        if curvature is not None:
+            if curvature < 1:
+                raise ValueError("mesh: curvature must be at least 1 element per 2*pi")
+            g.option.setNumber("Mesh.MeshSizeFromCurvature", int(curvature))
+        self._apply_refinements(size)
         g.model.mesh.generate(dim)
         if order > 1:
             g.model.mesh.setOrder(order)
+
+    def _apply_refinements(self, size: float | None) -> None:
+        """(Re)build the background size field from the refinements: per refinement a Constant
+        field on the faces (exact size there) and, with a distance, a Threshold field on the
+        distance to them; the background field is their minimum."""
+        field = self.gmsh.model.mesh.field
+        for f in self._fields:
+            field.remove(f)
+        self._fields = []
+        if not self._refinements:
+            return
+        labels = self.face_tags() if any(isinstance(w, str) for r in self._refinements
+                                         for w in r[0]) else {}
+        if size is None:  # growth target without a global size: the model's diagonal
+            x0, y0, z0, x1, y1, z1 = self.gmsh.model.getBoundingBox(-1, -1)
+            size = math.dist((x0, y0, z0), (x1, y1, z1))
+        mins = []
+        for items, local, distance in self._refinements:
+            surfaces: set[int] = set()
+            for w in items:
+                if isinstance(w, str):
+                    if w not in labels:
+                        raise KeyError(f"refine: no face labelled {w!r} "
+                                       f"(labels: {', '.join(sorted(labels)) or 'none'})")
+                    surfaces.update(labels[w])
+                else:
+                    surfaces.add(int(w))
+            tags = sorted(surfaces)
+            c = field.add("Constant")
+            field.setNumbers(c, "SurfacesList", tags)
+            field.setNumber(c, "VIn", local)
+            field.setNumber(c, "VOut", 1e22)
+            field.setNumber(c, "IncludeBoundary", 1)
+            self._fields.append(c)
+            mins.append(c)
+            if distance > 0 and size > local:
+                d = field.add("Distance")
+                field.setNumbers(d, "SurfacesList", tags)
+                field.setNumber(d, "Sampling", 100)
+                t = field.add("Threshold")
+                field.setNumber(t, "InField", d)
+                field.setNumber(t, "SizeMin", local)
+                field.setNumber(t, "SizeMax", size)
+                field.setNumber(t, "DistMin", 0.0)
+                field.setNumber(t, "DistMax", distance)
+                self._fields += [d, t]
+                mins.append(t)
+        m = field.add("Min")
+        field.setNumbers(m, "FieldsList", mins)
+        field.setAsBackgroundMesh(m)
+        self._fields.append(m)
 
     def write(self, path: str) -> None:
         """Write mesh/geometry; format from extension (.msh, .vtk, .stl, .step, .brep ...)."""
@@ -158,6 +261,12 @@ def _interior_point(face: TrimmedSurface) -> tuple[float, float, float]:
                 if u < u1 and v < v1 and face.contains(u, v):
                     return tuple(s(u, v))
     return tuple(s(0.5 * (u0 + u1), 0.5 * (v0 + v1)))
+
+
+def _closest_surface(gmsh, tags: list[int], p) -> int:
+    """The gmsh surface (of ``tags``) closest to the point ``p``."""
+    return min(tags, key=lambda t: sum((a - b) ** 2 for a, b in
+                                       zip(gmsh.model.getClosestPoint(2, t, p)[0], p)))
 
 
 def add_shell(shell: Shell, solid: bool = True, physical_groups: bool = False,
@@ -181,9 +290,7 @@ def add_shell(shell: Shell, solid: bool = True, physical_groups: bool = False,
     if physical_groups:
         groups: dict[str, list[int]] = {}
         for f in shell.faces:
-            p = _interior_point(f)
-            tag = min(tags, key=lambda t: sum((a - b) ** 2 for a, b in
-                                              zip(gmsh.model.getClosestPoint(2, t, p)[0], p)))
+            tag = _closest_surface(gmsh, tags, _interior_point(f))
             groups.setdefault(f.label or "unlabeled", []).append(tag)
     if solid and shell.is_closed:
         loop = occ.addSurfaceLoop(tags, sewing=True)

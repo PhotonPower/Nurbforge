@@ -54,6 +54,10 @@
 - macOS (Apple Silicon and Intel, macOS ≥ 14): CI and binary wheels ✅
 - Face labels through Booleans, transforms and STEP; gmsh physical groups ✅ (#18)
 
+## 0.9 – Meshing for solvers
+- Local mesh sizes by face label or surface tag, growth with distance, curvature-based sizes ✅
+- BEM-ready closed shells: watertight surface meshes with consistent outward orientation
+
 ## Infrastructure
 - ✅ Wheels via cibuildwheel (manylinux_2_28 for AlmaLinux 10 compatibility, win_amd64, macOS arm64/x86_64)
 - ✅ Sphinx site with Breathe (Doxygen) API docs on GitHub Pages

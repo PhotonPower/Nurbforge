@@ -94,3 +94,117 @@ def test_shell_step_export_roundtrip(tmp_path):
             assert abs(vol - math.pi * R * R * H) < 3e-3 * math.pi * R * R * H
     except OSError as exc:  # pragma: no cover - missing GL runtime libraries
         pytest.skip(f"gmsh runtime not available: {exc}")
+
+
+# ------------------------------------------------------------------ local mesh sizes
+
+
+def _edge_lengths(tags, where=None):
+    """Lengths of the triangle edges on the gmsh surfaces ``tags`` (optionally only edges whose
+    midpoint satisfies ``where``)."""
+    ids, xyz, _ = gmsh.model.mesh.getNodes()
+    pos = dict(zip(ids, np.asarray(xyz).reshape(-1, 3)))
+    out = []
+    for t in tags:
+        _, _, conn = gmsh.model.mesh.getElements(2, t)
+        for tri in np.asarray(conn[0]).reshape(-1, 3):
+            for a, b in ((0, 1), (1, 2), (2, 0)):
+                p, q = pos[tri[a]], pos[tri[b]]
+                if where is None or where(0.5 * (p + q)):
+                    out.append(np.linalg.norm(p - q))
+    return np.asarray(out)
+
+
+def _labelled_box():
+    return nf.make_box((0, 0, 0), (4, 4, 4))  # faces bottom/top/front/back/left/right
+
+
+def test_refine_by_label():
+    with GmshSession() as g:
+        g.add_shell(_labelled_box())
+        g.refine("top", 0.1)
+        g.mesh(dim=3, size=1.0)
+        tags = g.face_tags()
+        top, bottom = _edge_lengths(tags["top"]), _edge_lengths(tags["bottom"])
+    assert set(tags) == {"bottom", "top", "front", "back", "left", "right"}
+    assert np.median(top) == pytest.approx(0.1, rel=0.15)
+    assert np.median(bottom) > 0.4  # far from the refined face: global size
+    assert np.max(top) < 0.2
+
+
+def test_refine_with_distance_grows_towards_global_size():
+    with GmshSession() as g:
+        g.add_shell(_labelled_box())
+        g.refine(["top"], 0.1, distance=2.0)
+        g.mesh(dim=2, size=1.0)
+        side = g.face_tags()["front"]
+        near = _edge_lengths(side, lambda m: m[2] > 3.8)   # within 0.2 of the top
+        mid = _edge_lengths(side, lambda m: 2.4 < m[2] < 2.8)
+        far = _edge_lengths(side, lambda m: m[2] < 1.0)
+    # linear growth: ~0.1 at the top, ~0.1 + 0.9 * 1.4 / 2 ~ 0.7 at z = 2.6, 1.0 beyond
+    assert np.median(near) < 0.25
+    assert 0.35 < np.median(mid) < 0.85
+    assert np.median(far) > np.median(mid)
+
+
+def test_refine_by_surface_tag_and_several_refinements():
+    with GmshSession() as g:
+        g.add_shell(_labelled_box())
+        tags = g.face_tags()
+        g.refine(tags["left"][0], 0.15)          # gmsh surface tag
+        g.refine(["right", "top"], 0.2)          # several labels in one refinement
+        g.mesh(dim=2, size=1.0)
+        tags = g.face_tags()
+        sizes = {k: np.median(_edge_lengths(v)) for k, v in tags.items()}
+        # bottom borders the refined left/right faces, whose fine edges grade into it; its middle
+        # (x, y in 1.5..2.5) stays coarse
+        middle = _edge_lengths(tags["bottom"], lambda m: 1.5 < m[0] < 2.5 and 1.5 < m[1] < 2.5)
+    assert sizes["left"] == pytest.approx(0.15, rel=0.15)
+    assert sizes["right"] == pytest.approx(0.2, rel=0.15)
+    assert sizes["top"] == pytest.approx(0.2, rel=0.15)
+    assert np.median(middle) > 0.3
+
+
+def test_face_tags_survive_renumbering_and_remeshing():
+    # two shells: the second add_shell and mesh(heal=True) run removeAllDuplicates again
+    a = _labelled_box().with_face_labels(["a"] * 6)
+    b = nf.make_sphere((10, 0, 0), 1.0).with_face_labels(["ball"])
+    with GmshSession() as g:
+        g.add_shell(a)
+        g.add_shell(b)
+        g.refine("ball", 0.1)
+        g.mesh(dim=2, size=1.0)
+        g.mesh(dim=2, size=1.0)  # fields are rebuilt, not accumulated
+        tags = g.face_tags()
+        ball = _edge_lengths(tags["ball"])
+        nodes = gmsh.model.mesh.getNodes(2, tags["ball"][0], includeBoundary=True)[1]
+    assert len(tags["a"]) == 6 and len(tags["ball"]) == 1
+    assert np.median(ball) == pytest.approx(0.1, rel=0.2)
+    pts = np.asarray(nodes).reshape(-1, 3)
+    assert np.allclose(np.linalg.norm(pts - (10, 0, 0), axis=1), 1.0, atol=1e-6)
+
+
+def test_curvature_based_size():
+    sph = nf.make_sphere((0, 0, 0), 1.0)
+    with GmshSession() as g:
+        g.add_shell(sph)
+        g.mesh(dim=2, size=10.0, curvature=24)
+        lengths = _edge_lengths(g.face_tags()["surface"])
+    # 24 elements per 2*pi on a unit sphere: edges ~ 2*pi/24 ~ 0.26
+    assert np.median(lengths) == pytest.approx(2 * math.pi / 24, rel=0.3)
+
+
+def test_refine_errors():
+    with GmshSession() as g:
+        g.add_shell(_labelled_box())
+        with pytest.raises(ValueError):
+            g.refine("top", 0.0)
+        with pytest.raises(ValueError):
+            g.refine("top", 0.1, distance=-1.0)
+        with pytest.raises(ValueError):
+            g.refine([], 0.1)
+        with pytest.raises(ValueError):
+            g.mesh(dim=2, curvature=0)
+        g.refine("lid", 0.1)
+        with pytest.raises(KeyError, match="top"):  # message lists the existing labels
+            g.mesh(dim=2, size=1.0)

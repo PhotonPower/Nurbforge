@@ -1,7 +1,6 @@
+#include <algorithm>
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/generators/catch_generators.hpp>
-
-#include <algorithm>
 #include <cmath>
 #include <numbers>
 #include <vector>
@@ -33,8 +32,10 @@ double max_deviation(const NurbsSurface& a, const NurbsSurface& b, std::size_t n
   const auto du = a.domain_u(), dv = a.domain_v();
   for (std::size_t i = 0; i < n; ++i)
     for (std::size_t j = 0; j < n; ++j) {
-      const double u = du[0] + (du[1] - du[0]) * static_cast<double>(i) / static_cast<double>(n - 1);
-      const double v = dv[0] + (dv[1] - dv[0]) * static_cast<double>(j) / static_cast<double>(n - 1);
+      const double u =
+          du[0] + (du[1] - du[0]) * static_cast<double>(i) / static_cast<double>(n - 1);
+      const double v =
+          dv[0] + (dv[1] - dv[0]) * static_cast<double>(j) / static_cast<double>(n - 1);
       d = std::max(d, distance(a.evaluate(u, v), b.evaluate(u, v)));
     }
   return d;
@@ -44,7 +45,8 @@ void check_same_polygon(const NurbsCurve& a, const NurbsCurve& b, double eps = 1
   REQUIRE(a.degree() == b.degree());
   REQUIRE(a.knots().size() == b.knots().size());
   REQUIRE(a.num_control_points() == b.num_control_points());
-  for (std::size_t i = 0; i < a.knots().size(); ++i) CHECK(std::abs(a.knots()[i] - b.knots()[i]) < eps);
+  for (std::size_t i = 0; i < a.knots().size(); ++i)
+    CHECK(std::abs(a.knots()[i] - b.knots()[i]) < eps);
   // compare homogeneous points: weights may differ by a common factor only if both are scaled,
   // which the algorithms here never do
   for (std::size_t i = 0; i < a.num_control_points(); ++i) {
@@ -129,7 +131,8 @@ TEST_CASE("degree reduction undoes degree elevation exactly", "[reduce]") {
 }
 
 TEST_CASE("degree reduction of an unclamped elevated curve", "[reduce]") {
-  const NurbsCurve c{2, {0, 1, 2, 3, 4, 5, 6, 7}, {{0, 0, 0}, {1, 1, 0}, {2, -1, 0}, {3, 1, 1}, {4, 0, 0}}, {}};
+  const NurbsCurve c{
+      2, {0, 1, 2, 3, 4, 5, 6, 7}, {{0, 0, 0}, {1, 1, 0}, {2, -1, 0}, {3, 1, 1}, {4, 0, 0}}, {}};
   const auto r = c.elevate_degree(1).reduce_degree();
   CHECK(r.degree() == 2);
   CHECK(max_deviation(c, r) < kExact);

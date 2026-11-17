@@ -1,7 +1,6 @@
+#include <algorithm>
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/generators/catch_generators.hpp>
-
-#include <algorithm>
 #include <cmath>
 #include <numbers>
 
@@ -115,7 +114,8 @@ TEST_CASE("natural surface extension of a torus stays on the torus", "[extend][s
     const auto du = e.domain_u(), dv = e.domain_v();
     for (int i = 0; i <= 20; ++i)
       for (int j = 0; j <= 20; ++j) {
-        const Vec3 p = e.evaluate(du[0] + (du[1] - du[0]) * i / 20.0, dv[0] + (dv[1] - dv[0]) * j / 20.0);
+        const Vec3 p =
+            e.evaluate(du[0] + (du[1] - du[0]) * i / 20.0, dv[0] + (dv[1] - dv[0]) * j / 20.0);
         const double rho = std::hypot(p.x, p.y);
         CHECK(std::abs(std::hypot(rho - R, p.z) - r) < 1e-10);
       }
@@ -130,13 +130,15 @@ TEST_CASE("surface extension along the extrusion direction", "[extend][surface]"
   CHECK(std::abs(e.evaluate(0.3, e.domain_v()[1]).z - 5.0) < 1e-12);
   const auto f = extend(cyl, SurfaceSide::VMin, 1.5, Extension::Linear);
   CHECK(std::abs(f.evaluate(0.7, f.domain_v()[0]).z + 1.5) < 1e-12);
-  CHECK_THROWS_AS(extend(cyl, SurfaceSide::UMax, 1.0, Extension::Linear), GeometryError);  // rational
+  CHECK_THROWS_AS(extend(cyl, SurfaceSide::UMax, 1.0, Extension::Linear),
+                  GeometryError);  // rational
 }
 
 TEST_CASE("linear surface extension is C1", "[extend][surface]") {
   std::vector<Vec3> P;
   for (int i = 0; i < 5; ++i)
-    for (int j = 0; j < 4; ++j) P.push_back({double(i), double(j), std::sin(1.1 * i) * std::cos(0.9 * j)});
+    for (int j = 0; j < 4; ++j)
+      P.push_back({double(i), double(j), std::sin(1.1 * i) * std::cos(0.9 * j)});
   const NurbsSurface s{3, 3, clamped_uniform_knots(3, 5), clamped_uniform_knots(3, 4), 5, 4, P};
   const auto e = extend(s, SurfaceSide::UMax, 1.0, Extension::Linear);
   for (double v = 0.0; v <= 1.0; v += 0.1) {

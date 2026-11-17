@@ -27,7 +27,8 @@ namespace nf {
                                          const Vec3& p11);
 
 /// Planar rectangle with corner `origin`, edges `edge_u` and `edge_v`.
-[[nodiscard]] NurbsSurface make_rectangle(const Vec3& origin, const Vec3& edge_u, const Vec3& edge_v);
+[[nodiscard]] NurbsSurface make_rectangle(const Vec3& origin, const Vec3& edge_u,
+                                          const Vec3& edge_v);
 
 /// Full circle through three non-collinear points, starting at p0 and running through p1 and p2
 /// in this order (exact, rational). Throws GeometryError for (nearly) collinear points.

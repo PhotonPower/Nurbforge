@@ -1,7 +1,6 @@
+#include <algorithm>
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/generators/catch_generators.hpp>
-
-#include <algorithm>
 #include <cmath>
 #include <numbers>
 #include <vector>
@@ -20,7 +19,8 @@ namespace {
 constexpr double kExact = 1e-12;
 
 // Max distance between a and b on [u0, u1] (same parametrisation).
-double max_dev(const NurbsCurve& a, const NurbsCurve& b, double u0, double u1, std::size_t n = 401) {
+double max_dev(const NurbsCurve& a, const NurbsCurve& b, double u0, double u1,
+               std::size_t n = 401) {
   double d = 0.0;
   for (std::size_t i = 0; i < n; ++i) {
     const double u = u0 + (u1 - u0) * static_cast<double>(i) / static_cast<double>(n - 1);
@@ -37,8 +37,10 @@ double max_dev(const NurbsSurface& part, const NurbsSurface& whole, std::size_t 
   const auto du = part.domain_u(), dv = part.domain_v();
   for (std::size_t i = 0; i < n; ++i)
     for (std::size_t j = 0; j < n; ++j) {
-      const double u = du[0] + (du[1] - du[0]) * static_cast<double>(i) / static_cast<double>(n - 1);
-      const double v = dv[0] + (dv[1] - dv[0]) * static_cast<double>(j) / static_cast<double>(n - 1);
+      const double u =
+          du[0] + (du[1] - du[0]) * static_cast<double>(i) / static_cast<double>(n - 1);
+      const double v =
+          dv[0] + (dv[1] - dv[0]) * static_cast<double>(j) / static_cast<double>(n - 1);
       d = std::max(d, distance(part.evaluate(u, v), whole.evaluate(u, v)));
     }
   return d;
@@ -48,7 +50,8 @@ void check_same_polygon(const NurbsCurve& a, const NurbsCurve& b, double eps = 1
   REQUIRE(a.degree() == b.degree());
   REQUIRE(a.knots().size() == b.knots().size());
   REQUIRE(a.num_control_points() == b.num_control_points());
-  for (std::size_t i = 0; i < a.knots().size(); ++i) CHECK(std::abs(a.knots()[i] - b.knots()[i]) < eps);
+  for (std::size_t i = 0; i < a.knots().size(); ++i)
+    CHECK(std::abs(a.knots()[i] - b.knots()[i]) < eps);
   for (std::size_t i = 0; i < a.num_control_points(); ++i) {
     CHECK(distance(a.control_points()[i], b.control_points()[i]) < eps);
     CHECK(std::abs(a.weights()[i] - b.weights()[i]) < eps);
@@ -63,7 +66,8 @@ NurbsCurve rational_cubic() {
 }
 
 NurbsCurve unclamped_quadratic() {
-  return {2, {0, 1, 2, 3, 4, 5, 6, 7}, {{0, 0, 0}, {1, 1, 0}, {2, -1, 0}, {3, 1, 1}, {4, 0, 0}}, {}};
+  return {
+      2, {0, 1, 2, 3, 4, 5, 6, 7}, {{0, 0, 0}, {1, 1, 0}, {2, -1, 0}, {3, 1, 1}, {4, 0, 0}}, {}};
 }
 
 NurbsCurve scaled_weights(const NurbsCurve& c, double f) {
@@ -136,7 +140,8 @@ TEST_CASE("join curves of different degree", "[join]") {
   CHECK(j.domain_end() == 2.0);
   CHECK(knot_multiplicity(j.knots(), 1.0) == 2);  // corner stays a corner
   CHECK(max_dev(j, line, 0.0, 1.0) < kExact);
-  for (double u = 0.0; u <= 1.0; u += 0.01) CHECK(distance(j.evaluate(1.0 + u), arc.evaluate(u)) < kExact);
+  for (double u = 0.0; u <= 1.0; u += 0.01)
+    CHECK(distance(j.evaluate(1.0 + u), arc.evaluate(u)) < kExact);
 }
 
 TEST_CASE("join rescales weights of rational curves", "[join]") {
@@ -201,10 +206,11 @@ TEST_CASE("sub_surface and clamped surface", "[split][surface]") {
 TEST_CASE("join_u makes the v directions compatible", "[join][surface]") {
   const auto a = make_rectangle({0, 0, 0}, {1, 0, 0}, {0, 1, 0});
   // b: adjacent patch with a different v structure (degree 2, extra knot, other v domain)
-  const auto b0 = make_rectangle({1, 0, 0}, {1, 0, 0.5}, {0, 1, 0}).elevate_degree_v(1).refine_knots_v({0.3});
+  const auto b0 =
+      make_rectangle({1, 0, 0}, {1, 0, 0.5}, {0, 1, 0}).elevate_degree_v(1).refine_knots_v({0.3});
   const KnotVector kv{5, 5, 5, 5.9, 8, 8, 8};  // same knot 0.3, mapped to the v domain [5, 8]
-  const NurbsSurface b{b0.degree_u(), b0.degree_v(), b0.knots_u(), kv, b0.num_u(), b0.num_v(),
-                       b0.control_points(), b0.weights()};
+  const NurbsSurface b{b0.degree_u(), b0.degree_v(), b0.knots_u(),        kv,
+                       b0.num_u(),    b0.num_v(),    b0.control_points(), b0.weights()};
   const auto j = join_u(a, b);
   CHECK(j.domain_u()[1] == 2.0);
   CHECK(j.degree_v() == 2);

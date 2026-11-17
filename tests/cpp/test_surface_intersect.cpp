@@ -1,5 +1,4 @@
 #include <catch2/catch_test_macros.hpp>
-
 #include <cmath>
 #include <functional>
 #include <numbers>
@@ -34,8 +33,8 @@ double total_length(const SurfaceIntersection& r) {
 // Every traced point and the fitted curves satisfy both surface equations; the p-curves map
 // onto the 3D curve.
 void check_curves(const SurfaceIntersection& r, const NurbsSurface& a, const NurbsSurface& b,
-                  const std::function<double(const Vec3&)>& fa, const std::function<double(const Vec3&)>& fb,
-                  double fit_tol) {
+                  const std::function<double(const Vec3&)>& fa,
+                  const std::function<double(const Vec3&)>& fb, double fit_tol) {
   for (const auto& c : r.curves) {
     for (const auto& p : c.points) {
       CHECK(std::abs(fa(p.point)) < 1e-9);
@@ -67,8 +66,9 @@ TEST_CASE("plane / sphere: a circle", "[ssi]") {
   CHECK(r.points.empty());
   const double rho = std::sqrt(R * R - h * h);
   CHECK(std::abs(total_length(r) - 2 * pi * rho) < 1e-5);
-  check_curves(r, s, plane, [&](const Vec3& p) { return norm(p) - R; },
-               [&](const Vec3& p) { return p.z - h; }, 1e-6);
+  check_curves(
+      r, s, plane, [&](const Vec3& p) { return norm(p) - R; },
+      [&](const Vec3& p) { return p.z - h; }, 1e-6);
 }
 
 TEST_CASE("sphere / sphere: a circle", "[ssi]") {
@@ -79,8 +79,9 @@ TEST_CASE("sphere / sphere: a circle", "[ssi]") {
   const double d = norm(Vec3{1.5, 0.3, 0.4});
   const double x = (d * d + 4.0 - 1.6 * 1.6) / (2 * d);
   CHECK(std::abs(total_length(r) - 2 * pi * std::sqrt(4.0 - x * x)) < 1e-5);
-  check_curves(r, a, b, [](const Vec3& p) { return norm(p) - 2.0; },
-               [](const Vec3& p) { return distance(p, {1.5, 0.3, 0.4}) - 1.6; }, 1e-6);
+  check_curves(
+      r, a, b, [](const Vec3& p) { return norm(p) - 2.0; },
+      [](const Vec3& p) { return distance(p, {1.5, 0.3, 0.4}) - 1.6; }, 1e-6);
 }
 
 TEST_CASE("plane through a torus: two circles", "[ssi]") {
@@ -89,9 +90,10 @@ TEST_CASE("plane through a torus: two circles", "[ssi]") {
   const auto plane = make_rectangle({-8, -8, 0}, {16, 0, 0}, {0, 16, 0});
   const auto r = intersect(torus, plane);
   CHECK(std::abs(total_length(r) - 2 * pi * (R + rr) - 2 * pi * (R - rr)) < 1e-5);
-  check_curves(r, torus, plane,
-               [&](const Vec3& p) { return std::hypot(std::hypot(p.x, p.y) - R, p.z) - rr; },
-               [](const Vec3& p) { return p.z; }, 1e-6);
+  check_curves(
+      r, torus, plane,
+      [&](const Vec3& p) { return std::hypot(std::hypot(p.x, p.y) - R, p.z) - rr; },
+      [](const Vec3& p) { return p.z; }, 1e-6);
 }
 
 TEST_CASE("two cylinders of different radii: two closed space curves", "[ssi]") {
@@ -99,8 +101,9 @@ TEST_CASE("two cylinders of different radii: two closed space curves", "[ssi]") 
   const auto small = cylinder({-4, 0, 0.3}, {1, 0, 0}, 1.0, 8.0);
   const auto r = intersect(big, small);
   REQUIRE(r.curves.size() >= 2);
-  check_curves(r, big, small, [](const Vec3& p) { return std::hypot(p.x, p.y) - 2.0; },
-               [](const Vec3& p) { return std::hypot(p.y, p.z - 0.3) - 1.0; }, 1e-6);
+  check_curves(
+      r, big, small, [](const Vec3& p) { return std::hypot(p.x, p.y) - 2.0; },
+      [](const Vec3& p) { return std::hypot(p.y, p.z - 0.3) - 1.0; }, 1e-6);
   // every point has |x| > 0 on one of the two sides: both loops are present
   bool left = false, right = false;
   for (const auto& c : r.curves)
@@ -112,12 +115,15 @@ TEST_CASE("two cylinders of different radii: two closed space curves", "[ssi]") 
 TEST_CASE("plane / wavy patch: open curves ending on the boundary", "[ssi]") {
   std::vector<Vec3> P;
   for (int i = 0; i < 6; ++i)
-    for (int j = 0; j < 5; ++j) P.push_back({double(i), double(j), std::sin(1.7 * i) * std::cos(1.3 * j)});
+    for (int j = 0; j < 5; ++j)
+      P.push_back({double(i), double(j), std::sin(1.7 * i) * std::cos(1.3 * j)});
   const NurbsSurface patch{3, 3, clamped_uniform_knots(3, 6), clamped_uniform_knots(3, 5), 6, 5, P};
   const auto plane = make_rectangle({-1, -1, 0.1}, {7, 0, 0}, {0, 6, 0});
   const auto r = intersect(patch, plane);
   REQUIRE(!r.curves.empty());
-  check_curves(r, patch, plane, [&](const Vec3&) { return 0.0; }, [](const Vec3& p) { return p.z - 0.1; }, 1e-6);
+  check_curves(
+      r, patch, plane, [&](const Vec3&) { return 0.0; }, [](const Vec3& p) { return p.z - 0.1; },
+      1e-6);
   for (const auto& c : r.curves) {
     if (c.closed) continue;
     for (const auto* e : {&c.points.front(), &c.points.back()}) {
@@ -151,22 +157,26 @@ TEST_CASE("surface intersection: tangential contacts are points", "[ssi][tangent
   CHECK(distance(r1.points.front().point, Vec3{1, 0, 0}) < 1e-5);
   // two cylinders touching along a line
   const auto c1 = extrude(make_circle({0, 0, 0}, {0, 0, 1}, 0.7), {0, 0, 2});
-  const auto c2 = extrude(make_circle({1.2 * std::cos(0.4), 1.2 * std::sin(0.4), 0}, {0, 0, 1}, 0.5), {0, 0, 2});
+  const auto c2 = extrude(
+      make_circle({1.2 * std::cos(0.4), 1.2 * std::sin(0.4), 0}, {0, 0, 1}, 0.5), {0, 0, 2});
   const auto r2 = intersect(c1, c2);
   CHECK(r2.curves.empty());
   CHECK_FALSE(r2.points.empty());
 }
 
-TEST_CASE("surface intersection: a curve touching the domain boundary is not cut there", "[ssi][tangent]") {
+TEST_CASE("surface intersection: a curve touching the domain boundary is not cut there",
+          "[ssi][tangent]") {
   // circle r 0.7 on the plane [-0.7, 1]^2 touches the domain edges at (-0.7, 0) and (0, -0.7)
   const auto side = extrude(make_circle({0, 0, 0}, {0, 0, 1}, 0.7), {0, 0, 2});
   const auto plane = make_rectangle({-0.7, -0.7, 0.5}, {1.7, 0, 0}, {0, 1.7, 0});
   const auto r = intersect(plane, side);
   double length = 0.0;
   for (const auto& c : r.curves) {
-    for (std::size_t k = 1; k < c.points.size(); ++k) length += distance(c.points[k].point, c.points[k - 1].point);
+    for (std::size_t k = 1; k < c.points.size(); ++k)
+      length += distance(c.points[k].point, c.points[k - 1].point);
     for (const Vec3& end : {c.points.front().point, c.points.back().point})
-      for (const Vec3& touch : {Vec3{-0.7, 0, 0.5}, Vec3{0, -0.7, 0.5}}) CHECK(distance(end, touch) > 1e-3);
+      for (const Vec3& touch : {Vec3{-0.7, 0, 0.5}, Vec3{0, -0.7, 0.5}})
+        CHECK(distance(end, touch) > 1e-3);
   }
   CHECK(std::abs(length - 2 * pi * 0.7) < 1e-3);  // polyline: chords shorter than the arc
 }

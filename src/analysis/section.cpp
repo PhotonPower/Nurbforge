@@ -80,17 +80,20 @@ SurfaceIntersection planar_section(const NurbsSurface& s, const Plane& plane,
   return r;
 }
 
-std::vector<SurfaceIntersection> planar_sections(const NurbsSurface& s, const Plane& plane, double spacing,
-                                                 std::size_t count, const SurfaceIntersectionOptions& options) {
+std::vector<SurfaceIntersection> planar_sections(const NurbsSurface& s, const Plane& plane,
+                                                 double spacing, std::size_t count,
+                                                 const SurfaceIntersectionOptions& options) {
   if (!(spacing > 0.0)) throw GeometryError("planar_sections: spacing must be positive");
   std::vector<SurfaceIntersection> out;
   const Vec3 n = normalized(plane.normal);
   for (std::size_t k = 0; k < count; ++k)
-    out.push_back(planar_section(s, {plane.point + (static_cast<double>(k) * spacing) * n, n}, options));
+    out.push_back(
+        planar_section(s, {plane.point + (static_cast<double>(k) * spacing) * n, n}, options));
   return out;
 }
 
-std::vector<CurveSurfaceIntersection> intersect(const NurbsCurve& c, const Plane& plane, const Tolerance& tol) {
+std::vector<CurveSurfaceIntersection> intersect(const NurbsCurve& c, const Plane& plane,
+                                                const Tolerance& tol) {
   const PlanePatch patch = patch_for(plane, c.control_points());
   auto hits = intersect(c, patch.surface(), tol);
   for (auto& h : hits) {

@@ -1,7 +1,6 @@
+#include <algorithm>
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/generators/catch_generators.hpp>
-
-#include <algorithm>
 #include <cmath>
 #include <numbers>
 
@@ -171,8 +170,8 @@ TEST_CASE("fillet_curves rejects invalid input", "[fillet]") {
 
 TEST_CASE("rolling-ball fillet between perpendicular planes is a quarter cylinder", "[fillet]") {
   const double r = 0.5;
-  const auto s1 = make_rectangle({-1, 0, 0}, {5, 0, 0}, {0, 3, 0});   // z = 0, normal +z
-  const auto s2 = make_rectangle({0, 0, -1}, {0, 3, 0}, {0, 0, 5});   // x = 0, normal +x
+  const auto s1 = make_rectangle({-1, 0, 0}, {5, 0, 0}, {0, 3, 0});  // z = 0, normal +z
+  const auto s2 = make_rectangle({0, 0, -1}, {0, 3, 0}, {0, 0, 5});  // x = 0, normal +x
   SurfaceFilletOptions opt;
   opt.tolerance = 1e-7;
   const auto f = fillet_surfaces(s1, s2, r, opt);
@@ -189,7 +188,8 @@ TEST_CASE("rolling-ball fillet between perpendicular planes is a quarter cylinde
     CHECK(std::abs(p2.x) <= 1e-9);
     CHECK(std::abs(p2.z - r) <= 1e-9);
   }
-  const Vec3 e0 = f.spine.evaluate(f.spine.domain_start()), e1 = f.spine.evaluate(f.spine.domain_end());
+  const Vec3 e0 = f.spine.evaluate(f.spine.domain_start()),
+             e1 = f.spine.evaluate(f.spine.domain_end());
   CHECK(std::abs(std::min(e0.y, e1.y)) <= 1e-9);
   CHECK(std::abs(std::max(e0.y, e1.y) - 3.0) <= 1e-9);
   // the quarter facing the edge: every point within the corner x <= r, z <= r, at distance r
@@ -208,12 +208,13 @@ TEST_CASE("rolling-ball fillet between a plane and a perpendicular cylinder", "[
   const auto cyl = extrude(make_circle({0, 0, -1}, ez, R), {0, 0, 3});
   SurfaceFilletOptions opt;
   opt.tolerance = tol;
-  opt.side1 = 1;                                          // above the plane
-  opt.side2 = outward(cyl, 0.3, 0.5, {0, 0, 0}, ez);     // outside the cylinder
+  opt.side1 = 1;                                      // above the plane
+  opt.side2 = outward(cyl, 0.3, 0.5, {0, 0, 0}, ez);  // outside the cylinder
   const auto f = fillet_surfaces(plane, cyl, r, opt);
   check_rolling_ball(f, plane, cyl, r, tol);
   // the spine is the full circle (from seam to seam)
-  CHECK(distance(f.spine.evaluate(f.spine.domain_start()), f.spine.evaluate(f.spine.domain_end())) <= tol);
+  CHECK(distance(f.spine.evaluate(f.spine.domain_start()),
+                 f.spine.evaluate(f.spine.domain_end())) <= tol);
   const auto dv = f.surface.domain_v();
   for (int j = 0; j <= 40; ++j) {
     const double t = dv[0] + (dv[1] - dv[0]) * j / 40.0;
@@ -238,7 +239,8 @@ TEST_CASE("rolling-ball fillet between a plane and a sphere", "[fillet]") {
   opt.side2 = dot(sph.normal(0.3, 0.4), sph.evaluate(0.3, 0.4) - O) > 0 ? 1 : -1;  // outside
   const auto f = fillet_surfaces(plane, sph, r, opt);
   check_rolling_ball(f, plane, sph, r, tol);
-  CHECK(distance(f.spine.evaluate(f.spine.domain_start()), f.spine.evaluate(f.spine.domain_end())) <= tol);
+  CHECK(distance(f.spine.evaluate(f.spine.domain_start()),
+                 f.spine.evaluate(f.spine.domain_end())) <= tol);
   const auto dv = f.surface.domain_v();
   for (int j = 0; j <= 40; ++j) {
     const double t = dv[0] + (dv[1] - dv[0]) * j / 40.0;

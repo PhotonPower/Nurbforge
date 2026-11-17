@@ -19,7 +19,8 @@ struct TrimLoop {
   std::vector<NurbsCurve> curves;
 
   /// Dense polyline approximation (closed: first point not repeated).
-  [[nodiscard]] std::vector<std::array<double, 2>> polyline(std::size_t samples_per_span = 16) const;
+  [[nodiscard]] std::vector<std::array<double, 2>> polyline(
+      std::size_t samples_per_span = 16) const;
   /// Signed area in the parameter plane (> 0 for counter-clockwise loops).
   [[nodiscard]] double signed_area() const;
   /// The same loop traversed in the opposite direction.
@@ -105,7 +106,8 @@ class TrimmedSurface {
 /// boundary of the parameter domain (seams count as boundary) and must not cross each other;
 /// closed curves become holes of the region around them and outer loops of new regions (nested
 /// loops are supported). Returns the untrimmed surface if there is no intersection.
-[[nodiscard]] std::vector<TrimmedSurface> split(const NurbsSurface& surface, const NurbsSurface& cutter,
+[[nodiscard]] std::vector<TrimmedSurface> split(const NurbsSurface& surface,
+                                                const NurbsSurface& cutter,
                                                 const Tolerance& tol = {});
 
 /// Splits a trimmed face along parameter-space curves (general planar arrangement): the cuts
@@ -114,7 +116,8 @@ class TrimmedSurface {
 /// at every vertex). Counter-clockwise cycles inside the face become regions; clockwise cycles
 /// (component boundaries) become holes of the smallest region containing them. Cuts may end on
 /// the trim loops or on other cuts and may cross each other.
-[[nodiscard]] std::vector<TrimmedSurface> split(const TrimmedSurface& face, const std::vector<NurbsCurve>& cuts,
+[[nodiscard]] std::vector<TrimmedSurface> split(const TrimmedSurface& face,
+                                                const std::vector<NurbsCurve>& cuts,
                                                 const Tolerance& tol = {});
 
 /// Splits `surface` into regions along the given parameter-space curves (same rules as above).

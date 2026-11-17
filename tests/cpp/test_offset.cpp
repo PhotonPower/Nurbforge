@@ -1,7 +1,6 @@
+#include <algorithm>
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/generators/catch_generators.hpp>
-
-#include <algorithm>
 #include <cmath>
 #include <numbers>
 
@@ -55,7 +54,8 @@ double radial_error(const NurbsSurface& o, F&& signed_radius_error) {
 }
 
 NurbsSurface sphere(double R) {
-  return revolve(make_arc({0, 0, 0}, {1, 0, 0}, {0, 0, 1}, R, -pi / 2, pi / 2), {0, 0, 0}, ez, 2 * pi);
+  return revolve(make_arc({0, 0, 0}, {1, 0, 0}, {0, 0, 1}, R, -pi / 2, pi / 2), {0, 0, 0}, ez,
+                 2 * pi);
 }
 
 // +1 if the surface normal at (u, v) points away from `centre`
@@ -131,8 +131,8 @@ TEST_CASE("offset of a planar cubic matches the brute-force distance", "[offset]
   for (int i = 0; i <= 100; ++i) {
     const double t = c.domain_start() + (c.domain_end() - c.domain_start()) * i / 100.0;
     const Vec3 p = o.evaluate(t);
-    CHECK(std::abs(dot(p, n)) <= 1e-9);                                    // stays in the plane
-    CHECK(std::abs(closest_point(c, p).distance - d) <= 2e-7);             // at distance |d|
+    CHECK(std::abs(dot(p, n)) <= 1e-9);                         // stays in the plane
+    CHECK(std::abs(closest_point(c, p).distance - d) <= 2e-7);  // at distance |d|
   }
 }
 
@@ -179,7 +179,8 @@ TEST_CASE("offset of a cylinder is a coaxial cylinder", "[offset]") {
   const double sgn = orientation(s, 0.3, 0.5, {0, 0, s.evaluate(0.3, 0.5).z});
   const auto o = offset_surface(s, d);
   CHECK(surface_deviation(s, o, d) <= 1e-7);
-  CHECK(radial_error(o, [&](const Vec3& p) { return std::hypot(p.x, p.y) - (R + sgn * d); }) <= 1e-7);
+  CHECK(radial_error(o, [&](const Vec3& p) { return std::hypot(p.x, p.y) - (R + sgn * d); }) <=
+        1e-7);
   CHECK(o.num_v() == 6);  // straight along the axis: a single span
   CHECK_THROWS_AS(offset_surface(s, -sgn * 1.6), GeometryError);
 }
@@ -218,8 +219,7 @@ TEST_CASE("offset of a plane is a parallel plane", "[offset]") {
 TEST_CASE("offset of a freeform patch matches the brute-force distance", "[offset]") {
   std::vector<Vec3> P;
   for (int i = 0; i < 5; ++i)
-    for (int j = 0; j < 4; ++j)
-      P.push_back({1.0 * i, 1.0 * j, 0.3 * std::sin(1.3 * i + 0.7 * j)});
+    for (int j = 0; j < 4; ++j) P.push_back({1.0 * i, 1.0 * j, 0.3 * std::sin(1.3 * i + 0.7 * j)});
   const NurbsSurface s{3, 3, clamped_uniform_knots(3, 5), clamped_uniform_knots(3, 4), 5, 4, P};
   const double d = 0.2, tol = 1e-6;
   const auto o = offset_surface(s, d, tol);
@@ -230,4 +230,3 @@ TEST_CASE("offset of a freeform patch matches the brute-force distance", "[offse
       CHECK(std::abs(closest_point(s, p).distance - d) <= 2 * tol);
     }
 }
-

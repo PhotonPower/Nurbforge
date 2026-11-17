@@ -1,5 +1,4 @@
 #include <catch2/catch_test_macros.hpp>
-
 #include <cctype>
 #include <cstdio>
 #include <fstream>
@@ -21,7 +20,8 @@ constexpr double pi = std::numbers::pi;
 namespace {
 
 Shell sphere_shell(const Vec3& c, double R) {
-  return Shell::sew({TrimmedSurface(revolve(make_arc(c, {0, 0, -1}, {1, 0, 0}, R, 0.0, pi), c, {0, 0, 1}, 2 * pi))});
+  return Shell::sew({TrimmedSurface(
+      revolve(make_arc(c, {0, 0, -1}, {1, 0, 0}, R, 0.0, pi), c, {0, 0, 1}, 2 * pi))});
 }
 
 Shell box_shell(double h) {  // cube [-h, h]^3
@@ -37,7 +37,8 @@ Shell box_shell(double h) {  // cube [-h, h]^3
 Shell cylinder_shell(double R, double z0, double z1) {  // axis z
   const auto side = extrude(make_circle({0, 0, z0}, {0, 0, 1}, R), {0, 0, z1 - z0});
   const auto lid = [&](double z) {
-    return TrimmedSurface(make_rectangle({-R, -R, z}, {2 * R, 0, 0}, {0, 2 * R, 0}), circle_loop(0.5, 0.5, 0.5));
+    return TrimmedSurface(make_rectangle({-R, -R, z}, {2 * R, 0, 0}, {0, 2 * R, 0}),
+                          circle_loop(0.5, 0.5, 0.5));
   };
   return Shell::sew({TrimmedSurface(side), lid(z0), lid(z1)});
 }
@@ -56,8 +57,10 @@ struct StepFile {
     std::string body = text.substr(data + 7, end - data - 7);
     std::string joined;
     for (std::size_t i = 0; i < body.size(); ++i) {
-      if (body[i] == '\n' && body.compare(i + 1, 2, "  ") == 0) i += 2;  // continuation line
-      else joined += body[i];
+      if (body[i] == '\n' && body.compare(i + 1, 2, "  ") == 0)
+        i += 2;  // continuation line
+      else
+        joined += body[i];
     }
     std::istringstream in(joined);
     std::string line;
@@ -81,8 +84,10 @@ struct StepFile {
     }
     int depth = 0;
     for (std::size_t i = 1; i < body.size(); ++i) {
-      if (body[i] == '(') ++depth;
-      else if (body[i] == ')') --depth;
+      if (body[i] == '(')
+        ++depth;
+      else if (body[i] == ')')
+        --depth;
       else if (depth == 0 && std::isupper(static_cast<unsigned char>(body[i]))) {
         const auto open = body.find('(', i);
         out.push_back(body.substr(i, open - i));
@@ -103,7 +108,8 @@ struct StepFile {
   static std::vector<std::size_t> refs(const std::string& body) {
     std::vector<std::size_t> out;
     static const std::regex r(R"(#(\d+))");
-    for (auto it = std::sregex_iterator(body.begin(), body.end(), r); it != std::sregex_iterator(); ++it)
+    for (auto it = std::sregex_iterator(body.begin(), body.end(), r); it != std::sregex_iterator();
+         ++it)
       out.push_back(std::stoul((*it)[1].str()));
     return out;
   }
@@ -122,7 +128,8 @@ struct StepFile {
     for (const auto& [id, b] : entities)
       if (types(b)[0] == "EDGE_CURVE") out[id];
     for (const auto& [id, b] : entities)
-      if (types(b)[0] == "ORIENTED_EDGE") out[refs(b).at(0)].push_back(b.find(",.T.)") != std::string::npos);
+      if (types(b)[0] == "ORIENTED_EDGE")
+        out[refs(b).at(0)].push_back(b.find(",.T.)") != std::string::npos);
     return out;
   }
 };
@@ -190,9 +197,13 @@ TEST_CASE("STEP: sphere with seam edge and rational surface", "[step]") {
   for (const auto& [id, b] : f.entities)
     if (b[0] == '(' && b.find("RATIONAL_B_SPLINE_SURFACE") != std::string::npos) {
       found = true;
-      const std::vector<std::string> expect = {"BOUNDED_SURFACE", "B_SPLINE_SURFACE",
-                                               "B_SPLINE_SURFACE_WITH_KNOTS", "GEOMETRIC_REPRESENTATION_ITEM",
-                                               "RATIONAL_B_SPLINE_SURFACE", "REPRESENTATION_ITEM", "SURFACE"};
+      const std::vector<std::string> expect = {"BOUNDED_SURFACE",
+                                               "B_SPLINE_SURFACE",
+                                               "B_SPLINE_SURFACE_WITH_KNOTS",
+                                               "GEOMETRIC_REPRESENTATION_ITEM",
+                                               "RATIONAL_B_SPLINE_SURFACE",
+                                               "REPRESENTATION_ITEM",
+                                               "SURFACE"};
       CHECK(StepFile::types(b) == expect);
     }
   CHECK(found);
@@ -215,7 +226,8 @@ TEST_CASE("STEP: drilled cube from a Boolean difference", "[step]") {
 
 TEST_CASE("STEP: void, open shell, units, file output", "[step]") {
   SECTION("cube with a spherical void") {
-    const Shell m = boolean(box_shell(1.0), sphere_shell({0.1, -0.1, 0.2}, 0.5), BooleanOp::Difference);
+    const Shell m =
+        boolean(box_shell(1.0), sphere_shell({0.1, -0.1, 0.2}, 0.5), BooleanOp::Difference);
     const StepFile f(to_step({m}));
     check_common(f);
     CHECK(f.count("BREP_WITH_VOIDS") == 1);
@@ -224,7 +236,8 @@ TEST_CASE("STEP: void, open shell, units, file output", "[step]") {
     CHECK(f.count("MANIFOLD_SOLID_BREP") == 0);
   }
   SECTION("open shell and a solid") {
-    const Shell plate = Shell::sew({TrimmedSurface(make_rectangle({0, 0, 0}, {1, 0, 0}, {0, 1, 0}))});
+    const Shell plate =
+        Shell::sew({TrimmedSurface(make_rectangle({0, 0, 0}, {1, 0, 0}, {0, 1, 0}))});
     StepOptions opt;
     opt.unit = StepLengthUnit::Inch;
     const std::string text = to_step({plate, box_shell(1.0)}, opt);
@@ -240,8 +253,8 @@ TEST_CASE("STEP: void, open shell, units, file output", "[step]") {
     CHECK(open_only.count("ADVANCED_BREP_SHAPE_REPRESENTATION") == 0);
   }
   SECTION("inside-out sphere is written with reversed face sense") {
-    const Shell inv = Shell::sew({TrimmedSurface(
-        revolve(make_arc({0, 0, 0}, {0, 0, -1}, {1, 0, 0}, 1.0, 0.0, pi), {0, 0, 0}, {0, 0, -1}, 2 * pi))});
+    const Shell inv = Shell::sew({TrimmedSurface(revolve(
+        make_arc({0, 0, 0}, {0, 0, -1}, {1, 0, 0}, 1.0, 0.0, pi), {0, 0, 0}, {0, 0, -1}, 2 * pi))});
     REQUIRE(inv.volume(1e-6) < 0.0);
     const StepFile f(to_step({inv}));
     for (const auto& [id, b] : f.entities) {

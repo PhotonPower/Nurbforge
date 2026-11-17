@@ -1,6 +1,5 @@
-#include <catch2/catch_test_macros.hpp>
-
 #include <algorithm>
+#include <catch2/catch_test_macros.hpp>
 #include <cmath>
 #include <numbers>
 #include <vector>
@@ -25,7 +24,9 @@ void grid(int n, F f) {
 NurbsSurface bicubic() {
   std::vector<Vec3> P;
   for (int i = 0; i < 4; ++i)
-    for (int j = 0; j < 4; ++j) P.push_back({double(i), double(j), std::sin(1.3 * i + 0.4) * std::cos(0.8 * j) + 0.1 * i * j});
+    for (int j = 0; j < 4; ++j)
+      P.push_back(
+          {double(i), double(j), std::sin(1.3 * i + 0.4) * std::cos(0.8 * j) + 0.1 * i * j});
   return {3, 3, {0, 0, 0, 0, 1, 1, 1, 1}, {0, 0, 0, 0, 1, 1, 1, 1}, 4, 4, P};
 }
 
@@ -33,7 +34,8 @@ NurbsSurface bicubic() {
 NurbsSurface multispan() {
   std::vector<Vec3> P;
   for (int i = 0; i < 7; ++i)
-    for (int j = 0; j < 6; ++j) P.push_back({double(i), double(j), std::sin(0.9 * i) * std::cos(1.1 * j)});
+    for (int j = 0; j < 6; ++j)
+      P.push_back({double(i), double(j), std::sin(0.9 * i) * std::cos(1.1 * j)});
   return {3, 2, clamped_uniform_knots(3, 7), clamped_uniform_knots(2, 6), 7, 6, P};
 }
 
@@ -41,9 +43,11 @@ NurbsSurface multispan() {
 
 TEST_CASE("Coons patch of four lines is the bilinear patch", "[coons]") {
   const Vec3 p00{0, 0, 0}, p10{2, 0, 1}, p01{0, 3, 0}, p11{2, 3, 4};
-  const auto s = coons(make_line(p00, p10), make_line(p01, p11), make_line(p00, p01), make_line(p10, p11));
+  const auto s =
+      coons(make_line(p00, p10), make_line(p01, p11), make_line(p00, p01), make_line(p10, p11));
   const auto b = make_bilinear(p00, p10, p01, p11);
-  grid(10, [&](double u, double v) { CHECK(distance(s.evaluate(u, v), b.evaluate(u, v)) < 1e-12); });
+  grid(10,
+       [&](double u, double v) { CHECK(distance(s.evaluate(u, v), b.evaluate(u, v)) < 1e-12); });
 }
 
 TEST_CASE("Coons patch interpolates curved planar boundaries", "[coons]") {
@@ -61,7 +65,8 @@ TEST_CASE("Coons patch interpolates curved planar boundaries", "[coons]") {
   }
   // scrambled orientations give the same patch
   const auto r = coons(c0, c1.reversed(), d0.reversed(), d1.reversed());
-  grid(10, [&](double u, double v) { CHECK(distance(r.evaluate(u, v), s.evaluate(u, v)) < 1e-12); });
+  grid(10,
+       [&](double u, double v) { CHECK(distance(r.evaluate(u, v), s.evaluate(u, v)) < 1e-12); });
 }
 
 TEST_CASE("Coons patch with rational arc boundaries", "[coons]") {
@@ -91,7 +96,8 @@ TEST_CASE("Gordon surface reproduces a bicubic patch from a 4x4 network", "[gord
   for (double v : vs) uc.push_back(S.iso_curve_v(v));
   for (double u : us) vc.push_back(S.iso_curve_u(u));
   const auto g = gordon(uc, vc);
-  grid(20, [&](double u, double v) { CHECK(distance(g.evaluate(u, v), S.evaluate(u, v)) < 1e-10); });
+  grid(20,
+       [&](double u, double v) { CHECK(distance(g.evaluate(u, v), S.evaluate(u, v)) < 1e-10); });
 }
 
 TEST_CASE("Gordon surface interpolates a multi-span network, in any order", "[gordon]") {
@@ -107,7 +113,8 @@ TEST_CASE("Gordon surface interpolates a multi-span network, in any order", "[go
   }
   std::vector<NurbsCurve> uc2{uc[2], uc[0], uc[1]}, vc2{vc[3], vc[1], vc[4], vc[0], vc[2]};
   const auto h = gordon(uc2, vc2);
-  grid(10, [&](double u, double v) { CHECK(distance(h.evaluate(u, v), g.evaluate(u, v)) < 1e-10); });
+  grid(10,
+       [&](double u, double v) { CHECK(distance(h.evaluate(u, v), g.evaluate(u, v)) < 1e-10); });
 }
 
 TEST_CASE("Gordon surface rejects inconsistent networks", "[gordon]") {
@@ -120,7 +127,8 @@ TEST_CASE("Gordon surface rejects inconsistent networks", "[gordon]") {
   // curve, weights w_i * 2^i), so it meets every v-curve – but at other parameters
   const auto c = uc[1];
   std::vector<double> w{1, 2, 4, 8};
-  std::vector<NurbsCurve> uc3{uc[0], NurbsCurve(c.degree(), c.knots(), c.control_points(), w), uc[2]};
+  std::vector<NurbsCurve> uc3{uc[0], NurbsCurve(c.degree(), c.knots(), c.control_points(), w),
+                              uc[2]};
   std::vector<NurbsCurve> vc3{S.iso_curve_u(0.0), S.iso_curve_u(0.5), S.iso_curve_u(1.0)};
   CHECK_THROWS_AS(gordon(uc3, vc3), GeometryError);
   CHECK_THROWS_AS(gordon({uc[0]}, vc3), GeometryError);

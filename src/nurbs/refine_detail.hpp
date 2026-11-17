@@ -21,8 +21,7 @@ struct RefinedPolygon {
 /// A5.4. Validates that every x lies in the parameter domain and that no knot value would get a
 /// multiplicity above p. Throws GeometryError otherwise.
 [[nodiscard]] RefinedPolygon refine_knot_vector(std::size_t p, const KnotVector& U,
-                                                const std::vector<Vec4>& Pw,
-                                                std::vector<double> X);
+                                                const std::vector<Vec4>& Pw, std::vector<double> X);
 
 /// Knots to insert so that every distinct knot value in the parameter domain has multiplicity
 /// >= p, i.e. the B-spline splits into Bézier segments (sorted ascending).
@@ -48,8 +47,7 @@ struct Columns {
 /// Removes knot u up to `times` times from all columns simultaneously (A5.8), as long as every
 /// column stays within the Cartesian deviation `tolerance` (converted with P&T Eq. 5.30).
 /// Returns the number of removals done. Throws if u is not an interior knot.
-std::size_t remove_knot(std::size_t p, Columns& net, double u, std::size_t times,
-                        double tolerance);
+std::size_t remove_knot(std::size_t p, Columns& net, double u, std::size_t times, double tolerance);
 
 /// Degree reduction by one of all columns, within the Cartesian deviation `tolerance`.
 /// Bezier-wise reduction (P&T Eq. 5.41/5.42), then knot removal to restore the original

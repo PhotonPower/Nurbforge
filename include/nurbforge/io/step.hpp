@@ -31,7 +31,8 @@ struct StepOptions {
 };
 
 /// The STEP file contents for the given shells (see write_step).
-[[nodiscard]] std::string to_step(const std::vector<Shell>& shells, const StepOptions& options = {});
+[[nodiscard]] std::string to_step(const std::vector<Shell>& shells,
+                                  const StepOptions& options = {});
 
 /// Writes the shells to an ISO 10303-21 file with the AP214 schema (AUTOMOTIVE_DESIGN), one
 /// product whose shape is:
@@ -47,7 +48,8 @@ struct StepOptions {
 /// RATIONAL_B_SPLINE_SURFACE), bounded by EDGE_LOOPs of ORIENTED_EDGEs; every shell edge is one
 /// EDGE_CURVE (its 3D B-spline curve, as stored in the shell) shared by its uses. Empty shells
 /// are skipped. Throws std::runtime_error if the file cannot be written.
-void write_step(const std::string& path, const std::vector<Shell>& shells, const StepOptions& options = {});
+void write_step(const std::string& path, const std::vector<Shell>& shells,
+                const StepOptions& options = {});
 
 // ------------------------------------------------------------------ reading
 
@@ -65,15 +67,16 @@ struct StepReadOptions {
   double* file_unit_metres{nullptr};
 };
 
-/// A shell read from STEP with its name: the name of its MANIFOLD_SOLID_BREP / BREP_WITH_VOIDS (or of
-/// the OPEN_SHELL / CLOSED_SHELL of a surface model); if that is empty, the PRODUCT name.
+/// A shell read from STEP with its name: the name of its MANIFOLD_SOLID_BREP / BREP_WITH_VOIDS (or
+/// of the OPEN_SHELL / CLOSED_SHELL of a surface model); if that is empty, the PRODUCT name.
 struct NamedShell {
   std::string name;
   Shell shell;
 };
 
 /// Reads the B-rep solids and surface models of a STEP (ISO 10303-21) text, see read_step.
-[[nodiscard]] std::vector<Shell> from_step(const std::string& text, const StepReadOptions& options = {});
+[[nodiscard]] std::vector<Shell> from_step(const std::string& text,
+                                           const StepReadOptions& options = {});
 
 /// Reads a STEP file (any AP203 / AP214 / AP242 schema with B-rep geometry) into shells: one
 /// shell per MANIFOLD_SOLID_BREP / BREP_WITH_VOIDS (outer shell and voids sewn together; void
@@ -88,10 +91,13 @@ struct NamedShell {
 /// prefix or CONVERSION_BASED_UNIT, e.g. inch) to `options.unit`. Placement transformations of
 /// assemblies are not applied. Throws GeometryError for unsupported entities (naming the entity
 /// and instance) unless options.skip_unsupported, std::runtime_error if the file cannot be read.
-[[nodiscard]] std::vector<Shell> read_step(const std::string& path, const StepReadOptions& options = {});
+[[nodiscard]] std::vector<Shell> read_step(const std::string& path,
+                                           const StepReadOptions& options = {});
 
 /// As from_step / read_step, with the name of every shell (see NamedShell).
-[[nodiscard]] std::vector<NamedShell> from_step_named(const std::string& text, const StepReadOptions& options = {});
-[[nodiscard]] std::vector<NamedShell> read_step_named(const std::string& path, const StepReadOptions& options = {});
+[[nodiscard]] std::vector<NamedShell> from_step_named(const std::string& text,
+                                                      const StepReadOptions& options = {});
+[[nodiscard]] std::vector<NamedShell> read_step_named(const std::string& path,
+                                                      const StepReadOptions& options = {});
 
 }  // namespace nf

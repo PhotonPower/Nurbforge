@@ -1,6 +1,5 @@
-#include <catch2/catch_test_macros.hpp>
-
 #include <algorithm>
+#include <catch2/catch_test_macros.hpp>
 #include <cmath>
 #include <cstdint>
 #include <limits>
@@ -53,7 +52,8 @@ double brute_force(const NurbsCurve& c, const Vec3& P, std::size_t n = 200000) {
   double d = std::numeric_limits<double>::max();
   const double a = c.domain_start(), b = c.domain_end();
   for (std::size_t i = 0; i <= n; ++i)
-    d = std::min(d, distance(c.evaluate(a + (b - a) * static_cast<double>(i) / static_cast<double>(n)), P));
+    d = std::min(
+        d, distance(c.evaluate(a + (b - a) * static_cast<double>(i) / static_cast<double>(n)), P));
   return d;
 }
 
@@ -86,7 +86,8 @@ TEST_CASE("curve point inversion", "[closest]") {
 
 TEST_CASE("curve closest point is never worse than brute force", "[closest]") {
   Rng rng;
-  const NurbsCurve unclamped{2, {0, 1, 2, 3, 4, 5, 6, 7}, {{0, 0, 0}, {1, 1, 0}, {2, -1, 0}, {3, 1, 1}, {4, 0, 0}}, {}};
+  const NurbsCurve unclamped{
+      2, {0, 1, 2, 3, 4, 5, 6, 7}, {{0, 0, 0}, {1, 1, 0}, {2, -1, 0}, {3, 1, 1}, {4, 0, 0}}, {}};
   for (const auto& c : {rational_cubic(), wavy_cubic(), unclamped}) {
     for (int k = 0; k < 25; ++k) {
       const Vec3 P{rng(-1, 7), rng(-3, 4), rng(-2, 3)};
@@ -156,8 +157,8 @@ TEST_CASE("closest point on a sphere, including poles and the axis", "[closest][
 }
 
 TEST_CASE("surface point inversion", "[closest][surface]") {
-  const auto torus = revolve(make_circle({5, 0, 0}, {0, 1, 0}, 1.5), {0, 0, 0}, {0, 0, 1},
-                             2 * std::numbers::pi);
+  const auto torus =
+      revolve(make_circle({5, 0, 0}, {0, 1, 0}, 1.5), {0, 0, 0}, {0, 0, 1}, 2 * std::numbers::pi);
   const auto patch = rational_patch();
   for (const auto* s : {&torus, &patch})
     for (double u = 0.05; u < 1.0; u += 0.13)

@@ -51,9 +51,7 @@ Vec3 any_perpendicular(const Vec3& n) {
   return normalized(cross(u, helper));
 }
 
-NurbsCurve make_line(const Vec3& p0, const Vec3& p1) {
-  return {1, {0.0, 0.0, 1.0, 1.0}, {p0, p1}};
-}
+NurbsCurve make_line(const Vec3& p0, const Vec3& p1) { return {1, {0.0, 0.0, 1.0, 1.0}, {p0, p1}}; }
 
 NurbsCurve make_polyline(const std::vector<Vec3>& points) {
   if (points.size() < 2) throw GeometryError("polyline needs at least 2 points");
@@ -72,8 +70,8 @@ NurbsCurve make_polyline(const std::vector<Vec3>& points) {
   return {1, std::move(U), points};
 }
 
-NurbsCurve make_arc(const Vec3& O, const Vec3& x_axis, const Vec3& y_axis, double r,
-                    double ths, double the) {
+NurbsCurve make_arc(const Vec3& O, const Vec3& x_axis, const Vec3& y_axis, double r, double ths,
+                    double the) {
   if (r <= 0.0) throw GeometryError("radius must be positive");
   const Vec3 X = normalized(x_axis);
   const Vec3 Y = normalized(y_axis);

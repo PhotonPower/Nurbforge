@@ -26,7 +26,8 @@ constexpr double pi = std::numbers::pi;
 double sink = 0.0;  // results are accumulated here so that the work is not optimised away
 
 Shell sphere_shell(const Vec3& c, double r) {
-  return Shell::sew({TrimmedSurface(revolve(make_arc(c, {0, 0, -1}, {1, 0, 0}, r, 0.0, pi), c, {0, 0, 1}, 2 * pi))});
+  return Shell::sew({TrimmedSurface(
+      revolve(make_arc(c, {0, 0, -1}, {1, 0, 0}, r, 0.0, pi), c, {0, 0, 1}, 2 * pi))});
 }
 
 Shell box_shell(const Vec3& lo, const Vec3& hi) {
@@ -42,7 +43,8 @@ Shell box_shell(const Vec3& lo, const Vec3& hi) {
 Shell cylinder_shell(double r, double z0, double z1) {
   const auto side = extrude(make_circle({0, 0, z0}, {0, 0, 1}, r), {0, 0, z1 - z0});
   const auto lid = [&](double z) {
-    return TrimmedSurface(make_rectangle({-r, -r, z}, {2 * r, 0, 0}, {0, 2 * r, 0}), circle_loop(0.5, 0.5, 0.5));
+    return TrimmedSurface(make_rectangle({-r, -r, z}, {2 * r, 0, 0}, {0, 2 * r, 0}),
+                          circle_loop(0.5, 0.5, 0.5));
   };
   return Shell::sew({TrimmedSurface(side), lid(z0), lid(z1)});
 }
@@ -66,9 +68,10 @@ int main(int argc, char** argv) {
     pts.push_back({std::cos(t), std::sin(t), 0.1 * t});
   }
   const NurbsCurve helix = interpolate_curve(pts, 3);
-  const NurbsSurface sphere = revolve(make_arc({0, 0, 0}, {0, 0, -1}, {1, 0, 0}, 1.0, 0.0, pi), {0, 0, 0}, {0, 0, 1}, 2 * pi);
-  const NurbsSurface sphere2 =
-      revolve(make_arc({1, 0, 0}, {0, 0, -1}, {1, 0, 0}, 1.0, 0.0, pi), {1, 0, 0}, {0, 0, 1}, 2 * pi);
+  const NurbsSurface sphere = revolve(make_arc({0, 0, 0}, {0, 0, -1}, {1, 0, 0}, 1.0, 0.0, pi),
+                                      {0, 0, 0}, {0, 0, 1}, 2 * pi);
+  const NurbsSurface sphere2 = revolve(make_arc({1, 0, 0}, {0, 0, -1}, {1, 0, 0}, 1.0, 0.0, pi),
+                                       {1, 0, 0}, {0, 0, 1}, 2 * pi);
   const Shell s1 = sphere_shell({0, 0, 0}, 1.0), s2 = sphere_shell({1, 0, 0}, 1.0);
   const Shell cube = box_shell({-1, -1, -1}, {1, 1, 1}), drill = cylinder_shell(0.3, -2, 2);
   const Shell box_a = box_shell({0, 0, 0}, {1, 1, 1}), box_b = box_shell({0.5, 0, 0}, {1.5, 1, 1});
@@ -82,28 +85,43 @@ int main(int argc, char** argv) {
        }},
       {"surface evaluation (rational sphere)", "1e5 points",
        [&] {
-         for (int i = 0; i < 100000; ++i) sink += sphere.evaluate(std::fmod(i * 0.618, 1.0), (i % 997) / 997.0).x;
+         for (int i = 0; i < 100000; ++i)
+           sink += sphere.evaluate(std::fmod(i * 0.618, 1.0), (i % 997) / 997.0).x;
        }},
       {"closest point on sphere", "1000 points",
        [&] {
-         for (int i = 0; i < 1000; ++i) sink += closest_point(sphere, {2 * std::cos(i * 1.0), 2 * std::sin(i * 1.0), 0.3}).u;
+         for (int i = 0; i < 1000; ++i)
+           sink += closest_point(sphere, {2 * std::cos(i * 1.0), 2 * std::sin(i * 1.0), 0.3}).u;
        }},
-      {"curve interpolation (1000 points)", "1 fit", [&] { sink += static_cast<double>(interpolate_curve(pts, 3).control_points().size()); }},
+      {"curve interpolation (1000 points)", "1 fit",
+       [&] { sink += static_cast<double>(interpolate_curve(pts, 3).control_points().size()); }},
       {"curve approximation to 1e-4", "1 fit",
-       [&] { sink += static_cast<double>(approximate_curve_tol(pts, 3, 1e-4).control_points().size()); }},
+       [&] {
+         sink += static_cast<double>(approximate_curve_tol(pts, 3, 1e-4).control_points().size());
+       }},
       {"surface/surface intersection (two spheres)", "1 intersection",
        [&] { sink += static_cast<double>(intersect(sphere, sphere2).curves.size()); }},
-      {"sewing a cube", "1 shell", [&] { sink += static_cast<double>(box_shell({0, 0, 0}, {1, 1, 1}).faces().size()); }},
+      {"sewing a cube", "1 shell",
+       [&] { sink += static_cast<double>(box_shell({0, 0, 0}, {1, 1, 1}).faces().size()); }},
       {"point in shell (sphere)", "100 points",
        [&] {
-         for (int i = 0; i < 100; ++i) sink += point_in_shell(s1, {0.5 * std::cos(i * 1.0), 0.3, 0.5 * std::sin(i * 1.0)}) ? 1.0 : 0.0;
+         for (int i = 0; i < 100; ++i)
+           sink += point_in_shell(s1, {0.5 * std::cos(i * 1.0), 0.3, 0.5 * std::sin(i * 1.0)})
+                       ? 1.0
+                       : 0.0;
        }},
       {"Boolean intersection (two spheres)", "1 Boolean",
-       [&] { sink += static_cast<double>(boolean(s1, s2, BooleanOp::Intersection).faces().size()); }},
+       [&] {
+         sink += static_cast<double>(boolean(s1, s2, BooleanOp::Intersection).faces().size());
+       }},
       {"Boolean difference (drilled cube)", "1 Boolean",
-       [&] { sink += static_cast<double>(boolean(cube, drill, BooleanOp::Difference).faces().size()); }},
+       [&] {
+         sink += static_cast<double>(boolean(cube, drill, BooleanOp::Difference).faces().size());
+       }},
       {"Boolean union (coincident boxes)", "1 Boolean",
-       [&] { sink += static_cast<double>(boolean(box_a, box_b, BooleanOp::Union).faces().size()); }},
+       [&] {
+         sink += static_cast<double>(boolean(box_a, box_b, BooleanOp::Union).faces().size());
+       }},
       {"volume of the lens (rel. 1e-6)", "1 volume", [&] { sink += lens.volume(1e-6); }},
   };
 
@@ -113,7 +131,9 @@ int main(int argc, char** argv) {
     for (int r = 0; r < reps; ++r) {
       const auto t0 = std::chrono::steady_clock::now();
       c.run();
-      best = std::min(best, std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count());
+      best = std::min(
+          best,
+          std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count());
     }
     std::printf("| %s | %s | %.2f |\n", c.name.c_str(), c.unit.c_str(), best);
   }

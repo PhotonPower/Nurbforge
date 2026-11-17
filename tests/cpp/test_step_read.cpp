@@ -1,6 +1,5 @@
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
-
 #include <clocale>
 #include <cmath>
 #include <initializer_list>
@@ -21,7 +20,8 @@ constexpr double pi = std::numbers::pi;
 namespace {
 
 Shell sphere_shell(const Vec3& c, double R) {
-  return Shell::sew({TrimmedSurface(revolve(make_arc(c, {0, 0, -1}, {1, 0, 0}, R, 0.0, pi), c, {0, 0, 1}, 2 * pi))});
+  return Shell::sew({TrimmedSurface(
+      revolve(make_arc(c, {0, 0, -1}, {1, 0, 0}, R, 0.0, pi), c, {0, 0, 1}, 2 * pi))});
 }
 
 std::vector<TrimmedSurface> box_faces(double h) {  // cube [-h, h]^3
@@ -39,7 +39,8 @@ Shell box_shell(double h) { return Shell::sew(box_faces(h)); }
 Shell cylinder_shell(double R, double z0, double z1) {  // axis z
   const auto side = extrude(make_circle({0, 0, z0}, {0, 0, 1}, R), {0, 0, z1 - z0});
   const auto lid = [&](double z) {
-    return TrimmedSurface(make_rectangle({-R, -R, z}, {2 * R, 0, 0}, {0, 2 * R, 0}), circle_loop(0.5, 0.5, 0.5));
+    return TrimmedSurface(make_rectangle({-R, -R, z}, {2 * R, 0, 0}, {0, 2 * R, 0}),
+                          circle_loop(0.5, 0.5, 0.5));
   };
   return Shell::sew({TrimmedSurface(side), lid(z0), lid(z1)});
 }
@@ -67,9 +68,13 @@ Shell roundtrip(const Shell& original) {
   return s;
 }
 
-std::string wrap(const std::string& data, const std::string& unit = "(LENGTH_UNIT() NAMED_UNIT(*) SI_UNIT(.MILLI.,.METRE.))") {
-  return "ISO-10303-21;\nHEADER;\nFILE_DESCRIPTION(('test'),'2;1');\nFILE_NAME('t','2026-01-01T00:00:00',(''),(''),'',"
-         "'','');\nFILE_SCHEMA(('AUTOMOTIVE_DESIGN { 1 0 10303 214 1 1 1 1 }'));\nENDSEC;\nDATA;\n" +
+std::string wrap(
+    const std::string& data,
+    const std::string& unit = "(LENGTH_UNIT() NAMED_UNIT(*) SI_UNIT(.MILLI.,.METRE.))") {
+  return "ISO-10303-21;\nHEADER;\nFILE_DESCRIPTION(('test'),'2;1');\nFILE_NAME('t','2026-01-01T00:"
+         "00:00',(''),(''),'',"
+         "'','');\nFILE_SCHEMA(('AUTOMOTIVE_DESIGN { 1 0 10303 214 1 1 1 1 "
+         "}'));\nENDSEC;\nDATA;\n" +
          data + "#900=" + unit +
          ";\n#901=(GEOMETRIC_REPRESENTATION_CONTEXT(3) GLOBAL_UNIT_ASSIGNED_CONTEXT((#900)) "
          "REPRESENTATION_CONTEXT('',''));\nENDSEC;\nEND-ISO-10303-21;\n";
@@ -255,7 +260,8 @@ TEST_CASE("STEP read: trim loops stay compact (issue #46)", "[step_read]") {
 
   // the cases of the issue: disjoint (a cylinder in the hole of a ring) and nested coaxial
   // cylinders with coplanar lids, intersected after a round trip
-  const Shell ring = boolean(cylinder_shell(20, 0, 5), cylinder_shell(12, -1, 6), BooleanOp::Difference);
+  const Shell ring =
+      boolean(cylinder_shell(20, 0, 5), cylinder_shell(12, -1, 6), BooleanOp::Difference);
   const auto rt = from_step(to_step({cyl, ring, cylinder_shell(14, 0, 5)}));
   REQUIRE(rt.size() == 3);
   CHECK(boolean(rt[0].oriented(), rt[1].oriented(), BooleanOp::Intersection).faces().empty());
@@ -265,12 +271,14 @@ TEST_CASE("STEP read: trim loops stay compact (issue #46)", "[step_read]") {
 }
 
 TEST_CASE("STEP read: round trip of a Boolean union", "[step_read]") {
-  const Shell u = boolean(sphere_shell({0, 0, 0}, 1.0), sphere_shell({1, 0, 0}, 1.0), BooleanOp::Union);
+  const Shell u =
+      boolean(sphere_shell({0, 0, 0}, 1.0), sphere_shell({1, 0, 0}, 1.0), BooleanOp::Union);
   roundtrip(u);
 }
 
 TEST_CASE("STEP read: round trip of a solid with a void", "[step_read]") {
-  const Shell v = boolean(box_shell(1.0), sphere_shell({0.1, -0.1, 0.2}, 0.5), BooleanOp::Difference);
+  const Shell v =
+      boolean(box_shell(1.0), sphere_shell({0.1, -0.1, 0.2}, 0.5), BooleanOp::Difference);
   const std::string text = to_step({v});
   CHECK(text.find("BREP_WITH_VOIDS") != std::string::npos);
   const Shell s = roundtrip(v);
@@ -300,7 +308,8 @@ TEST_CASE("STEP read: several shells and the writer's options", "[step_read]") {
   r.unit = StepLengthUnit::Metre;
   CHECK(read_one(to_step({box_shell(1.0)}, w), r).volume(kRel) == Approx(8.0).epsilon(1e-9));
   w.unit = StepLengthUnit::Inch;
-  CHECK(read_one(to_step({box_shell(1.0)}, w)).volume(kRel) == Approx(8.0 * 25.4 * 25.4 * 25.4).epsilon(1e-9));
+  CHECK(read_one(to_step({box_shell(1.0)}, w)).volume(kRel) ==
+        Approx(8.0 * 25.4 * 25.4 * 25.4).epsilon(1e-9));
   r.unit = StepLengthUnit::Inch;
   CHECK(read_one(to_step({box_shell(1.0)}, w), r).volume(kRel) == Approx(8.0).epsilon(1e-9));
 }
@@ -318,7 +327,8 @@ TEST_CASE("STEP read: cube from planes and lines", "[step_read]") {
   // inch file (conversion based unit)
   const std::string inch =
       "(CONVERSION_BASED_UNIT('INCH',#902) LENGTH_UNIT() NAMED_UNIT(#903));\n"
-      "#902=LENGTH_MEASURE_WITH_UNIT(LENGTH_MEASURE(25.4),#904);\n#903=DIMENSIONAL_EXPONENTS(1.,0.,0.,0.,0.,0.,0.);\n"
+      "#902=LENGTH_MEASURE_WITH_UNIT(LENGTH_MEASURE(25.4),#904);\n#903=DIMENSIONAL_EXPONENTS(1.,0.,"
+      "0.,0.,0.,0.,0.);\n"
       "#904=(LENGTH_UNIT() NAMED_UNIT(*) SI_UNIT(.MILLI.,.METRE.))";
   CHECK(read_one(wrap(kCube, inch)).volume(kRel) == Approx(25.4 * 25.4 * 25.4).epsilon(1e-12));
 }
@@ -368,7 +378,8 @@ TEST_CASE("STEP read: numbers do not depend on the C locale", "[step_read]") {
 
 TEST_CASE("STEP read: errors and skipped entities", "[step_read]") {
   CHECK_THROWS_AS(from_step("not a step file"), GeometryError);
-  CHECK_THROWS_AS(from_step("ISO-10303-21;\nDATA;\n#1=CARTESIAN_POINT('',(0.,0.,0.);\nENDSEC;\n"), GeometryError);
+  CHECK_THROWS_AS(from_step("ISO-10303-21;\nDATA;\n#1=CARTESIAN_POINT('',(0.,0.,0.);\nENDSEC;\n"),
+                  GeometryError);
   CHECK_THROWS_AS(read_step("does/not/exist.step"), std::runtime_error);
   CHECK(from_step(wrap("#1=CARTESIAN_POINT('',(0.,0.,0.));\n")).empty());
   // an unsupported surface type is named with its instance number

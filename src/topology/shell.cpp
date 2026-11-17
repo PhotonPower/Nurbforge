@@ -56,7 +56,8 @@ struct Box {
     return p.x >= lo.x && p.x <= hi.x && p.y >= lo.y && p.y <= hi.y && p.z >= lo.z && p.z <= hi.z;
   }
   [[nodiscard]] bool overlaps(const Box& o) const {
-    return lo.x <= o.hi.x && o.lo.x <= hi.x && lo.y <= o.hi.y && o.lo.y <= hi.y && lo.z <= o.hi.z && o.lo.z <= hi.z;
+    return lo.x <= o.hi.x && o.lo.x <= hi.x && lo.y <= o.hi.y && o.lo.y <= hi.y && lo.z <= o.hi.z &&
+           o.lo.z <= hi.z;
   }
 };
 
@@ -106,7 +107,8 @@ Shell Shell::sew(std::vector<TrimmedSurface> faces, double tolerance) {
   // a circle split at different points on the two faces sharing it)
   std::vector<Piece> pieces;
   std::vector<std::array<Vec3, 2>> raw_ends;
-  for (const auto& r : raw) raw_ends.push_back({r.c.evaluate(r.c.domain_start()), r.c.evaluate(r.c.domain_end())});
+  for (const auto& r : raw)
+    raw_ends.push_back({r.c.evaluate(r.c.domain_start()), r.c.evaluate(r.c.domain_end())});
   for (std::size_t i = 0; i < raw.size(); ++i) {
     const NurbsCurve& c = raw[i].c;
     const double a = c.domain_start(), b = c.domain_end();
@@ -119,7 +121,8 @@ Shell Shell::sew(std::vector<TrimmedSurface> faces, double tolerance) {
         const CurvePoint cp = closest_point(c, q);
         const double margin = 1e-9 * (b - a);
         if (cp.distance <= tolerance && cp.u > a + margin && cp.u < b - margin &&
-            distance(cp.point, c.evaluate(a)) > tolerance && distance(cp.point, c.evaluate(b)) > tolerance)
+            distance(cp.point, c.evaluate(a)) > tolerance &&
+            distance(cp.point, c.evaluate(b)) > tolerance)
           cuts.push_back(cp.u);
       }
     }
@@ -142,13 +145,15 @@ Shell Shell::sew(std::vector<TrimmedSurface> faces, double tolerance) {
         bool found = false;
         for (std::size_t ei = 0; ei < sh.edges_.size() && !found; ++ei) {
           auto& e = sh.edges_[ei];
-          if (box.overlaps(edge_boxes[ei]) && lies_on(c, e.curve, tolerance) && lies_on(e.curve, c, tolerance)) {
+          if (box.overlaps(edge_boxes[ei]) && lies_on(c, e.curve, tolerance) &&
+              lies_on(e.curve, c, tolerance)) {
             e.uses.push_back({f, l, k, opposite(c, e.curve)});
             found = true;
           }
         }
         if (found) continue;
-        ShellEdge e{c, vertex(c.evaluate(c.domain_start())), vertex(c.evaluate(c.domain_end())), {}};
+        ShellEdge e{
+            c, vertex(c.evaluate(c.domain_start())), vertex(c.evaluate(c.domain_end())), {}};
         e.uses.push_back({f, l, k, false});
         sh.edges_.push_back(std::move(e));
         edge_boxes.push_back(box);
@@ -173,7 +178,8 @@ std::vector<std::size_t> Shell::non_manifold_edges() const {
 }
 
 bool Shell::is_closed() const {
-  return std::all_of(edges_.begin(), edges_.end(), [](const ShellEdge& e) { return e.uses.size() == 2; });
+  return std::all_of(edges_.begin(), edges_.end(),
+                     [](const ShellEdge& e) { return e.uses.size() == 2; });
 }
 
 bool Shell::is_consistently_oriented() const {
@@ -201,7 +207,8 @@ std::vector<std::vector<std::size_t>> Shell::face_components() const {
     return f;
   };
   for (const auto& e : edges_)
-    for (std::size_t k = 1; k < e.uses.size(); ++k) parent[find(e.uses[k].face)] = find(e.uses[0].face);
+    for (std::size_t k = 1; k < e.uses.size(); ++k)
+      parent[find(e.uses[k].face)] = find(e.uses[0].face);
   std::vector<std::vector<std::size_t>> comps;
   std::vector<std::size_t> index(F, F);
   for (std::size_t f = 0; f < F; ++f) {
@@ -238,7 +245,8 @@ Shell Shell::oriented() const {
             flip[b.face] = need;
             todo.push(b.face);
           } else if (flip[b.face] != need) {
-            throw GeometryError("shell: the faces cannot be oriented consistently (non-orientable)");
+            throw GeometryError(
+                "shell: the faces cannot be oriented consistently (non-orientable)");
           }
         }
       }
@@ -288,7 +296,8 @@ double Shell::area(double rel_tol) const {
 
 double Shell::volume(double rel_tol) const {
   if (!is_closed()) throw GeometryError("shell: volume requires a closed shell");
-  if (!is_consistently_oriented()) throw GeometryError("shell: volume requires a consistently oriented shell");
+  if (!is_consistently_oriented())
+    throw GeometryError("shell: volume requires a consistently oriented shell");
   // scale for the absolute error target: area times model size
   double size = 0.0;
   for (const auto& v : vertices_) size = std::max(size, norm(v));
@@ -324,7 +333,8 @@ void symmetric_eigen(std::array<double, 9> a, std::array<double, 3>& values,
       for (int q = p + 1; q < 3; ++q) {
         if (A(p, q) == 0.0) continue;
         const double theta = 0.5 * (A(q, q) - A(p, p)) / A(p, q);
-        const double t = (theta >= 0 ? 1.0 : -1.0) / (std::abs(theta) + std::sqrt(theta * theta + 1));
+        const double t =
+            (theta >= 0 ? 1.0 : -1.0) / (std::abs(theta) + std::sqrt(theta * theta + 1));
         const double c = 1 / std::sqrt(t * t + 1), sn = t * c;
         for (int k = 0; k < 3; ++k) {  // A <- A J
           const double akp = A(k, p), akq = A(k, q);
@@ -382,16 +392,26 @@ MassProperties Shell::mass_properties(double rel_tol) const {
             const auto d = srf.first_derivatives(u, v);
             const Vec3 p = d[0] - c0, n = cross(d[1], d[2]);
             switch (fld) {
-              case kV: return dot(p, n) / 3.0;
-              case kX: return 0.5 * p.x * p.x * n.x;
-              case kY: return 0.5 * p.y * p.y * n.y;
-              case kZ: return 0.5 * p.z * p.z * n.z;
-              case kXX: return p.x * p.x * p.x * n.x / 3.0;
-              case kYY: return p.y * p.y * p.y * n.y / 3.0;
-              case kZZ: return p.z * p.z * p.z * n.z / 3.0;
-              case kXY: return 0.5 * p.x * p.x * p.y * n.x;
-              case kXZ: return 0.5 * p.x * p.x * p.z * n.x;
-              case kYZ: return 0.5 * p.y * p.y * p.z * n.y;
+              case kV:
+                return dot(p, n) / 3.0;
+              case kX:
+                return 0.5 * p.x * p.x * n.x;
+              case kY:
+                return 0.5 * p.y * p.y * n.y;
+              case kZ:
+                return 0.5 * p.z * p.z * n.z;
+              case kXX:
+                return p.x * p.x * p.x * n.x / 3.0;
+              case kYY:
+                return p.y * p.y * p.y * n.y / 3.0;
+              case kZZ:
+                return p.z * p.z * p.z * n.z / 3.0;
+              case kXY:
+                return 0.5 * p.x * p.x * p.y * n.x;
+              case kXZ:
+                return 0.5 * p.x * p.x * p.z * n.x;
+              case kYZ:
+                return 0.5 * p.y * p.y * p.z * n.y;
             }
             return 0.0;
           },
@@ -418,8 +438,8 @@ MassProperties Shell::mass_properties(double rel_tol) const {
 
 Shell Shell::with_face_labels(const std::vector<std::string>& labels) const {
   if (labels.size() != faces_.size())
-    throw GeometryError("shell: with_face_labels needs one label per face (" + std::to_string(faces_.size()) +
-                        "), got " + std::to_string(labels.size()));
+    throw GeometryError("shell: with_face_labels needs one label per face (" +
+                        std::to_string(faces_.size()) + "), got " + std::to_string(labels.size()));
   Shell out = *this;  // same geometry: the topology stays valid
   for (std::size_t f = 0; f < faces_.size(); ++f) out.faces_[f] = faces_[f].with_label(labels[f]);
   return out;
@@ -439,12 +459,14 @@ Shell Shell::transformed(const Transform& t) const {
   if (det == 0.0) throw GeometryError("shell: transformed by a singular map");
   double scale = 0.0;  // largest column norm: bound for the stretch of the sewing tolerance
   for (int c = 0; c < 3; ++c)
-    scale = std::max(scale, std::hypot(M[static_cast<std::size_t>(c)], M[static_cast<std::size_t>(4 + c)],
-                                       M[static_cast<std::size_t>(8 + c)]));
+    scale = std::max(scale,
+                     std::hypot(M[static_cast<std::size_t>(c)], M[static_cast<std::size_t>(4 + c)],
+                                M[static_cast<std::size_t>(8 + c)]));
   std::vector<TrimmedSurface> faces;
   faces.reserve(faces_.size());
   for (const auto& f : faces_) {
-    TrimmedSurface g = TrimmedSurface(f.surface().transformed(t), f.outer(), f.holes()).with_label(f.label());
+    TrimmedSurface g =
+        TrimmedSurface(f.surface().transformed(t), f.outer(), f.holes()).with_label(f.label());
     faces.push_back(det < 0 ? g.flipped() : std::move(g));
   }
   return sew(std::move(faces), tol_ * std::max(scale, 1.0));

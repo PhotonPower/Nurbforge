@@ -13,8 +13,8 @@ namespace nf {
 
 /// Parameters v_k of the sections (first 0, last 1), averaged over the columns of the
 /// compatible control polygons (P&T Eq. 10.8). The sections are made compatible internally.
-[[nodiscard]] std::vector<double> loft_parameters(const std::vector<NurbsCurve>& sections,
-                                                  Parametrization method = Parametrization::Centripetal);
+[[nodiscard]] std::vector<double> loft_parameters(
+    const std::vector<NurbsCurve>& sections, Parametrization method = Parametrization::Centripetal);
 
 /// Skinned surface through the section curves, in the given order. u follows the sections
 /// (domain [0, 1], made compatible: common degree and knots), v runs across them with degree

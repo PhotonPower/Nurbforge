@@ -22,10 +22,30 @@ struct Vec3 {
 
   [[nodiscard]] constexpr std::array<double, 3> to_array() const { return {x, y, z}; }
 
-  constexpr Vec3& operator+=(const Vec3& o) { x += o.x; y += o.y; z += o.z; return *this; }
-  constexpr Vec3& operator-=(const Vec3& o) { x -= o.x; y -= o.y; z -= o.z; return *this; }
-  constexpr Vec3& operator*=(double s) { x *= s; y *= s; z *= s; return *this; }
-  constexpr Vec3& operator/=(double s) { x /= s; y /= s; z /= s; return *this; }
+  constexpr Vec3& operator+=(const Vec3& o) {
+    x += o.x;
+    y += o.y;
+    z += o.z;
+    return *this;
+  }
+  constexpr Vec3& operator-=(const Vec3& o) {
+    x -= o.x;
+    y -= o.y;
+    z -= o.z;
+    return *this;
+  }
+  constexpr Vec3& operator*=(double s) {
+    x *= s;
+    y *= s;
+    z *= s;
+    return *this;
+  }
+  constexpr Vec3& operator/=(double s) {
+    x /= s;
+    y /= s;
+    z /= s;
+    return *this;
+  }
 
   friend constexpr Vec3 operator+(Vec3 a, const Vec3& b) { return a += b; }
   friend constexpr Vec3 operator-(Vec3 a, const Vec3& b) { return a -= b; }
@@ -35,7 +55,9 @@ struct Vec3 {
   friend constexpr Vec3 operator/(Vec3 a, double s) { return a /= s; }
 };
 
-[[nodiscard]] constexpr double dot(const Vec3& a, const Vec3& b) { return a.x * b.x + a.y * b.y + a.z * b.z; }
+[[nodiscard]] constexpr double dot(const Vec3& a, const Vec3& b) {
+  return a.x * b.x + a.y * b.y + a.z * b.z;
+}
 [[nodiscard]] constexpr Vec3 cross(const Vec3& a, const Vec3& b) {
   return {a.y * b.z - a.z * b.y, a.z * b.x - a.x * b.z, a.x * b.y - a.y * b.x};
 }
@@ -56,9 +78,17 @@ struct Vec4 {
   [[nodiscard]] constexpr Vec3 xyz() const { return {x, y, z}; }
   [[nodiscard]] Vec3 project() const { return Vec3{x / w, y / w, z / w}; }
 
-  constexpr Vec4& operator+=(const Vec4& o) { x += o.x; y += o.y; z += o.z; w += o.w; return *this; }
+  constexpr Vec4& operator+=(const Vec4& o) {
+    x += o.x;
+    y += o.y;
+    z += o.z;
+    w += o.w;
+    return *this;
+  }
   friend constexpr Vec4 operator+(Vec4 a, const Vec4& b) { return a += b; }
-  friend constexpr Vec4 operator*(double s, const Vec4& a) { return {s * a.x, s * a.y, s * a.z, s * a.w}; }
+  friend constexpr Vec4 operator*(double s, const Vec4& a) {
+    return {s * a.x, s * a.y, s * a.z, s * a.w};
+  }
 };
 
 std::ostream& operator<<(std::ostream& os, const Vec3& v);

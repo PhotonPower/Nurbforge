@@ -24,7 +24,10 @@ RefinedPolygon refine_knot_vector(std::size_t p, const KnotVector& U, const std:
   for (double& x : X) {
     x = std::clamp(x, a_dom, b_dom);
     for (double k : U)
-      if (std::abs(k - x) < tol::kParametric) { x = k; break; }
+      if (std::abs(k - x) < tol::kParametric) {
+        x = k;
+        break;
+      }
   }
   for (std::size_t i = 1; i < X.size(); ++i)
     if (X[i] - X[i - 1] < tol::kParametric) X[i] = X[i - 1];
@@ -44,7 +47,9 @@ RefinedPolygon refine_knot_vector(std::size_t p, const KnotVector& U, const std:
   const idx n = static_cast<idx>(n_ctrl) - 1;
   const idx m = n + pp + 1;
   const idx r = static_cast<idx>(X.size()) - 1;
-  const auto at = [](const auto& v, idx i) -> const auto& { return v[static_cast<std::size_t>(i)]; };
+  const auto at = [](const auto& v, idx i) -> const auto& {
+    return v[static_cast<std::size_t>(i)];
+  };
 
   const idx a = static_cast<idx>(find_span(n_ctrl - 1, p, X.front(), U));
   const idx b = static_cast<idx>(find_span(n_ctrl - 1, p, X.back(), U)) + 1;
@@ -140,7 +145,8 @@ RefinedPolygon clamp(std::size_t p, const KnotVector& U_in, const std::vector<Ve
   while (r.knots[f - 1] == b) --f;
 
   KnotVector Uc(p + 1, a);
-  Uc.insert(Uc.end(), r.knots.begin() + static_cast<idx>(e + 1), r.knots.begin() + static_cast<idx>(f));
+  Uc.insert(Uc.end(), r.knots.begin() + static_cast<idx>(e + 1),
+            r.knots.begin() + static_cast<idx>(f));
   Uc.insert(Uc.end(), p + 1, b);
   std::vector<Vec4> Qc(r.points.begin() + static_cast<idx>(e - p),
                        r.points.begin() + static_cast<idx>(f));
@@ -277,7 +283,10 @@ std::pair<Columns, Columns> split(std::size_t p, const Columns& net, double u) {
     throw GeometryError("split: parameter " + std::to_string(u) + " is not inside (" +
                         std::to_string(a) + ", " + std::to_string(b) + ")");
   for (double k : cl.knots)
-    if (std::abs(k - u) < tol::kParametric) { u = k; break; }
+    if (std::abs(k - u) < tol::kParametric) {
+      u = k;
+      break;
+    }
   const std::vector<double> X(p - knot_multiplicity(cl.knots, u), u);
 
   Columns left, right;

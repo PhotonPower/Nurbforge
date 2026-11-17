@@ -1,4 +1,5 @@
 #include "nurbforge/core/vec.hpp"
+
 #include "nurbforge/core/error.hpp"
 
 namespace nf {

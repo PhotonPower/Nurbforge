@@ -23,7 +23,9 @@ namespace {
 
 using P2 = std::array<double, 2>;
 
-NurbsCurve line2(const P2& a, const P2& b) { return make_line({a[0], a[1], 0.0}, {b[0], b[1], 0.0}); }
+NurbsCurve line2(const P2& a, const P2& b) {
+  return make_line({a[0], a[1], 0.0}, {b[0], b[1], 0.0});
+}
 
 P2 start2(const NurbsCurve& c) {
   const Vec3 p = c.evaluate(c.domain_start());
@@ -54,10 +56,11 @@ std::optional<NurbsCurve> exact_image(const NurbsSurface& S, const NurbsCurve& p
   const auto du = S.domain_u(), dv = S.domain_v();
   if (S.degree_u() == 1 && S.degree_v() == 1 && S.num_u() == 2 && S.num_v() == 2) {
     const auto& W = S.weights();
-    const Vec3 p00 = S.control_point(0, 0), p10 = S.control_point(1, 0), p01 = S.control_point(0, 1),
-               p11 = S.control_point(1, 1);
+    const Vec3 p00 = S.control_point(0, 0), p10 = S.control_point(1, 0),
+               p01 = S.control_point(0, 1), p11 = S.control_point(1, 1);
     const double size = std::max(norm(p10 - p00), norm(p01 - p00));
-    const bool equal_w = std::all_of(W.begin(), W.end(), [&](double w) { return std::abs(w - W[0]) <= 1e-14 * W[0]; });
+    const bool equal_w = std::all_of(W.begin(), W.end(),
+                                     [&](double w) { return std::abs(w - W[0]) <= 1e-14 * W[0]; });
     if (equal_w && norm(p00 + p11 - p10 - p01) <= 1e-13 * size) {
       std::vector<Vec3> P;
       for (const Vec3& q : pc.control_points()) {
@@ -70,9 +73,11 @@ std::optional<NurbsCurve> exact_image(const NurbsSurface& S, const NurbsCurve& p
   if (pc.degree() != 1 || pc.control_points().size() != 2) return std::nullopt;
   const Vec3 a = pc.control_points().front(), b = pc.control_points().back();
   const double t0 = pc.domain_start(), t1 = pc.domain_end();
-  const auto along = [&](double c, double d, const std::array<double, 2>& dom, NurbsCurve iso) -> std::optional<NurbsCurve> {
+  const auto along = [&](double c, double d, const std::array<double, 2>& dom,
+                         NurbsCurve iso) -> std::optional<NurbsCurve> {
     const double eps = 1e-12 * (dom[1] - dom[0]);
-    const double lo = std::clamp(std::min(c, d), dom[0], dom[1]), hi = std::clamp(std::max(c, d), dom[0], dom[1]);
+    const double lo = std::clamp(std::min(c, d), dom[0], dom[1]),
+                 hi = std::clamp(std::max(c, d), dom[0], dom[1]);
     if (hi - lo <= 1e3 * eps) return std::nullopt;
     if (lo > dom[0] + eps || hi < dom[1] - eps) iso = iso.sub_curve(lo, hi);
     if (c > d) iso = iso.reversed();
@@ -83,7 +88,8 @@ std::optional<NurbsCurve> exact_image(const NurbsSurface& S, const NurbsCurve& p
       U[i] = t0;
       U[U.size() - 1 - i] = t1;
     }
-    return NurbsCurve::from_homogeneous(iso.degree(), std::move(U), iso.homogeneous_control_points());
+    return NurbsCurve::from_homogeneous(iso.degree(), std::move(U),
+                                        iso.homogeneous_control_points());
   };
   if (std::abs(a.y - b.y) <= 1e-14 * (dv[1] - dv[0]) && a.y >= dv[0] && a.y <= dv[1])
     return along(a.x, b.x, du, S.iso_curve_v(a.y));
@@ -149,7 +155,8 @@ TrimLoop circle_loop(double cu, double cv, double r) {
 TrimLoop polygon_loop(const std::vector<P2>& points) {
   if (points.size() < 3) throw GeometryError("polygon_loop: need at least three points");
   TrimLoop l;
-  for (std::size_t i = 0; i < points.size(); ++i) l.curves.push_back(line2(points[i], points[(i + 1) % points.size()]));
+  for (std::size_t i = 0; i < points.size(); ++i)
+    l.curves.push_back(line2(points[i], points[(i + 1) % points.size()]));
   return l;
 }
 
@@ -208,7 +215,8 @@ void TrimmedSurface::build_polylines() {
         const P2 p1 = at(static_cast<double>(i + 1) / static_cast<double>(n));
         const P2 pm = at((static_cast<double>(i) + 0.5) / static_cast<double>(n));
         const double ex = p1[0] - p0[0], ey = p1[1] - p0[1], len = std::hypot(ex, ey);
-        if (len > 0.0) dev = std::max(dev, std::abs((pm[0] - p0[0]) * ey - (pm[1] - p0[1]) * ex) / len);
+        if (len > 0.0)
+          dev = std::max(dev, std::abs((pm[0] - p0[0]) * ey - (pm[1] - p0[1]) * ex) / len);
       }
     }
     band_.push_back(2.0 * dev + tiny);
@@ -321,7 +329,7 @@ TrimmedSurface TrimmedSurface::flipped() const {
       W.push_back(surface_.weight(i, j));
     }
   NurbsSurface s{surface_.degree_u(), surface_.degree_v(), std::move(U), surface_.knots_v(),
-                 surface_.num_u(), surface_.num_v(), std::move(P), std::move(W)};
+                 surface_.num_u(),    surface_.num_v(),    std::move(P), std::move(W)};
   // mirror the loops: x -> a + b - x (this reverses their orientation; the constructor fixes it)
   const Transform mirror({-1.0, 0.0, 0.0, a + b, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0});
   const auto map_loop = [&](const TrimLoop& l) {
@@ -388,7 +396,8 @@ double TrimmedSurface::integrate(const std::function<double(double, double)>& f,
             const auto d = c.derivatives(t, 1);
             return d[1].y == 0.0 ? 0.0 : F(d[0].x, d[0].y) * d[1].y;
           },
-          c.domain_start(), c.domain_end(), rel_tol, br, abs_tol / static_cast<double>(4 * l.curves.size()));
+          c.domain_start(), c.domain_end(), rel_tol, br,
+          abs_tol / static_cast<double>(4 * l.curves.size()));
     }
     return sum;
   };
@@ -408,7 +417,8 @@ std::vector<std::vector<NurbsCurve>> TrimmedSurface::boundary_curves(double tole
     std::optional<NurbsCurve> result;
     std::vector<double> br = unique_knots(pc.knots()).first;
     {
-      const auto ku = unique_knots(surface_.knots_u()).first, kv = unique_knots(surface_.knots_v()).first;
+      const auto ku = unique_knots(surface_.knots_u()).first,
+                 kv = unique_knots(surface_.knots_v()).first;
       std::vector<double> extra;
       // A crossing needs the curve to be clearly off the knot line on both sides (|g| > eps):
       // a trim curve running along a knot line (e.g. an intersection with a plane through a
@@ -440,8 +450,10 @@ std::vector<std::vector<NurbsCurve>> TrimmedSurface::boundary_curves(double tole
             }
           }
       };
-      crossings(0, std::vector<double>(ku.begin() + 1, ku.end() - 1), 1e-9 * (ku.back() - ku.front()));
-      crossings(1, std::vector<double>(kv.begin() + 1, kv.end() - 1), 1e-9 * (kv.back() - kv.front()));
+      crossings(0, std::vector<double>(ku.begin() + 1, ku.end() - 1),
+                1e-9 * (ku.back() - ku.front()));
+      crossings(1, std::vector<double>(kv.begin() + 1, kv.end() - 1),
+                1e-9 * (kv.back() - kv.front()));
       br.insert(br.end(), extra.begin(), extra.end());
       std::sort(br.begin(), br.end());
       // breaks closer than the parametric resolution would give pieces that join() cannot fuse
@@ -450,8 +462,10 @@ std::vector<std::vector<NurbsCurve>> TrimmedSurface::boundary_curves(double tole
       const double close = std::max(10.0 * tol::kParametric, 1e-12 * (br.back() - br.front()));
       std::vector<double> kept{br.front()};
       for (std::size_t k = 1; k < br.size(); ++k) {
-        if (br[k] - kept.back() > close) kept.push_back(br[k]);
-        else if (k + 1 == br.size() && kept.size() > 1) kept.back() = br[k];
+        if (br[k] - kept.back() > close)
+          kept.push_back(br[k]);
+        else if (k + 1 == br.size() && kept.size() > 1)
+          kept.back() = br[k];
       }
       if (kept.size() == 1) kept.push_back(br.back());
       br = std::move(kept);
@@ -495,8 +509,8 @@ std::vector<std::vector<NurbsCurve>> TrimmedSurface::boundary_curves(double tole
 
 // ------------------------------------------------------------------ split
 
-std::vector<TrimmedSurface> split(const NurbsSurface& surface, const std::vector<NurbsCurve>& pcurves,
-                                  const Tolerance& tol) {
+std::vector<TrimmedSurface> split(const NurbsSurface& surface,
+                                  const std::vector<NurbsCurve>& pcurves, const Tolerance& tol) {
   const auto du = surface.domain_u(), dv = surface.domain_v();
   const double U0 = du[0], U1 = du[1], V0 = dv[0], V1 = dv[1];
   const double eps = std::max(10 * tol.parametric, 1e-9 * std::max(U1 - U0, V1 - V0));
@@ -611,7 +625,8 @@ std::vector<TrimmedSurface> split(const NurbsSurface& surface, const std::vector
     const P2 p = cpoly[i].front();
     double best = 1e300;
     for (std::size_t j = 0; j < C; ++j)
-      if (j != i && carea[j] > carea[i] && carea[j] < best && inside_polygon(cpoly[j], p[0], p[1])) {
+      if (j != i && carea[j] > carea[i] && carea[j] < best &&
+          inside_polygon(cpoly[j], p[0], p[1])) {
         best = carea[j];
         parent[i] = static_cast<std::ptrdiff_t>(j);
       }

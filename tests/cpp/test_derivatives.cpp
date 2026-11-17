@@ -1,5 +1,4 @@
 #include <catch2/catch_test_macros.hpp>
-
 #include <cmath>
 #include <numbers>
 #include <vector>
@@ -34,7 +33,8 @@ NurbsSurface sphere(double R) {
 
 // Checks D[k][l] against central differences of the analytic D[k-1][l] (in u) and D[k][l-1]
 // (in v) for all 1 <= k + l <= order.
-void check_against_finite_differences(const NurbsSurface& s, double u, double v, std::size_t order) {
+void check_against_finite_differences(const NurbsSurface& s, double u, double v,
+                                      std::size_t order) {
   const double h = 1e-5;
   const auto D = s.derivatives(u, v, order);
   const auto Dup = s.derivatives(u + h, v, order), Dum = s.derivatives(u - h, v, order);
@@ -60,8 +60,8 @@ TEST_CASE("surface derivatives agree with finite differences", "[derivatives]") 
   const auto s = rational_patch();
   for (double u : {0.13, 0.55, 0.87})  // spans on both sides of the interior knots
     for (double v : {0.21, 0.74}) check_against_finite_differences(s, u, v, 4);
-  const auto torus = revolve(make_circle({5, 0, 0}, {0, 1, 0}, 1.5), {0, 0, 0}, {0, 0, 1},
-                             2 * std::numbers::pi);
+  const auto torus =
+      revolve(make_circle({5, 0, 0}, {0, 1, 0}, 1.5), {0, 0, 0}, {0, 0, 1}, 2 * std::numbers::pi);
   check_against_finite_differences(torus, 0.33, 0.61, 3);
 }
 

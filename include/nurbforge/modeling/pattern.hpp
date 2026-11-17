@@ -24,7 +24,8 @@ namespace nf {
 
 /// Applies a set of transforms to a geometry object.
 template <class Geometry>
-[[nodiscard]] std::vector<Geometry> apply_pattern(const Geometry& g, const std::vector<Transform>& ts) {
+[[nodiscard]] std::vector<Geometry> apply_pattern(const Geometry& g,
+                                                  const std::vector<Transform>& ts) {
   std::vector<Geometry> out;
   out.reserve(ts.size());
   for (const auto& t : ts) out.push_back(g.transformed(t));

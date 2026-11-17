@@ -31,14 +31,15 @@ Mat3 relative(const Mat3& A, const Mat3& B) {
 }
 
 Transform linear(const Mat3& R) {
-  return Transform({R.c0.x, R.c1.x, R.c2.x, 0.0, R.c0.y, R.c1.y, R.c2.y, 0.0, R.c0.z, R.c1.z,
-                    R.c2.z, 0.0});
+  return Transform(
+      {R.c0.x, R.c1.x, R.c2.x, 0.0, R.c0.y, R.c1.y, R.c2.y, 0.0, R.c0.z, R.c1.z, R.c2.z, 0.0});
 }
 
 Vec3 unit_tangent(const NurbsCurve& c, double v) {
   const Vec3 d = c.derivatives(v, 1)[1];
   const double n = norm(d);
-  if (n <= tol::kLength) throw GeometryError("sweep: trajectory tangent vanishes at v = " + std::to_string(v));
+  if (n <= tol::kLength)
+    throw GeometryError("sweep: trajectory tangent vanishes at v = " + std::to_string(v));
   return d / n;
 }
 
@@ -52,7 +53,9 @@ Vec3 perpendicular(const Vec3& t) {
 class RotationMinimizingFrame {
  public:
   explicit RotationMinimizingFrame(const NurbsCurve& c, std::size_t N = 4096)
-      : c_(c), a_(c.domain_start()), h_((c.domain_end() - c.domain_start()) / static_cast<double>(N)) {
+      : c_(c),
+        a_(c.domain_start()),
+        h_((c.domain_end() - c.domain_start()) / static_cast<double>(N)) {
     x_.resize(N + 1);
     t_.resize(N + 1);
     r_.resize(N + 1);
@@ -122,8 +125,9 @@ NurbsSurface skin_piece(const NurbsCurve& profile, const Placement& place, doubl
     }
     if (err <= opt.tolerance) return s;
     if (2 * K - 1 > opt.max_sections)
-      throw GeometryError("sweep: tolerance " + std::to_string(opt.tolerance) + " not reached with " +
-                          std::to_string(K) + " sections per piece (deviation " + std::to_string(err) + ")");
+      throw GeometryError("sweep: tolerance " + std::to_string(opt.tolerance) +
+                          " not reached with " + std::to_string(K) +
+                          " sections per piece (deviation " + std::to_string(err) + ")");
     K = 2 * K - 1;
   }
 }
@@ -167,11 +171,13 @@ NurbsSurface sweep_translational(const NurbsCurve& profile_in, const NurbsCurve&
       W.push_back(profile.weights()[i] * trajectory.weights()[j]);
     }
   return {profile.degree(), trajectory.degree(), profile.knots(), trajectory.knots(), nu, nv,
-          std::move(P), std::move(W)};
+          std::move(P),     std::move(W)};
 }
 
-NurbsSurface sweep(const NurbsCurve& profile_in, const NurbsCurve& trajectory, const SweepOptions& opt) {
-  if (opt.frame == SweepFrame::Fixed && opt.twist == 0.0) return sweep_translational(profile_in, trajectory);
+NurbsSurface sweep(const NurbsCurve& profile_in, const NurbsCurve& trajectory,
+                   const SweepOptions& opt) {
+  if (opt.frame == SweepFrame::Fixed && opt.twist == 0.0)
+    return sweep_translational(profile_in, trajectory);
   const NurbsCurve profile = reparametrize(profile_in.clamped(), 0.0, 1.0);
   const double a = trajectory.domain_start(), b = trajectory.domain_end();
   const Vec3 x0 = trajectory.evaluate(a);
@@ -182,14 +188,16 @@ NurbsSurface sweep(const NurbsCurve& profile_in, const NurbsCurve& trajectory, c
     if (opt.frame == SweepFrame::RotationMinimizing) R = relative(rmf.frame(v), F0);
     Transform L = linear(R);
     if (opt.twist != 0.0)
-      L = Transform::rotation({0, 0, 0}, unit_tangent(trajectory, v), opt.twist * (v - a) / (b - a)) * L;
+      L = Transform::rotation({0, 0, 0}, unit_tangent(trajectory, v),
+                              opt.twist * (v - a) / (b - a)) *
+          L;
     return Transform::translation(trajectory.evaluate(v)) * L * Transform::translation(-x0);
   };
   return skin_adaptive(profile, place, break_points({&trajectory}, a, b), opt);
 }
 
-NurbsSurface sweep2(const NurbsCurve& profile_in, const NurbsCurve& rail1_in, const NurbsCurve& rail2_in,
-                    const SweepOptions& opt) {
+NurbsSurface sweep2(const NurbsCurve& profile_in, const NurbsCurve& rail1_in,
+                    const NurbsCurve& rail2_in, const SweepOptions& opt) {
   const NurbsCurve profile = reparametrize(profile_in.clamped(), 0.0, 1.0);
   const NurbsCurve rail1 = rail1_in.clamped();
   const double a = rail1.domain_start(), b = rail1.domain_end();
@@ -197,7 +205,8 @@ NurbsSurface sweep2(const NurbsCurve& profile_in, const NurbsCurve& rail1_in, co
   const auto frame = [&](double v, double& scale) {
     const Vec3 d = rail2.evaluate(v) - rail1.evaluate(v);
     scale = norm(d);
-    if (scale <= tol::kLength) throw GeometryError("sweep2: the rails touch at v = " + std::to_string(v));
+    if (scale <= tol::kLength)
+      throw GeometryError("sweep2: the rails touch at v = " + std::to_string(v));
     const Vec3 x = d / scale;
     const Vec3 t = rail1.derivatives(v, 1)[1];
     const Vec3 n = t - dot(t, x) * x;

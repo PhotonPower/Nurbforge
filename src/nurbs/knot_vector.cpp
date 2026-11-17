@@ -11,11 +11,12 @@ namespace nf {
 void validate_knots(const KnotVector& knots, std::size_t degree, std::size_t n_ctrl) {
   if (degree < 1) throw GeometryError("degree must be >= 1");
   if (n_ctrl < degree + 1)
-    throw GeometryError("need at least degree+1 control points (got " + std::to_string(n_ctrl) + ")");
+    throw GeometryError("need at least degree+1 control points (got " + std::to_string(n_ctrl) +
+                        ")");
   if (knots.size() != n_ctrl + degree + 1)
-    throw GeometryError("knot vector size must be n_ctrl + degree + 1 = " +
-                        std::to_string(n_ctrl + degree + 1) + " (got " +
-                        std::to_string(knots.size()) + ")");
+    throw GeometryError(
+        "knot vector size must be n_ctrl + degree + 1 = " + std::to_string(n_ctrl + degree + 1) +
+        " (got " + std::to_string(knots.size()) + ")");
   for (std::size_t i = 1; i < knots.size(); ++i)
     if (knots[i] < knots[i - 1]) throw GeometryError("knot vector must be non-decreasing");
   if (knots[degree] >= knots[n_ctrl])
@@ -44,7 +45,10 @@ std::size_t find_span(std::size_t n, std::size_t degree, double u, const KnotVec
   std::size_t low = degree, high = n + 1;
   std::size_t mid = (low + high) / 2;
   while (u < knots[mid] || u >= knots[mid + 1]) {
-    if (u < knots[mid]) high = mid; else low = mid;
+    if (u < knots[mid])
+      high = mid;
+    else
+      low = mid;
     mid = (low + high) / 2;
   }
   return mid;
@@ -52,7 +56,8 @@ std::size_t find_span(std::size_t n, std::size_t degree, double u, const KnotVec
 
 std::size_t knot_multiplicity(const KnotVector& knots, double u) {
   std::size_t m = 0;
-  for (double k : knots) if (std::abs(k - u) < tol::kParametric) ++m;
+  for (double k : knots)
+    if (std::abs(k - u) < tol::kParametric) ++m;
   return m;
 }
 
@@ -60,8 +65,12 @@ std::pair<std::vector<double>, std::vector<int>> unique_knots(const KnotVector& 
   std::vector<double> values;
   std::vector<int> mults;
   for (double k : knots) {
-    if (!values.empty() && std::abs(k - values.back()) < tol::kParametric) ++mults.back();
-    else { values.push_back(k); mults.push_back(1); }
+    if (!values.empty() && std::abs(k - values.back()) < tol::kParametric)
+      ++mults.back();
+    else {
+      values.push_back(k);
+      mults.push_back(1);
+    }
   }
   return {values, mults};
 }

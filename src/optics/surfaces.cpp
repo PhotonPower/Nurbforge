@@ -21,7 +21,8 @@ namespace nf {
 double Asphere::sag(double r) const {
   const double r2 = r * r, c = curvature;
   const double arg = 1.0 - (1.0 + conic) * c * c * r2;
-  if (arg < 0.0) throw GeometryError("asphere: r = " + std::to_string(r) + " is beyond the conic's domain");
+  if (arg < 0.0)
+    throw GeometryError("asphere: r = " + std::to_string(r) + " is beyond the conic's domain");
   double z = c * r2 / (1.0 + std::sqrt(arg));
   double rp = r2 * r2;
   for (double a : even) {
@@ -55,7 +56,8 @@ void zernike_nm(std::size_t j, ZernikeIndexing indexing, int& n, int& m) {
     m = m_abs == 0 ? 0 : (j % 2 == 0 ? static_cast<int>(m_abs) : -static_cast<int>(m_abs));
     return;
   }
-  // Fringe: group d = (n + |m|) / 2 holds j = d^2 + 1 .. (d+1)^2, ordered m = d, -d, d-1, ..., 1, -1, 0
+  // Fringe: group d = (n + |m|) / 2 holds j = d^2 + 1 .. (d+1)^2, ordered m = d, -d, d-1, ..., 1,
+  // -1, 0
   std::size_t d = 0;
   while ((d + 1) * (d + 1) < j) ++d;
   const std::size_t pos = j - d * d - 1;  // 0 .. 2d
@@ -70,9 +72,9 @@ double zernike(std::size_t j, ZernikeIndexing indexing, double rho, double theta
   const int ma = std::abs(m);
   double R = 0.0;
   for (int s = 0; s <= (n - ma) / 2; ++s) {
-    const double coef = std::tgamma(n - s + 1.0) /
-                        (std::tgamma(s + 1.0) * std::tgamma((n + ma) / 2 - s + 1.0) *
-                         std::tgamma((n - ma) / 2 - s + 1.0));
+    const double coef =
+        std::tgamma(n - s + 1.0) / (std::tgamma(s + 1.0) * std::tgamma((n + ma) / 2 - s + 1.0) *
+                                    std::tgamma((n - ma) / 2 - s + 1.0));
     R += (s % 2 == 0 ? coef : -coef) * std::pow(rho, n - 2 * s);
   }
   double ang = 1.0;
@@ -107,7 +109,9 @@ constexpr double pi = std::numbers::pi;
 
 NurbsCurve conic_profile(double c, double k, double r_max) {
   if (c == 0.0) return make_line({0, 0, 0}, {r_max, 0, 0});
-  const auto z = [&](double r) { return c * r * r / (1.0 + std::sqrt(std::max(0.0, 1.0 - (1.0 + k) * c * c * r * r))); };
+  const auto z = [&](double r) {
+    return c * r * r / (1.0 + std::sqrt(std::max(0.0, 1.0 - (1.0 + k) * c * c * r * r)));
+  };
   const auto tangent = [&](double r) {  // (dr, dz), finite also where the tangent is vertical
     return std::array<double, 2>{std::sqrt(std::max(0.0, 1.0 - (1.0 + k) * c * c * r * r)), c * r};
   };
@@ -122,7 +126,9 @@ NurbsCurve conic_profile(double c, double k, double r_max) {
   }
   rb[0] = 0.0;
   rb[n] = r_max;
-  const auto G = [&](double r, double zz) { return c * r * r - 2.0 * zz + (1.0 + k) * c * zz * zz; };
+  const auto G = [&](double r, double zz) {
+    return c * r * r - 2.0 * zz + (1.0 + k) * c * zz * zz;
+  };
 
   std::optional<NurbsCurve> profile;
   for (std::size_t i = 0; i < n; ++i) {
@@ -149,7 +155,8 @@ NurbsCurve conic_profile(double c, double k, double r_max) {
     if (!(s > 0.0 && s < 1.0)) throw GeometryError("asphere: cannot construct the conic profile");
     const double w = s / (1.0 - s);
     const double u0 = static_cast<double>(i), u1 = u0 + 1.0;
-    const NurbsCurve seg{2, {u0, u0, u0, u1, u1, u1}, {{x0, 0, z0}, {x1, 0, z1}, {x2, 0, z2}}, {1.0, w, 1.0}};
+    const NurbsCurve seg{
+        2, {u0, u0, u0, u1, u1, u1}, {{x0, 0, z0}, {x1, 0, z1}, {x2, 0, z2}}, {1.0, w, 1.0}};
     profile = profile ? join(*profile, seg, 1e-12) : seg;
   }
   return *profile;
@@ -170,7 +177,9 @@ std::vector<double> fit_params(const std::vector<double>& br, std::size_t p) {
   const std::size_t per = p + 2;
   for (std::size_t i = 0; i + 1 < br.size(); ++i)
     for (std::size_t q = 1; q <= per; ++q)
-      t.push_back(q == per ? br[i + 1] : br[i] + (br[i + 1] - br[i]) * static_cast<double>(q) / static_cast<double>(per));
+      t.push_back(q == per ? br[i + 1]
+                           : br[i] + (br[i + 1] - br[i]) * static_cast<double>(q) /
+                                         static_cast<double>(per));
   return t;
 }
 
@@ -190,7 +199,8 @@ double checked(double v) {
 
 // Cubic graph z(r) on [0, r_max]; symmetric fit on [-r_max, r_max] (zero slope at the vertex)
 // unless `symmetric` is false.
-NurbsCurve fit_profile(const std::function<double(double)>& f, double r_max, double tol, bool symmetric) {
+NurbsCurve fit_profile(const std::function<double(double)>& f, double r_max, double tol,
+                       bool symmetric) {
   const std::size_t p = 3;
   std::vector<double> half{0.0, 0.5 * r_max, r_max};
   for (int iter = 0; iter < 40; ++iter) {
@@ -227,7 +237,8 @@ NurbsCurve fit_profile(const std::function<double(double)>& f, double r_max, dou
 NurbsCurve asphere_profile(const Asphere& a, double r_max, double tolerance) {
   if (!(r_max > 0.0)) throw GeometryError("asphere: r_max must be positive");
   if (r_max > a.max_radius() * (1.0 + 1e-12))
-    throw GeometryError("asphere: r_max exceeds the conic's domain (" + std::to_string(a.max_radius()) + ")");
+    throw GeometryError("asphere: r_max exceeds the conic's domain (" +
+                        std::to_string(a.max_radius()) + ")");
   r_max = std::min(r_max, a.max_radius());
   if (a.is_conic()) return conic_profile(a.curvature, a.conic, r_max);
   // symmetric fit (zero slope at the vertex) unless a linear term B1*r makes the vertex a cone tip
@@ -272,16 +283,19 @@ NurbsSurface sag_surface(const std::function<double(double, double)>& f, double 
       for (std::size_t b = 0; b + 1 < by.size(); ++b)
         for (int q = 0; q <= 8 && !(badx[a] && bady[b]); ++q)
           for (int r = 0; r <= 8; ++r) {
-            const double x = bx[a] + (bx[a + 1] - bx[a]) * q / 8.0, y = by[b] + (by[b + 1] - by[b]) * r / 8.0;
+            const double x = bx[a] + (bx[a + 1] - bx[a]) * q / 8.0,
+                         y = by[b] + (by[b + 1] - by[b]) * r / 8.0;
             const Vec3 pt = s.evaluate(x, y);
-            if (std::abs(pt.z - f(x, y)) > tol || std::abs(pt.x - x) > tol || std::abs(pt.y - y) > tol) {
+            if (std::abs(pt.z - f(x, y)) > tol || std::abs(pt.x - x) > tol ||
+                std::abs(pt.y - y) > tol) {
               badx[a] = bady[b] = any = true;
               break;
             }
           }
     if (!any) return s;
     if (bx.size() > max_spans || by.size() > max_spans)
-      throw GeometryError("sag_surface: tolerance not reached with " + std::to_string(max_spans) + " spans");
+      throw GeometryError("sag_surface: tolerance not reached with " + std::to_string(max_spans) +
+                          " spans");
     refine(bx, badx);
     refine(by, bady);
   }

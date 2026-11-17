@@ -32,14 +32,16 @@ TEST_CASE("partial revolution", "[construct]") {
   const auto line = make_line({1, 0, 0}, {1, 0, 1});
   const auto s = revolve(line, {0, 0, 0}, {0, 0, 1}, std::numbers::pi / 3);
   const auto p = s.evaluate(1.0, 0.0);
-  CHECK(p.x == Approx(0.5)); CHECK(p.y == Approx(std::sqrt(3.0) / 2));
+  CHECK(p.x == Approx(0.5));
+  CHECK(p.y == Approx(std::sqrt(3.0) / 2));
 }
 
 TEST_CASE("extrusion", "[construct]") {
   const auto c = make_circle({0, 0, 0}, {0, 0, 1}, 1.0);
   const auto s = extrude(c, {0, 0, 4});
   const auto p = s.evaluate(0.3, 0.5);
-  CHECK(std::hypot(p.x, p.y) == Approx(1.0)); CHECK(p.z == Approx(2.0));
+  CHECK(std::hypot(p.x, p.y) == Approx(1.0));
+  CHECK(p.z == Approx(2.0));
 }
 
 TEST_CASE("ruled surface between incompatible knot vectors", "[construct]") {

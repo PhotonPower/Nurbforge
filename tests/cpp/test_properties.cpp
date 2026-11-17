@@ -1,5 +1,4 @@
 #include <catch2/catch_test_macros.hpp>
-
 #include <cmath>
 #include <numbers>
 #include <vector>
@@ -15,11 +14,16 @@ constexpr double pi = std::numbers::pi;
 
 namespace {
 
-bool rel_close(double a, double b, double rel) { return std::abs(a - b) <= rel * std::max(std::abs(b), 1e-300); }
+bool rel_close(double a, double b, double rel) {
+  return std::abs(a - b) <= rel * std::max(std::abs(b), 1e-300);
+}
 
 // (t, t^2, t^3) on [0, 1] as a cubic Bezier curve.
 NurbsCurve twisted_cubic() {
-  return {3, {0, 0, 0, 0, 1, 1, 1, 1}, {{0, 0, 0}, {1.0 / 3, 0, 0}, {2.0 / 3, 1.0 / 3, 0}, {1, 1, 1}}, {}};
+  return {3,
+          {0, 0, 0, 0, 1, 1, 1, 1},
+          {{0, 0, 0}, {1.0 / 3, 0, 0}, {2.0 / 3, 1.0 / 3, 0}, {1, 1, 1}},
+          {}};
 }
 
 NurbsSurface sphere(double R) {
@@ -57,7 +61,8 @@ TEST_CASE("arc length", "[properties]") {
   const auto circle = make_circle({0, 0, 0}, {0, 0, 1}, R);
   CHECK(rel_close(arc_length(circle), 2 * pi * R, 1e-12));
   CHECK(rel_close(arc_length(circle, 0.0, 0.25), pi * R / 2, 1e-12));  // quarter arc
-  CHECK(rel_close(arc_length(circle, 0.0, 0.37) + arc_length(circle, 0.37, 1.0), 2 * pi * R, 1e-12));
+  CHECK(
+      rel_close(arc_length(circle, 0.0, 0.37) + arc_length(circle, 0.37, 1.0), 2 * pi * R, 1e-12));
   CHECK(arc_length(circle, 0.6, 0.2) == -arc_length(circle, 0.2, 0.6));
   CHECK(arc_length(circle, 0.5, 0.5) == 0.0);
 
@@ -68,7 +73,8 @@ TEST_CASE("arc length", "[properties]") {
   const auto c = twisted_cubic();
   double ref = 0.0;
   const int n = 200000;
-  for (int i = 0; i < n; ++i) ref += distance(c.evaluate(double(i) / n), c.evaluate(double(i + 1) / n));
+  for (int i = 0; i < n; ++i)
+    ref += distance(c.evaluate(double(i) / n), c.evaluate(double(i + 1) / n));
   CHECK(rel_close(arc_length(c), ref, 1e-9));
   CHECK_THROWS_AS(arc_length(c, -0.5, 0.5), GeometryError);
 }

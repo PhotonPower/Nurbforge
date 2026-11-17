@@ -20,7 +20,10 @@ TEST_CASE("basis functions form a partition of unity", "[basis]") {
     const auto s = find_span(6, 3, u, U);
     const auto N = basis_functions(s, u, 3, U);
     double sum = 0;
-    for (double n : N) { sum += n; CHECK(n >= -1e-14); }
+    for (double n : N) {
+      sum += n;
+      CHECK(n >= -1e-14);
+    }
     CHECK(sum == Approx(1.0));
   }
 }
@@ -30,7 +33,10 @@ TEST_CASE("basis derivatives sum to zero", "[basis]") {
   const auto s = find_span(7, 2, 2.5, U);
   const auto D = basis_function_derivatives(s, 2.5, 2, 2, U);
   double d1 = 0, d2 = 0;
-  for (std::size_t j = 0; j < 3; ++j) { d1 += D[1][j]; d2 += D[2][j]; }
+  for (std::size_t j = 0; j < 3; ++j) {
+    d1 += D[1][j];
+    d2 += D[2][j];
+  }
   CHECK(d1 == Approx(0.0).margin(1e-12));
   CHECK(d2 == Approx(0.0).margin(1e-12));
   // values from the NURBS Book, Ex. 2.4: N_{2,2}(5/2)=1/8, N_{3,2}=6/8, N_{4,2}=1/8

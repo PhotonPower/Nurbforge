@@ -122,8 +122,11 @@ std::vector<TrimmedSurface> split(const TrimmedSurface& face, const std::vector<
         const double m = 0.5 * (uniq[k] + uniq[k + 1]);
         for (const auto& [s0, s1] : {std::pair{uniq[k], m}, std::pair{m, uniq[k + 1]}}) {
           NurbsCurve half = curves[i].sub_curve(s0, s1);
-          const std::size_t va = g.vertex(at2(half, half.domain_start())), vb = g.vertex(at2(half, half.domain_end()));
-          if (i >= n_loop && !face.contains(at2(half, 0.5 * (s0 + s1))[0], at2(half, 0.5 * (s0 + s1))[1])) continue;
+          const std::size_t va = g.vertex(at2(half, half.domain_start())),
+                            vb = g.vertex(at2(half, half.domain_end()));
+          if (i >= n_loop &&
+              !face.contains(at2(half, 0.5 * (s0 + s1))[0], at2(half, 0.5 * (s0 + s1))[1]))
+            continue;
           if (i >= n_loop && duplicate(half)) continue;
           g.edges.push_back({std::move(half), va, vb, true, i >= n_loop});
         }
@@ -170,13 +173,21 @@ std::vector<TrimmedSurface> split(const TrimmedSurface& face, const std::vector<
 
   // half-edges: 2k forward (a -> b), 2k+1 backward (b -> a)
   const std::size_t H = 2 * g.edges.size();
-  const auto origin = [&](std::size_t h) { return h % 2 == 0 ? g.edges[h / 2].a : g.edges[h / 2].b; };
-  const auto target = [&](std::size_t h) { return h % 2 == 0 ? g.edges[h / 2].b : g.edges[h / 2].a; };
-  const auto angle = [&](std::size_t h) { return departure_angle(g.edges[h / 2].curve, h % 2 == 0); };
+  const auto origin = [&](std::size_t h) {
+    return h % 2 == 0 ? g.edges[h / 2].a : g.edges[h / 2].b;
+  };
+  const auto target = [&](std::size_t h) {
+    return h % 2 == 0 ? g.edges[h / 2].b : g.edges[h / 2].a;
+  };
+  const auto angle = [&](std::size_t h) {
+    return departure_angle(g.edges[h / 2].curve, h % 2 == 0);
+  };
   std::vector<std::vector<std::size_t>> out(g.vertices.size());
   for (std::size_t h = 0; h < H; ++h)
     if (g.edges[h / 2].alive) out[origin(h)].push_back(h);
-  for (auto& o : out) std::sort(o.begin(), o.end(), [&](std::size_t x, std::size_t y) { return angle(x) < angle(y); });
+  for (auto& o : out)
+    std::sort(o.begin(), o.end(),
+              [&](std::size_t x, std::size_t y) { return angle(x) < angle(y); });
   // next(h): at target(h), the outgoing half-edge immediately clockwise from twin(h)
   const auto next = [&](std::size_t h) {
     const std::size_t twin = h ^ 1u;
@@ -238,7 +249,8 @@ std::vector<TrimmedSurface> split(const TrimmedSurface& face, const std::vector<
       const double ex = poly[k + 1][0] - poly[k][0], ey = poly[k + 1][1] - poly[k][1];
       const double len = std::hypot(ex, ey);
       if (len <= 0.0) continue;
-      const double mx = 0.5 * (poly[k][0] + poly[k + 1][0]), my = 0.5 * (poly[k][1] + poly[k + 1][1]);
+      const double mx = 0.5 * (poly[k][0] + poly[k + 1][0]),
+                   my = 0.5 * (poly[k][1] + poly[k + 1][1]);
       const double nx = -ey / len, ny = ex / len;
       double s_hit = 1e300;
       for (const Cycle& other : cycles) {
@@ -284,15 +296,16 @@ std::vector<TrimmedSurface> split(const TrimmedSurface& face, const std::vector<
     std::optional<std::size_t> best;
     for (std::size_t r = 0; r < regions.size(); ++r) {
       const auto& rc = cycles[regions[r]];
-      if (inside_polygon(rc.poly, (*probe)[0], (*probe)[1]) && (!best || rc.area < cycles[regions[*best]].area))
+      if (inside_polygon(rc.poly, (*probe)[0], (*probe)[1]) &&
+          (!best || rc.area < cycles[regions[*best]].area))
         best = r;
     }
     if (best) holes[*best].push_back(loop_of(cycles[i]));
   }
   std::vector<TrimmedSurface> result;
   for (std::size_t r = 0; r < regions.size(); ++r)
-    result.push_back(
-        TrimmedSurface(surf, loop_of(cycles[regions[r]]), std::move(holes[r]), tol).with_label(face.label()));
+    result.push_back(TrimmedSurface(surf, loop_of(cycles[regions[r]]), std::move(holes[r]), tol)
+                         .with_label(face.label()));
   return result;
 }
 

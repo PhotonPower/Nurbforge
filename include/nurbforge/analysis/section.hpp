@@ -27,13 +27,14 @@ struct Plane {
                                                  const SurfaceIntersectionOptions& options = {});
 
 /// `count` parallel sections, the k-th at plane.point + k * spacing * normal (k = 0..count-1).
-[[nodiscard]] std::vector<SurfaceIntersection> planar_sections(const NurbsSurface& s, const Plane& plane,
-                                                               double spacing, std::size_t count,
-                                                               const SurfaceIntersectionOptions& options = {});
+[[nodiscard]] std::vector<SurfaceIntersection> planar_sections(
+    const NurbsSurface& s, const Plane& plane, double spacing, std::size_t count,
+    const SurfaceIntersectionOptions& options = {});
 
 /// Intersection points of a curve with a plane (curve parameter t, point; u, v are the in-plane
 /// coordinates as for planar_section).
-[[nodiscard]] std::vector<CurveSurfaceIntersection> intersect(const NurbsCurve& c, const Plane& plane,
+[[nodiscard]] std::vector<CurveSurfaceIntersection> intersect(const NurbsCurve& c,
+                                                              const Plane& plane,
                                                               const Tolerance& tol = {});
 
 }  // namespace nf

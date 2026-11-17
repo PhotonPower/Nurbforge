@@ -14,14 +14,17 @@ namespace nf {
 namespace {
 double binomial(std::size_t n, std::size_t k) {
   double r = 1.0;
-  for (std::size_t i = 1; i <= k; ++i) r = r * static_cast<double>(n - k + i) / static_cast<double>(i);
+  for (std::size_t i = 1; i <= k; ++i)
+    r = r * static_cast<double>(n - k + i) / static_cast<double>(i);
   return r;
 }
 }  // namespace
 
 NurbsCurve::NurbsCurve(std::size_t degree, KnotVector knots, std::vector<Vec3> control_points,
                        std::vector<double> weights)
-    : degree_(degree), knots_(std::move(knots)), ctrl_(std::move(control_points)),
+    : degree_(degree),
+      knots_(std::move(knots)),
+      ctrl_(std::move(control_points)),
       weights_(std::move(weights)) {
   if (weights_.empty()) weights_.assign(ctrl_.size(), 1.0);
   if (weights_.size() != ctrl_.size())
@@ -53,7 +56,10 @@ NurbsCurve NurbsCurve::from_homogeneous(std::size_t degree, KnotVector knots,
                                         const std::vector<Vec4>& pw) {
   std::vector<Vec3> pts(pw.size());
   std::vector<double> w(pw.size());
-  for (std::size_t i = 0; i < pw.size(); ++i) { pts[i] = pw[i].project(); w[i] = pw[i].w; }
+  for (std::size_t i = 0; i < pw.size(); ++i) {
+    pts[i] = pw[i].project();
+    w[i] = pw[i].w;
+  }
   return {degree, std::move(knots), std::move(pts), std::move(w)};
 }
 
@@ -165,7 +171,7 @@ NurbsCurve NurbsCurve::elevate_degree(std::size_t t) const {
 }
 
 std::pair<NurbsCurve, std::size_t> NurbsCurve::try_remove_knot(double u, std::size_t times,
-                                                                double tolerance) const {
+                                                               double tolerance) const {
   detail::Columns net{knots_, {homogeneous_control_points()}};
   const std::size_t removed = detail::remove_knot(degree_, net, u, times, tolerance);
   if (removed == 0) return {*this, 0};
@@ -181,7 +187,8 @@ NurbsCurve NurbsCurve::remove_knot(double u, std::size_t times, double tolerance
 }
 
 NurbsCurve NurbsCurve::reduce_degree(double tolerance) const {
-  const auto r = detail::reduce_degree(degree_, {knots_, {homogeneous_control_points()}}, tolerance);
+  const auto r =
+      detail::reduce_degree(degree_, {knots_, {homogeneous_control_points()}}, tolerance);
   return from_homogeneous(degree_ - 1, r.knots, r.cols.front());
 }
 

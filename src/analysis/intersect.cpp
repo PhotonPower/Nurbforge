@@ -4,8 +4,8 @@
 #include <array>
 #include <cmath>
 #include <limits>
-#include <vector>
 #include <numbers>
+#include <vector>
 
 #include "nurbforge/analysis/closest_point.hpp"
 #include "nurbforge/core/error.hpp"
@@ -172,14 +172,16 @@ struct CurveCurveSearch {
   std::vector<CurveCurveIntersection> out;
 
   void leaf(const NurbsCurve& pa, const NurbsCurve& pb) {
-    const double a0 = pa.domain_start(), a1 = pa.domain_end(), b0 = pb.domain_start(), b1 = pb.domain_end();
+    const double a0 = pa.domain_start(), a1 = pa.domain_end(), b0 = pb.domain_start(),
+                 b1 = pb.domain_end();
     std::vector<std::pair<double, std::array<double, 2>>> starts;
     for (int i = 0; i <= 4; ++i)
       for (int j = 0; j <= 4; ++j) {
         const double s = a0 + (a1 - a0) * i / 4.0, t = b0 + (b1 - b0) * j / 4.0;
         starts.push_back({distance(a.evaluate(s), b.evaluate(t)), {s, t}});
       }
-    std::sort(starts.begin(), starts.end(), [](const auto& l, const auto& r) { return l.first < r.first; });
+    std::sort(starts.begin(), starts.end(),
+              [](const auto& l, const auto& r) { return l.first < r.first; });
     const auto eval = [&](const std::array<double, 2>& p, std::array<Vec3, 2>* J) {
       if (!J) return a.evaluate(p[0]) - b.evaluate(p[1]);
       const auto da = a.derivatives(p[0], 1), db = b.derivatives(p[1], 1);
@@ -271,7 +273,8 @@ struct CurveSurfaceSearch {
           starts.push_back({distance(q, s.evaluate(u, v)), {t, u, v}});
         }
     }
-    std::sort(starts.begin(), starts.end(), [](const auto& l, const auto& r) { return l.first < r.first; });
+    std::sort(starts.begin(), starts.end(),
+              [](const auto& l, const auto& r) { return l.first < r.first; });
     const auto eval = [&](const std::array<double, 3>& p, std::array<Vec3, 3>* J) {
       if (!J) return c.evaluate(p[0]) - s.evaluate(p[1], p[2]);
       const auto dc = c.derivatives(p[0], 1);
@@ -282,7 +285,8 @@ struct CurveSurfaceSearch {
       return dc[0] - ds[0];
     };
     for (std::size_t k = 0; k < std::min<std::size_t>(kStarts, starts.size()); ++k) {
-      const auto x = gauss_newton<3>(starts[k].second, {t0, ur[0], vr[0]}, {t1, ur[1], vr[1]}, eval);
+      const auto x =
+          gauss_newton<3>(starts[k].second, {t0, ur[0], vr[0]}, {t1, ur[1], vr[1]}, eval);
       const Vec3 pc_ = c.evaluate(x[0]), ps_ = s.evaluate(x[1], x[2]);
       const double d = distance(pc_, ps_);
       if (d <= tol.length) {
@@ -399,11 +403,14 @@ struct CurveSurfaceSearch {
     // split the patch along its larger extent
     double ext_u = 0.0, ext_v = 0.0;
     for (std::size_t j = 0; j < ps.num_v(); ++j)
-      ext_u = std::max(ext_u, distance(ps.control_point(0, j), ps.control_point(ps.num_u() - 1, j)));
+      ext_u =
+          std::max(ext_u, distance(ps.control_point(0, j), ps.control_point(ps.num_u() - 1, j)));
     for (std::size_t i = 0; i < ps.num_u(); ++i)
-      ext_v = std::max(ext_v, distance(ps.control_point(i, 0), ps.control_point(i, ps.num_v() - 1)));
+      ext_v =
+          std::max(ext_v, distance(ps.control_point(i, 0), ps.control_point(i, ps.num_v() - 1)));
     const auto ur = ps.domain_u(), vr = ps.domain_v();
-    const auto [l, r] = ext_u >= ext_v ? ps.split_u(0.5 * (ur[0] + ur[1])) : ps.split_v(0.5 * (vr[0] + vr[1]));
+    const auto [l, r] =
+        ext_u >= ext_v ? ps.split_u(0.5 * (ur[0] + ur[1])) : ps.split_v(0.5 * (vr[0] + vr[1]));
     process(pc, l, depth + 1);
     process(pc, r, depth + 1);
   }
@@ -414,7 +421,8 @@ struct CurveSurfaceSearch {
 // the distance below tol over a short stretch (d ~ kappa dt^2 / 2), where Gauss-Newton may stop
 // anywhere. `mid_gap(a, b)` returns the gap at the midpoint between two candidates.
 template <class T, class Key, class MidGap>
-std::vector<T> deduplicate(std::vector<T> v, double merge_dist, double tol, Key key, MidGap mid_gap) {
+std::vector<T> deduplicate(std::vector<T> v, double merge_dist, double tol, Key key,
+                           MidGap mid_gap) {
   std::sort(v.begin(), v.end(), [&](const T& x, const T& y) { return key(x) < key(y); });
   std::vector<T> out;
   for (const auto& p : v) {
@@ -436,7 +444,8 @@ std::vector<T> deduplicate(std::vector<T> v, double merge_dist, double tol, Key 
 
 }  // namespace
 
-std::vector<CurveCurveIntersection> intersect(const NurbsCurve& a, const NurbsCurve& b, const Tolerance& tol) {
+std::vector<CurveCurveIntersection> intersect(const NurbsCurve& a, const NurbsCurve& b,
+                                              const Tolerance& tol) {
   std::vector<Vec3> all = a.control_points();
   all.insert(all.end(), b.control_points().begin(), b.control_points().end());
   const double scale = diagonal(all);
@@ -447,11 +456,13 @@ std::vector<CurveCurveIntersection> intersect(const NurbsCurve& a, const NurbsCu
     const Vec3 q = a.evaluate(0.5 * (x.s + y.s));
     return closest_point_local(b, q, 0.5 * (x.t + y.t), tol).distance;
   };
-  return deduplicate(std::move(search.out), std::max(10 * tol.length, 1e-7 * scale), tol.length,
-                     [](const CurveCurveIntersection& x) { return x.s; }, mid_gap);
+  return deduplicate(
+      std::move(search.out), std::max(10 * tol.length, 1e-7 * scale), tol.length,
+      [](const CurveCurveIntersection& x) { return x.s; }, mid_gap);
 }
 
-std::vector<CurveSurfaceIntersection> intersect(const NurbsCurve& c, const NurbsSurface& s, const Tolerance& tol) {
+std::vector<CurveSurfaceIntersection> intersect(const NurbsCurve& c, const NurbsSurface& s,
+                                                const Tolerance& tol) {
   std::vector<Vec3> all = c.control_points();
   all.insert(all.end(), s.control_points().begin(), s.control_points().end());
   const double scale = diagonal(all);
@@ -463,8 +474,9 @@ std::vector<CurveSurfaceIntersection> intersect(const NurbsCurve& c, const Nurbs
     const Vec3 q = c.evaluate(0.5 * (x.t + y.t));
     return closest_point_local(s, q, 0.5 * (x.u + y.u), 0.5 * (x.v + y.v), tol).distance;
   };
-  return deduplicate(std::move(search.out), std::max(10 * tol.length, 1e-7 * scale), tol.length,
-                     [](const CurveSurfaceIntersection& x) { return x.t; }, mid_gap);
+  return deduplicate(
+      std::move(search.out), std::max(10 * tol.length, 1e-7 * scale), tol.length,
+      [](const CurveSurfaceIntersection& x) { return x.t; }, mid_gap);
 }
 
 }  // namespace nf

@@ -22,8 +22,8 @@ NurbsCurve shift(const NurbsCurve& c, double d) {
 NurbsSurface shift_u(const NurbsSurface& s, double d) {
   KnotVector U = s.knots_u();
   for (double& k : U) k += d;
-  return {s.degree_u(), s.degree_v(), std::move(U), s.knots_v(), s.num_u(), s.num_v(),
-          s.control_points(), s.weights()};
+  return {s.degree_u(), s.degree_v(), std::move(U),       s.knots_v(),
+          s.num_u(),    s.num_v(),    s.control_points(), s.weights()};
 }
 
 // Same surface with the u direction reversed: r(u, v) = s(a + b - u, v).
@@ -39,15 +39,15 @@ NurbsSurface reverse_u(const NurbsSurface& s) {
       P.push_back(s.control_point(i, j));
       W.push_back(s.weight(i, j));
     }
-  return {s.degree_u(), s.degree_v(), std::move(U), s.knots_v(), s.num_u(), s.num_v(),
-          std::move(P), std::move(W)};
+  return {s.degree_u(), s.degree_v(), std::move(U), s.knots_v(),
+          s.num_u(),    s.num_v(),    std::move(P), std::move(W)};
 }
 
 // Clamped curve whose last knot span is a Bezier piece (its start knot raised to multiplicity p).
 struct Bezierized {
   NurbsCurve curve;
-  double a_last;          // start of the last span
-  std::size_t inserted;   // copies of a_last inserted
+  double a_last;         // start of the last span
+  std::size_t inserted;  // copies of a_last inserted
 };
 
 Bezierized bezierize_end(const NurbsCurve& c) {
@@ -84,8 +84,9 @@ NurbsCurve natural_raw(const Bezierized& bz, double delta) {
   for (const auto& q : Pw) wmax = std::max(wmax, q.w);
   for (const auto& q : L)
     if (!(q.w > 1e-12 * wmax))
-      throw GeometryError("extend: natural extension of this rational curve is too long (weights "
-                          "would become non-positive); use a shorter length or Extension::Linear");
+      throw GeometryError(
+          "extend: natural extension of this rational curve is too long (weights "
+          "would become non-positive); use a shorter length or Extension::Linear");
   std::copy(L.begin(), L.end(), Pw.end() - static_cast<std::ptrdiff_t>(p + 1));
   std::fill(U.end() - static_cast<std::ptrdiff_t>(p + 1), U.end(), b + delta);
   return NurbsCurve::from_homogeneous(p, std::move(U), Pw);
@@ -162,7 +163,9 @@ NurbsSurface extend_umax(const NurbsSurface& s_in, double length, Extension type
     std::vector<NurbsCurve> cols;
     for (const auto& z : bz) cols.push_back(natural_raw(z, delta));
     const NurbsSurface e = surface_from_columns(s, pu, cols);
-    return bz.front().inserted > 0 ? e.try_remove_knot_u(bz.front().a_last, bz.front().inserted).first : e;
+    return bz.front().inserted > 0
+               ? e.try_remove_knot_u(bz.front().a_last, bz.front().inserted).first
+               : e;
   }
 
   // linear: ruled extension along the boundary tangents, C1. Needs non-rational iso-curves in
@@ -170,12 +173,14 @@ NurbsSurface extend_umax(const NurbsSurface& s_in, double length, Extension type
   for (std::size_t j = 0; j < nv; ++j)
     for (std::size_t i = 0; i < nu; ++i)
       if (std::abs(s.weight(i, j) - s.weight(0, j)) > tol::kLength * s.weight(0, j))
-        throw GeometryError("extend: linear extension needs constant weights along the extension "
-                            "direction; use Extension::Natural");
+        throw GeometryError(
+            "extend: linear extension needs constant weights along the extension "
+            "direction; use Extension::Natural");
   const double speed = norm(s.derivatives(b, vmid, 1)[1][0]);
   if (speed <= tol::kLength) throw GeometryError("extend: vanishing boundary tangent");
   const double delta = length / speed;
-  const double factor = static_cast<double>(pu) / (b - s.knots_u()[nu - 1]);  // C'(b) = factor (P_n - P_n-1)
+  const double factor =
+      static_cast<double>(pu) / (b - s.knots_u()[nu - 1]);  // C'(b) = factor (P_n - P_n-1)
   std::vector<Vec3> P;
   std::vector<double> Wext;
   for (std::size_t j = 0; j < nv; ++j) {
@@ -187,8 +192,14 @@ NurbsSurface extend_umax(const NurbsSurface& s_in, double length, Extension type
                 delta * factor * (s.control_point(nu - 1, j) - s.control_point(nu - 2, j)));
     Wext.push_back(s.weight(nu - 1, j));
   }
-  NurbsSurface ext{1, s.degree_v(), {b, b, b + delta, b + delta}, s.knots_v(), 2, nv,
-                   std::move(P), std::move(Wext)};
+  NurbsSurface ext{1,
+                   s.degree_v(),
+                   {b, b, b + delta, b + delta},
+                   s.knots_v(),
+                   2,
+                   nv,
+                   std::move(P),
+                   std::move(Wext)};
   if (pu > 1) ext = ext.elevate_degree_u(pu - 1);
   return join_u(s, ext);
 }
@@ -213,10 +224,14 @@ NurbsCurve extend(const NurbsCurve& c, CurveEnd end, double length, Extension ty
 NurbsSurface extend(const NurbsSurface& s, SurfaceSide side, double length, Extension type) {
   if (!(length > 0.0)) throw GeometryError("extend: length must be positive");
   switch (side) {
-    case SurfaceSide::UMax: return extend_umax(s, length, type);
-    case SurfaceSide::UMin: return extend_umin(s, length, type);
-    case SurfaceSide::VMax: return extend_umax(s.transposed(), length, type).transposed();
-    case SurfaceSide::VMin: return extend_umin(s.transposed(), length, type).transposed();
+    case SurfaceSide::UMax:
+      return extend_umax(s, length, type);
+    case SurfaceSide::UMin:
+      return extend_umin(s, length, type);
+    case SurfaceSide::VMax:
+      return extend_umax(s.transposed(), length, type).transposed();
+    case SurfaceSide::VMin:
+      return extend_umin(s.transposed(), length, type).transposed();
   }
   throw GeometryError("extend: unknown side");
 }

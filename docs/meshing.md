@@ -96,6 +96,42 @@ edges, because gmsh grades the mesh away from the fine boundary. Labels are reso
 surfaces when meshing, so `refine` may be called before or after further `add_shell` calls and
 duplicate removal (which renumbers surfaces).
 
+## Surface meshes for boundary element solvers
+
+BEM solvers need a closed triangle mesh whose normals point consistently out of the body.
+`bem_mesh` meshes a closed shell and returns such a mesh as numpy arrays:
+
+```python
+from nurbforge.mesh import bem_mesh
+
+part = nf.boolean(nf.make_box((-2, -2, -2), (4, 4, 4)), nf.make_sphere((0, 0, 0), 1.0),
+                  nf.BooleanOp.Difference)           # box with a spherical cavity
+m = bem_mesh(part, size=0.2, order=2, refine={"surface": 0.1}, path="part.msh")
+m.nodes          # (N, 3) coordinates
+m.triangles      # (M, 3) or (M, 6) for order=2 – 0-based, gmsh node order
+m.groups         # triangle indices per face label, e.g. m.groups["top"]
+m.normals(), m.areas(), m.centroids(), m.volume()   # volume() == part.volume() up to the mesh error
+```
+
+In a session, `g.surface_mesh()` does the same after `g.mesh(dim=2)`. It checks the mesh and
+raises `MeshTopologyError` if an edge is used by one triangle (open shell, or surfaces added
+separately with `add_surface` that do not share their edges) or by more than two
+(non-manifold), or if the mesh contains quadrangles. It then orients the mesh:
+
+- the triangles of neighbouring surfaces are made consistent (every shared edge is traversed in
+  opposite directions);
+- every closed component is turned so that its normals point **out of the solid** – away from
+  the material on the outer boundary and into the void on a cavity (decided by its signed
+  volume and how many other components enclose it).
+
+The orientation is applied to the gmsh model as well (`gmsh.model.mesh.reverse`), so
+`g.write("part.msh")` / `.stl` / `.vtk` exports the same, BEM-ready mesh. `orient=False`
+returns gmsh's mesh unchanged (still checked for watertightness); `m.is_watertight()`,
+`m.is_consistently_oriented()` and `m.boundary_edges()` check any `SurfaceMesh`.
+
+The volume of a quadratic mesh is computed from its corner triangles, so it converges like a
+linear mesh.
+
 ## Implementation notes
 
 - Control-point indexing differs: Nurbforge is row-major with v fastest; gmsh expects u fastest.

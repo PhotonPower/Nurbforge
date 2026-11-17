@@ -56,7 +56,7 @@
 
 ## 0.9 – Meshing for solvers
 - Local mesh sizes by face label or surface tag, growth with distance, curvature-based sizes ✅
-- BEM-ready closed shells: watertight surface meshes with consistent outward orientation
+- BEM-ready closed shells: watertight surface meshes with consistent outward orientation ✅
 
 ## Infrastructure
 - ✅ Wheels via cibuildwheel (manylinux_2_28 for AlmaLinux 10 compatibility, win_amd64, macOS arm64/x86_64)

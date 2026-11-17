@@ -44,7 +44,7 @@ import nurbforge as nf
 
 ## Sub-packages
 
-- `nurbforge.mesh` – `GmshSession` (`add_surface`, `add_shell`, `face_tags`, `refine`, `mesh(dim, size, order, heal, curvature)`, `write`), `add_curve`, `add_surface`, `add_shell`, `export_step`, `mesh_surfaces` ([meshing.md](../meshing.md))
+- `nurbforge.mesh` – `GmshSession` (`add_surface`, `add_shell`, `face_tags`, `refine`, `mesh(dim, size, order, heal, curvature)`, `surface_mesh(orient)`, `write`), `bem_mesh(shell, size, order, curvature, refine, path)` → `SurfaceMesh` (`nodes`, `triangles`, `surfaces`, `node_tags`, `groups`, `order`, `normals()`, `areas()`, `centroids()`, `volume()`, `boundary_edges()`, `is_watertight()`, `is_consistently_oriented()`), `MeshTopologyError`, `add_curve`, `add_surface`, `add_shell`, `export_step`, `mesh_surfaces` ([meshing.md](../meshing.md))
 - `nurbforge.llm` – `OllamaClient`, `GeometryAgent`, `Workspace`, CLI `nurbforge-llm` ([llm.md](../llm.md))
 
 ## Errors

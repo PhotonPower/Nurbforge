@@ -5,6 +5,8 @@ from .gmsh_export import (  # noqa: F401
     add_shell,
     add_surface,
     add_trimmed_surface,
+    bem_mesh,
     export_step,
     mesh_surfaces,
 )
+from .surface_mesh import MeshTopologyError, SurfaceMesh  # noqa: F401

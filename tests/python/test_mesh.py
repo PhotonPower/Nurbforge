@@ -9,7 +9,7 @@ try:  # gmsh raises OSError (not ImportError) if system libraries are missing
 except (ImportError, OSError) as exc:  # pragma: no cover
     pytest.skip(f"gmsh not usable: {exc}", allow_module_level=True)
 
-from nurbforge.mesh import GmshSession
+from nurbforge.mesh import GmshSession, MeshTopologyError, bem_mesh
 
 
 def test_surface_transfer_is_exact():
@@ -295,3 +295,104 @@ def test_open_shell_and_solid_false():
         assert len(tags) == len(part.faces)
         assert not gmsh.model.getEntities(3)
         assert len(gmsh.model.getEntities(2)) == len(part.faces)
+
+
+# ------------------------------------------------------------------ BEM-ready surface meshes
+
+
+def _assert_closed_outward(m, volume, rel):
+    assert m.is_watertight()
+    assert m.is_consistently_oriented()
+    assert len(m.boundary_edges()) == 0
+    assert m.volume() == pytest.approx(volume, rel=rel)
+    assert np.all(m.areas() > 0)
+    assert m.nodes.shape[1] == 3 and m.triangles.max() < len(m.nodes)
+
+
+@pytest.mark.parametrize("name", list(_TRIMMED_CLOSED))
+@pytest.mark.parametrize("order", [1, 2])
+def test_bem_mesh_is_watertight_and_outward(name, order):
+    part = _TRIMMED_CLOSED[name]()
+    m = bem_mesh(part, size=0.25, order=order)
+    assert m.order == order and m.triangles.shape[1] == 3 * order
+    _assert_closed_outward(m, part.volume(), rel=3e-2)
+    # every triangle belongs to exactly one face-label group
+    counts = np.zeros(len(m.triangles), dtype=int)
+    for idx in m.groups.values():
+        counts[idx] += 1
+    assert np.all(counts == 1)
+    assert set(m.groups) == set(part.face_labels)
+
+
+def test_bem_mesh_cavity_normals_point_into_the_void():
+    part = nf.boolean(nf.make_box((-2, -2, -2), (4, 4, 4)), nf.make_sphere((0, 0, 0), 1.0),
+                      _B.Difference)
+    m = bem_mesh(part, size=0.25)
+    _assert_closed_outward(m, 64 - 4 / 3 * math.pi, rel=1e-2)
+    c = m.centroids()
+    radial = np.einsum("ij,ij->i", m.normals(), c)
+    cavity = np.linalg.norm(c, axis=1) < 1.5
+    assert cavity.any() and (~cavity).any()
+    assert np.all(radial[~cavity] > 0)     # outer box: away from the material
+    assert np.all(radial[cavity] < 0)      # cavity: into the void, towards the centre
+
+
+def test_surface_mesh_repairs_orientation_and_updates_gmsh(tmp_path):
+    box = _labelled_box()
+    with GmshSession() as g:
+        g.add_shell(box)
+        g.mesh(dim=2, size=0.3)
+        gmsh.model.mesh.reverse([(2, t) for t in g.face_tags()["top"] + g.face_tags()["left"]])
+        assert not g.surface_mesh(orient=False).is_consistently_oriented()
+        m = g.surface_mesh()
+        _assert_closed_outward(m, box.volume(), rel=1e-9)
+        top = m.groups["top"]
+        assert np.allclose(m.normals()[top], [0, 0, 1])
+        # the gmsh model is oriented as well, so the written file is BEM-ready
+        assert g.surface_mesh(orient=False).is_consistently_oriented()
+        g.write(str(tmp_path / "box.msh"))
+    with GmshSession() as g:
+        gmsh.merge(str(tmp_path / "box.msh"))
+        _assert_closed_outward(g.surface_mesh(orient=False), box.volume(), rel=1e-9)
+
+
+def test_surface_mesh_turns_an_inside_out_mesh():
+    with GmshSession() as g:
+        g.add_shell(nf.make_sphere((0, 0, 0), 1.0))
+        g.mesh(dim=2, size=0.3)
+        gmsh.model.mesh.reverse([e for e in gmsh.model.getEntities(2)])
+        assert g.surface_mesh(orient=False).volume() < 0
+        _assert_closed_outward(g.surface_mesh(), 4 / 3 * math.pi, rel=5e-2)
+
+
+def test_bem_mesh_refine_and_write(tmp_path):
+    path = tmp_path / "box.msh"
+    m = bem_mesh(_labelled_box(), size=0.5, refine={"top": 0.1}, path=str(path))
+    a = m.areas()
+    assert np.median(a[m.groups["top"]]) < 0.2 * np.median(a[m.groups["bottom"]])
+    with GmshSession():
+        gmsh.merge(str(path))
+        names = {gmsh.model.getPhysicalName(d, t) for d, t in gmsh.model.getPhysicalGroups(2)}
+        assert {"top", "bottom"} <= names
+
+
+def test_surface_mesh_errors():
+    box = _labelled_box()
+    open_shell = nf.Shell.sew(list(box.faces)[:-1])
+    with pytest.raises(MeshTopologyError, match="open edge"):
+        bem_mesh(open_shell, size=0.3)
+    with GmshSession() as g:          # separately added surfaces do not share their edges
+        for f in box.faces:
+            g.add_surface(f)
+        g.mesh(dim=2, size=0.3, heal=False)
+        with pytest.raises(MeshTopologyError, match="not watertight"):
+            g.surface_mesh()
+    with GmshSession() as g, pytest.raises(MeshTopologyError, match="mesh"):
+        g.add_shell(box)
+        g.surface_mesh()                  # not meshed yet
+    with GmshSession() as g:
+        g.add_shell(box)
+        gmsh.option.setNumber("Mesh.RecombineAll", 1)
+        g.mesh(dim=2, size=0.3)
+        with pytest.raises(MeshTopologyError, match="non-triangle"):
+            g.surface_mesh()

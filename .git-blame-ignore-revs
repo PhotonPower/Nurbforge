@@ -1,0 +1,5 @@
+# Mechanical reformatting commits, ignored by `git blame` (git config blame.ignoreRevsFile .git-blame-ignore-revs;
+# GitHub uses this file automatically).
+
+# style: apply clang-format to all C++ sources
+c72988037cc3cc7302ace8efaa01b9c90ff39fb2

@@ -240,4 +240,36 @@ Shell thicken(const Shell& shell, double thickness, bool symmetric, double toler
   return out.oriented();
 }
 
+Shell make_pipe(const NurbsCurve& path, const std::function<double(double)>& radius,
+                double tolerance) {
+  SweepOptions opt;
+  opt.tolerance = tolerance;
+  const NurbsSurface wall = pipe_surface(path, radius, opt);
+  const double sew = 100.0 * tolerance;
+  const Vec3 p0 = path.evaluate(path.domain_start()), p1 = path.evaluate(path.domain_end());
+  Shell s = Shell::sew({TrimmedSurface(wall).with_label("wall")}, sew);
+  if (distance(p0, p1) > sew) {
+    s = cap(s, sew, "end");
+    // name the end faces by the path end they close
+    std::vector<TrimmedSurface> faces;
+    for (const auto& f : s.faces()) {
+      if (f.label() != "end") {
+        faces.push_back(f);
+        continue;
+      }
+      const auto c = f.boundary_curves(0.01 * tolerance).front().front();
+      const Vec3 q = c.evaluate(c.domain_start());
+      faces.push_back(f.with_label(distance(q, p0) <= distance(q, p1) ? "inlet" : "outlet"));
+    }
+    s = Shell::sew(std::move(faces), sew);
+  }
+  return s.oriented();
+}
+
+Shell make_pipe(const NurbsCurve& path, double start_radius, double end_radius, double tolerance) {
+  const double r1 = end_radius < 0.0 ? start_radius : end_radius;
+  return make_pipe(
+      path, [=](double t) { return start_radius + (r1 - start_radius) * t; }, tolerance);
+}
+
 }  // namespace nf

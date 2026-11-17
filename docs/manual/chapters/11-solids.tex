@@ -468,6 +468,44 @@ open box: GeometryError: thicken: the result is not closed (24 free edges) - the
 Check the direction of $S_u\times S_v$ first, as the example does: for the revolved arc it
 points towards the centre of the sphere, so a positive thickness grows the wall inwards.
 
+\section{Pipes}\label{sec:pipes}
+
+Wires, coolant channels, waveguides and flow domains are pipes: a circular cross-section swept
+along a path. \apiref{make_pipe} builds the closed solid:
+
+\begin{lstlisting}
+pipe = nf.make_pipe(path, radius, end_radius=-1.0, tolerance=1e-6)   # constant or linear taper
+pipe = nf.make_pipe(path, lambda t: r(t), tolerance=1e-6)             # radius as a function
+\end{lstlisting}
+
+The radius is a number (constant), varies linearly to \code{end_radius}, or is a Python function
+of the normalised path parameter $t\in[0,1]$ ($t=0$ at the path start). The wall is the circle
+swept with the rotation-minimising frame (as \apiref{sweep}), so it does not twist; its
+deviation from the ideal pipe is at most \code{tolerance}. Open paths get planar end faces
+(\apiref{cap}). The faces are labelled \code{wall}, \code{inlet} (path start) and
+\code{outlet} (path end) -- ready-made physical groups for a flow simulation. A closed path
+gives a ring without end faces. The wall surface alone is available as
+\apiref{pipe_surface}\code{(path, radius_function, options)}.
+
+The radius must stay positive and smaller than the radius of curvature of the path, otherwise
+the wall intersects itself; the radius function should be smooth, since the sections are
+skinned with cubic B-splines.
+
+\example{11_pipe.py}
+
+\begin{lstlisting}[style=text]
+elbow: closed=True, faces ['inlet', 'outlet', 'wall']
+  inlet: area 0.50265482
+  outlet: area 0.28274334
+  areas pi r^2: 0.50265482 and 0.28274334
+bulge: volume 4.99291982 (pi int r^2 dx = 4.99292007)
+ring: 1 face, volume 9.47482029 (2 pi^2 R r^2 = 9.47482023)
+\end{lstlisting}
+
+The end faces are exact discs (their area is $\pi r^2$ to all digits shown); the volumes agree
+with the exact values to about $5\times10^{-8}$ relative, the deviation allowed by the default
+wall tolerance.
+
 \section{Face labels}\label{sec:face-labels}
 
 Labels give faces stable names across operations -- for boundary conditions, physical groups

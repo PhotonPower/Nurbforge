@@ -115,3 +115,36 @@ TEST_CASE("thicken: open shells and faces become solids with a wall thickness",
     CHECK_THROWS_AS(thicken(plate, 0.0), GeometryError);
   }
 }
+
+TEST_CASE("make_pipe: solid pipes along paths", "[solid_ops][pipe]") {
+  SECTION("straight: cylinder and cone frustum") {
+    const auto line = make_line({0, 0, 0}, {0, 0, 4});
+    check_solid(make_pipe(line, 0.5), pi * 0.25 * 4);
+    const Shell cone = make_pipe(line, 1.0, 0.5);
+    check_solid(cone, pi * 4 / 3.0 * (1.0 + 0.5 + 0.25));
+    REQUIRE(cone.faces_labeled("inlet").size() == 1);
+    REQUIRE(cone.faces_labeled("outlet").size() == 1);
+    CHECK(std::abs(cone.faces()[cone.faces_labeled("inlet")[0]].area() - pi) <= 1e-8);
+    CHECK(std::abs(cone.faces()[cone.faces_labeled("outlet")[0]].area() - pi * 0.25) <= 1e-8);
+  }
+  SECTION("bent: quarter arc (Pappus) and a closed ring (torus)") {
+    const double R = 3.0, r = 0.4;
+    const auto bend = make_arc({0, 0, 0}, {1, 0, 0}, {0, 1, 0}, R, 0.0, pi / 2);
+    const Shell elbow = make_pipe(bend, r);
+    CHECK(elbow.is_closed());
+    CHECK(rel_close(elbow.volume(1e-10), pi * r * r * R * pi / 2, 1e-6));
+    const Shell ring = make_pipe(make_circle({0, 0, 0}, {0, 0, 1}, R), r);
+    CHECK(ring.is_closed());
+    CHECK(ring.faces_labeled("inlet").empty());
+    CHECK(rel_close(ring.volume(1e-10), 2 * pi * pi * R * r * r, 1e-6));
+  }
+  SECTION("variable radius from a function") {
+    const auto line = make_line({0, 0, 0}, {4, 0, 0});
+    // r(t) = 0.5 + 0.2 sin(pi t): volume = pi int_0^4 r^2 dx
+    const Shell bulge = make_pipe(line, [](double t) { return 0.5 + 0.2 * std::sin(pi * t); });
+    // int_0^1 (0.5 + 0.2 sin(pi t))^2 dt = 0.25 + 2 * 0.5 * 0.2 * 2 / pi + 0.04 / 2
+    const double I = 0.25 + 2 * 0.5 * 0.2 * (2 / pi) + 0.04 * 0.5;
+    CHECK(rel_close(bulge.volume(1e-10), pi * 4 * I, 1e-6));
+    CHECK_THROWS_AS(make_pipe(line, [](double t) { return 0.5 - t; }), GeometryError);
+  }
+}

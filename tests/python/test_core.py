@@ -542,3 +542,16 @@ def test_thicken_plate_and_washer():
                                              [nf.circle_loop(0.5, 0.5, 0.25)])])
     assert nf.thicken(washer, 0.5, symmetric=True).volume() == pytest.approx(
         math.pi * 3 * 0.5, rel=1e-8)
+
+
+def test_make_pipe_constant_tapered_and_function_radius():
+    line = nf.make_line((0, 0, 0), (0, 0, 4))
+    assert nf.make_pipe(line, 0.5).volume() == pytest.approx(math.pi * 0.25 * 4, rel=1e-7)
+    cone = nf.make_pipe(line, 1.0, end_radius=0.5)
+    assert cone.volume() == pytest.approx(math.pi * 4 / 3 * 1.75, rel=1e-7)
+    assert {"wall", "inlet", "outlet"} <= set(cone.face_labels)
+    bulge = nf.make_pipe(line, lambda t: 0.5 + 0.2 * math.sin(math.pi * t))
+    integral = 0.25 + 2 * 0.5 * 0.2 * 2 / math.pi + 0.04 / 2
+    assert bulge.volume() == pytest.approx(math.pi * 4 * integral, rel=1e-6)
+    wall = nf.pipe_surface(line, lambda t: 0.5)
+    assert nf.distance(wall(0.3, 0.5), (0, 0, 2)) == pytest.approx(0.5, rel=1e-6)  # v: path parameter

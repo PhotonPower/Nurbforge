@@ -12,6 +12,9 @@ versioning: [SemVer](https://semver.org).
   faces trimmed exactly by the opening's edges (nested openings become holes).
 - `thicken(shell, thickness, symmetric=False, tolerance=1e-6, wall_label="wall")`: gives an
   open, smooth shell a wall thickness (faces offset with their trim loops, ruled side walls).
+- `make_pipe(path, radius, end_radius=-1)` / `make_pipe(path, radius_function)`: solid pipe
+  along a path (rotation-minimising frame, constant, tapered or function radius), faces labelled
+  `wall`, `inlet`, `outlet`; `pipe_surface(path, radius_function, options)` for the wall alone.
 - User manual (LaTeX/PDF, `docs/manual`): installation, concepts and every part of the API in
   18 chapters with 40 tested example scripts, plus a command reference generated from the
   installed package (every class, method, property, enumeration and function of `nurbforge`,

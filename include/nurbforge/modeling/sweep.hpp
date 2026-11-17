@@ -3,6 +3,7 @@
 /// Swept surfaces: a profile curve moved along a trajectory (one rail) or between two rails.
 
 #include <cstddef>
+#include <functional>
 
 #include "nurbforge/nurbs/curve.hpp"
 #include "nurbforge/nurbs/surface.hpp"
@@ -46,5 +47,13 @@ struct SweepOptions {
 /// axis follows the tangent of rail1. Same skinning and tolerance control as sweep().
 [[nodiscard]] NurbsSurface sweep2(const NurbsCurve& profile, const NurbsCurve& rail1,
                                   const NurbsCurve& rail2, const SweepOptions& options = {});
+
+/// Pipe surface: a circle swept along `path` with the rotation-minimising frame, its radius
+/// given by `radius(t)` for the normalised path parameter t in [0, 1] (t = 0 at the path start).
+/// u runs around the circle on [0, 1], v along the path domain. Same skinning and tolerance
+/// control as sweep(); the radius function must be smooth and positive.
+[[nodiscard]] NurbsSurface pipe_surface(const NurbsCurve& path,
+                                        const std::function<double(double)>& radius,
+                                        const SweepOptions& options = {});
 
 }  // namespace nf

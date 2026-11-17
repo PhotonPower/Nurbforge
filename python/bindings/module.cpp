@@ -890,6 +890,22 @@ PYBIND11_MODULE(_core, m) {
         "symmetric: +-thickness/2), free edges closed by ruled side walls labelled `wall_label`, "
         "offset faces labelled '<label>_offset'. The faces must join smoothly; raises "
         "GeometryError at creases or where the thickness reaches a radius of curvature.");
+  m.def("make_pipe", py::overload_cast<const NurbsCurve&, double, double, double>(&make_pipe),
+        py::arg("path"), py::arg("radius"), py::arg("end_radius") = -1.0,
+        py::arg("tolerance") = 1e-6,
+        "Solid pipe along a path: circular cross-section (radius varying linearly to "
+        "`end_radius` if given), planar end faces. Faces labelled 'wall', 'inlet', 'outlet'; a "
+        "closed path gives a ring.");
+  m.def("make_pipe",
+        py::overload_cast<const NurbsCurve&, const std::function<double(double)>&, double>(
+            &make_pipe),
+        py::arg("path"), py::arg("radius"), py::arg("tolerance") = 1e-6,
+        "Solid pipe whose radius is the function radius(t) of the normalised path parameter t in "
+        "[0, 1] (smooth and positive).");
+  m.def("pipe_surface", &pipe_surface, py::arg("path"), py::arg("radius"),
+        py::arg("options") = SweepOptions{},
+        "Pipe wall: a circle of radius radius(t) (t in [0, 1] along the path) swept with the "
+        "rotation-minimising frame; u around the circle, v along the path.");
   m.def("integrate", &integrate, py::arg("f"), py::arg("a"), py::arg("b"),
         py::arg("rel_tol") = kIntegrationRelTol, py::arg("breaks") = std::vector<double>{},
         py::arg("abs_tol") = 0.0, "Globally adaptive Gauss-Kronrod integral of f over [a, b].");

@@ -1,6 +1,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include <cmath>
 #include <numbers>
+#include <thread>
 #include <vector>
 
 #include "nurbforge/core/error.hpp"
@@ -225,4 +226,27 @@ TEST_CASE("merge_faces: coplanar and same-surface pieces become one face", "[sol
     check_solid(m, 2.0);
     CHECK(m.faces().size() == 10);
   }
+}
+
+TEST_CASE("constructive operations run concurrently on shared inputs", "[solid_ops][threads]") {
+  // The Python bindings release the GIL for Booleans, splits, offsets, sweeps and the solid
+  // operations, so they may run in parallel threads on the same (immutable) input objects.
+  const Shell plate = make_box({-3, -2, 0}, {6, 4, 1});
+  const Shell drill = make_cylinder({0, 0, -1}, {0, 0, 1}, 0.4, 3);
+  const auto line = make_line({0, 0, 0}, {0, 0, 2});
+  const auto run = [&] {
+    const Shell part = boolean(plate, drill, BooleanOp::Difference);
+    const auto halves = split(part, Plane{{0, 0, 0}, {1, 0, 0}});
+    const Shell pipe = make_pipe(line, 0.3, 0.2);
+    const Shell merged =
+        merge_faces(boolean(plate, make_box({2, 1, 0}, {2, 2, 1}), BooleanOp::Union));
+    return std::vector<double>{part.volume(1e-9), halves.first.volume(1e-9), pipe.volume(1e-9),
+                               merged.volume(1e-9)};
+  };
+  const auto ref = run();
+  std::vector<std::vector<double>> got(4);
+  std::vector<std::thread> th;
+  for (std::size_t k = 0; k < got.size(); ++k) th.emplace_back([&, k] { got[k] = run(); });
+  for (auto& t : th) t.join();
+  for (const auto& g : got) CHECK(g == ref);
 }

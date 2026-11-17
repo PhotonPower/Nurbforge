@@ -138,9 +138,9 @@ or the source tree shadows the installed package because Python runs from the re
 without an editable installation. Reinstall with the interpreter you use (\code{python -m pip
 install ...}), or run from another directory.
 
-\paragraph{Objects cannot be pickled.} \code{multiprocessing} and some caching libraries need
-picklable objects. Pass geometry between processes as STEP text (\apiref{to_step},
-\apiref{from_step}) or rebuild it in the worker.
+\paragraph{Objects cannot be pickled.} Up to version 0.10 the geometry objects could not be
+pickled; pass geometry between processes as STEP text (\apiref{to_step}, \apiref{from_step})
+there. Newer versions pickle all geometry types (\cref{sec:concepts-threads}).
 
 \section{gmsh and meshing}\label{sec:ts-gmsh}
 
@@ -213,8 +213,8 @@ cylinder with lateral area 50''), ask the model to use the \toolref{solve} tool
   \item Reuse objects: they are immutable, so a fitted surface can be shared by many shells and
     transforms without copies.
   \item Parallelism: the surface/surface intersection is multi-threaded internally.
-    \apiref{hatch} and STEP reading release Python's interpreter lock and can run in threads;
-    for other batch work use processes (\cref{sec:concepts-threads}).
+    The expensive operations release Python's interpreter lock, so variants of a parameter
+    study can run in threads; processes work as well (\cref{sec:concepts-threads}).
   \item Mass properties and areas take \code{rel_tol}; the default $10^{-8}$ is more than enough
     for most engineering purposes, and $10^{-6}$ is noticeably faster on complex shells.
 \end{itemize}

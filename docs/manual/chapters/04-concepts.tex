@@ -333,9 +333,11 @@ moved = shell.transformed(nf.Transform.translation((0, 0, 10)))
 
 Calling \code{c.insert_knot(0.5)} without using the return value therefore has no effect. In
 return, objects can be stored in containers, shared between parts of a model and reused without
-defensive copies. The geometry objects cannot be pickled. To move them between processes, write
-them to STEP text with \apiref{to_step} and read them back with \apiref{from_step}, or rebuild
-them from the script that created them.
+defensive copies. All geometry types -- points, transforms, curves, surfaces, trim loops,
+trimmed faces, shells, planes, tolerances, option structures and optical sag descriptions --
+can be pickled, so they can be passed to and returned from worker processes and copied with
+\code{copy.deepcopy}. A pickled shell stores its faces (with labels) and its sewing tolerance and
+is sewn again when loaded, which reproduces the same topology.
 
 \section{Thread safety}\label{sec:concepts-threads}
 
@@ -345,10 +347,30 @@ and STEP reading and writing. Internal caches, such as trim polylines, are built
 constructors, so reading never writes. The C++ test suite runs these queries concurrently under
 ThreadSanitizer.
 
-In Python, most functions hold the global interpreter lock while they compute. Threads therefore
-give no speed-up, except for \apiref{hatch} and STEP reading, which release the lock. The
-surface/surface intersection uses several threads internally. For parallel batch work in Python
-use processes and pass geometry as STEP text or recreate it in each process.
+The constructive operations are thread-safe as well: they only read their (immutable) inputs.
+The C++ test suite runs Booleans, plane splits, pipes and face merging concurrently on shared
+inputs under ThreadSanitizer.
+
+In Python, the expensive operations release the global interpreter lock while they compute:
+Booleans and plane splits, all solid operations (\code{cap}, \code{thicken}, \code{hollow},
+\code{make_pipe}, \code{remove_holes}, \code{merge_faces}), intersections, closest points,
+sections, offsets, sweeps, lofts, Coons and Gordon patches, the optical surface fits, lengths,
+areas, volumes and mass properties, sewing, \apiref{hatch} and STEP reading. Parameter studies
+therefore run in parallel in a \code{concurrent.futures.ThreadPoolExecutor}. Functions that call
+back into Python (a radius or sag \emph{function}, \code{integrate}) keep the lock. Processes
+work too: the geometry objects can be pickled.
+
+\example{04_parallel.py}
+
+\begin{lstlisting}[style=text]
+12 variants: threads give the same volumes: True, processes return closed shells: True
+speed-up with threads on 6 cores: 2.7x (machine dependent)
+a pickled part: 23950 bytes, faces ['bottom', 'top', 'front', 'back', 'left', 'right', 'side']
+\end{lstlisting}
+
+The speed-up stays below the number of cores because building the primitives and converting
+the results happen with the lock held. The surface/surface intersection additionally uses
+several threads internally.
 
 \section{Units}\label{sec:concepts-units}
 

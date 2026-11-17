@@ -67,6 +67,11 @@
 - Defeaturing: remove small through and blind holes ✅, merge faces on the same surface ✅
 - LLM tools for all solid operations ✅
 
+## 0.11 – Parallel parameter studies
+- Expensive operations release the GIL in Python (Booleans, solid operations, intersections, sections, offsets, sweeps, fits, mass properties) ✅
+- All geometry types picklable (processes, deepcopy) ✅
+- Concurrent constructive operations checked under ThreadSanitizer ✅
+
 ## Infrastructure
 - ✅ Wheels via cibuildwheel (manylinux_2_28 for AlmaLinux 10 compatibility, win_amd64, macOS arm64/x86_64)
 - ✅ Sphinx site with Breathe (Doxygen) API docs on GitHub Pages

@@ -5,6 +5,13 @@ versioning: [SemVer](https://semver.org).
 
 ## [Unreleased]
 ### Added
+- Parallel parameter studies in Python: the expensive operations (Booleans, plane splits, all
+  solid operations, intersections, closest points, sections, offsets, sweeps, lofts, Coons and
+  Gordon patches, optical surface fits, lengths, areas, volumes, mass properties, sewing) release
+  the GIL, so they run in parallel threads; all geometry types (points, transforms, curves,
+  surfaces, trim loops, trimmed faces, shells, planes, tolerances, options, optical sags) can be
+  pickled for process pools and `copy.deepcopy`. `Shell.tolerance()` (C++) gives the sewing
+  tolerance. A ThreadSanitizer test runs constructive operations concurrently.
 - `split(shell, plane, tolerance=1e-6, cut_label="cut")` (C++ and Python): splits a closed solid
   by a plane into the closed parts below and above; the new faces in the plane are labelled
   (e.g. for symmetry boundary conditions).

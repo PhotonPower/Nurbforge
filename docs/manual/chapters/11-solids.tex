@@ -429,6 +429,45 @@ capped: 4 faces, closed=True, volume 28.27433388 (pi (R^2 - r^2) h = 28.27433388
 saddle: GeometryError: cap: an opening is not planar (deviation 0.500000 > tolerance)
 \end{lstlisting}
 
+\section{Thickening open shells}\label{sec:thicken}
+
+Thin-walled parts -- lens holders, shells of a housing, membranes -- are conveniently modelled
+as a surface and given a wall thickness afterwards. \apiref{thicken} turns an open shell into a
+solid:
+
+\begin{lstlisting}
+solid = nf.thicken(shell, thickness, symmetric=False, tolerance=1e-6, wall_label="wall")
+\end{lstlisting}
+
+Every face is offset along its normal $S_u\times S_v$ by \code{thickness} (a negative value
+offsets against the normal; with \code{symmetric=True} the faces are offset by
+$\pm$\code{thickness}/2, so the original surface becomes the mid-surface). The offset faces keep
+the trim loops of their originals, since offsets keep the parametrisation
+(\cref{ch:surfaces}). Every free edge of the shell is closed by a ruled side wall between the
+edge and its offset. The result is sewn and oriented outwards. Labels: offset faces get the
+original label with the suffix \code{_offset} (unlabelled faces: \code{offset}), side walls get
+\code{wall_label}.
+
+\begin{warning}[Smooth shells only]
+The faces must join tangent-continuously along their shared edges -- then their offsets meet
+again. At a crease (the corner of an open box) the offsets separate, the result is not closed
+and \code{GeometryError} is raised. The offset also fails where the thickness reaches a radius
+of curvature of a face. Thicken creased parts face by face and combine them with Booleans, or
+use \apiref{boolean} with an inner body for hollowing.
+\end{warning}
+
+\example{11_thicken.py}
+
+\begin{lstlisting}[style=text]
+normal at (-5.00, 0.00, 8.66): (+0.500, -0.000, -0.866) - towards the centre, so the wall grows inwards
+thick dome: closed=True, faces ['', 'offset', 'wall'], volume 149.356550 (spherical shell sector 149.356551)
+washer: volume 3.76991118 (pi (2^2 - 1^2) 0.4 = 3.76991118), walls 2
+open box: GeometryError: thicken: the result is not closed (24 free edges) - the faces must join smoothly so that their offsets meet
+\end{lstlisting}
+
+Check the direction of $S_u\times S_v$ first, as the example does: for the revolved arc it
+points towards the centre of the sphere, so a positive thickness grows the wall inwards.
+
 \section{Face labels}\label{sec:face-labels}
 
 Labels give faces stable names across operations -- for boundary conditions, physical groups

@@ -61,7 +61,7 @@
 ## 0.10 – Solids for simulation (#18)
 - Split a solid by a plane (symmetry), cut faces labelled ✅
 - Cap planar openings of a shell (exact trim curves, nested openings as holes) ✅
-- Thicken an open surface / shell into a solid (offset + side walls)
+- Thicken an open, smooth shell into a solid (offset + ruled side walls, symmetric option) ✅
 - Hollow a solid (shell with wall thickness, selectable open faces)
 - Pipe along a path with variable radius and end caps
 - Defeaturing: merge faces on the same surface, remove small holes

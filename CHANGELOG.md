@@ -10,6 +10,8 @@ versioning: [SemVer](https://semver.org).
   (e.g. for symmetry boundary conditions).
 - `cap(shell, tolerance=1e-6, label="cap")`: closes the planar openings of a shell with planar
   faces trimmed exactly by the opening's edges (nested openings become holes).
+- `thicken(shell, thickness, symmetric=False, tolerance=1e-6, wall_label="wall")`: gives an
+  open, smooth shell a wall thickness (faces offset with their trim loops, ruled side walls).
 - User manual (LaTeX/PDF, `docs/manual`): installation, concepts and every part of the API in
   18 chapters with 40 tested example scripts, plus a command reference generated from the
   installed package (every class, method, property, enumeration and function of `nurbforge`,

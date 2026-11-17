@@ -530,3 +530,15 @@ def test_cap_closes_planar_openings():
                                                                 (1, 1, 0)))])
     with pytest.raises(nf.GeometryError, match="not planar"):
         nf.cap(saddle)
+
+
+def test_thicken_plate_and_washer():
+    plate = nf.Shell.sew([nf.TrimmedSurface(nf.make_rectangle((0, 0, 0), (2, 0, 0), (0, 3, 0)))])
+    solid = nf.thicken(plate, 0.1)
+    assert solid.is_closed and solid.volume() == pytest.approx(0.6, rel=1e-8)
+    assert len(solid.faces_labeled("wall")) == 4
+    sq = nf.make_rectangle((-2, -2, 0), (4, 0, 0), (0, 4, 0))
+    washer = nf.Shell.sew([nf.TrimmedSurface(sq, nf.circle_loop(0.5, 0.5, 0.5),
+                                             [nf.circle_loop(0.5, 0.5, 0.25)])])
+    assert nf.thicken(washer, 0.5, symmetric=True).volume() == pytest.approx(
+        math.pi * 3 * 0.5, rel=1e-8)

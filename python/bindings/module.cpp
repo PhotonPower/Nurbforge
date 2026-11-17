@@ -884,6 +884,12 @@ PYBIND11_MODULE(_core, m) {
         "Close the planar openings of a shell with planar faces trimmed exactly by the opening's "
         "edges (coplanar nested openings: faces with holes). The new faces get `label`; the "
         "result is sewn and oriented outwards. Raises GeometryError for non-planar openings.");
+  m.def("thicken", &thicken, py::arg("shell"), py::arg("thickness"), py::arg("symmetric") = false,
+        py::arg("tolerance") = 1e-6, py::arg("wall_label") = "wall",
+        "Give an open shell a wall thickness: faces offset along S_u x S_v (negative: against it; "
+        "symmetric: +-thickness/2), free edges closed by ruled side walls labelled `wall_label`, "
+        "offset faces labelled '<label>_offset'. The faces must join smoothly; raises "
+        "GeometryError at creases or where the thickness reaches a radius of curvature.");
   m.def("integrate", &integrate, py::arg("f"), py::arg("a"), py::arg("b"),
         py::arg("rel_tol") = kIntegrationRelTol, py::arg("breaks") = std::vector<double>{},
         py::arg("abs_tol") = 0.0, "Globally adaptive Gauss-Kronrod integral of f over [a, b].");

@@ -62,3 +62,53 @@ TEST_CASE("cap: planar openings become trimmed planar faces", "[solid_ops][cap]"
     CHECK_THROWS_AS(cap(saddle), GeometryError);
   }
 }
+
+TEST_CASE("thicken: open shells and faces become solids with a wall thickness", "[solid_ops][thicken]") {
+  SECTION("flat plate: a box, on either side and symmetric") {
+    const Shell plate = Shell::sew({TrimmedSurface(make_rectangle({0, 0, 0}, {2, 0, 0}, {0, 3, 0}))});
+    for (const double t : {0.1, -0.1}) {
+      const Shell solid = thicken(plate, t);
+      check_solid(solid, 0.6);
+      CHECK(solid.faces_labeled("wall").size() == 4);
+    }
+    const Shell mid = thicken(plate, 0.2, true);
+    check_solid(mid, 1.2);
+    double zmin = 1e300, zmax = -1e300;
+    for (const auto& p : mid.vertices()) zmin = std::min(zmin, p.z), zmax = std::max(zmax, p.z);
+    CHECK(std::abs(zmin + 0.1) <= 1e-9);
+    CHECK(std::abs(zmax - 0.1) <= 1e-9);
+  }
+  SECTION("cylinder wall: a tube; trimmed face: a disc with a hole") {
+    const auto side = extrude(make_circle({0, 0, 0}, {0, 0, 1}, 1.0), {0, 0, 2});
+    const Shell band = Shell::sew({TrimmedSurface(side)});
+    const Shell tube = thicken(band, 0.1);  // along S_u x S_v, inward or outward
+    const double out = pi * (1.21 - 1.0) * 2, in = pi * (1.0 - 0.81) * 2;
+    CHECK(tube.is_closed());
+    const double v = tube.volume(1e-10);
+    CHECK((rel_close(v, out, 1e-6) || rel_close(v, in, 1e-6)));
+    const auto sq = make_rectangle({-2, -2, 0}, {4, 0, 0}, {0, 4, 0});
+    const Shell washer =
+        Shell::sew({TrimmedSurface(sq, circle_loop(0.5, 0.5, 0.5), {circle_loop(0.5, 0.5, 0.25)})});
+    check_solid(thicken(washer, 0.5), pi * (4.0 - 1.0) * 0.5);
+  }
+  SECTION("hemisphere: a spherical shell") {
+    const auto dome = revolve(make_arc({0, 0, 0}, {0, 0, 1}, {1, 0, 0}, 1.0, 0.0, pi / 2),
+                              {0, 0, 0}, {0, 0, 1}, 2 * pi);
+    const Shell s = thicken(Shell::sew({TrimmedSurface(dome)}), 0.2);
+    CHECK(s.is_closed());
+    const double v = s.volume(1e-10);
+    const double outward = 2.0 / 3.0 * pi * (1.2 * 1.2 * 1.2 - 1.0),
+                 inward = 2.0 / 3.0 * pi * (1.0 - 0.8 * 0.8 * 0.8);
+    CHECK((rel_close(v, outward, 1e-6) || rel_close(v, inward, 1e-6)));
+  }
+  SECTION("errors: closed shells, creases, zero thickness") {
+    CHECK_THROWS_AS(thicken(make_sphere({0, 0, 0}, 1.0), 0.1), GeometryError);
+    const Shell box = make_box({0, 0, 0}, {1, 1, 1});
+    std::vector<TrimmedSurface> faces;
+    for (const auto& f : box.faces())
+      if (f.label() != "top") faces.push_back(f);
+    CHECK_THROWS_AS(thicken(Shell::sew(faces), 0.1), GeometryError);  // creased open box
+    const Shell plate = Shell::sew({TrimmedSurface(make_rectangle({0, 0, 0}, {1, 0, 0}, {0, 1, 0}))});
+    CHECK_THROWS_AS(thicken(plate, 0.0), GeometryError);
+  }
+}

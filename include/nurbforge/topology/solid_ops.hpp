@@ -18,4 +18,16 @@ namespace nf {
 [[nodiscard]] Shell cap(const Shell& shell, double tolerance = 1e-6,
                         const std::string& label = "cap");
 
+/// Gives an open shell (or a single face, sewn into a shell) a wall thickness: every face is
+/// offset along its normal S_u x S_v by `thickness` (negative: against the normal; with
+/// `symmetric` by +-thickness/2 on both sides), keeping its trim loops, and every free edge is
+/// closed by a ruled side wall between the edge and its offset. The result is sewn and oriented
+/// outwards; the offset faces keep their labels with the suffix "_offset" (unlabelled faces:
+/// "offset"), the side walls get
+/// `wall_label`. The faces must join smoothly (tangent-continuous) along their shared edges, so
+/// that their offsets meet; at a crease the result is not closed and GeometryError is raised, as
+/// it is where |thickness| reaches a radius of curvature (offset_surface).
+[[nodiscard]] Shell thicken(const Shell& shell, double thickness, bool symmetric = false,
+                            double tolerance = 1e-6, const std::string& wall_label = "wall");
+
 }  // namespace nf

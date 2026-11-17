@@ -128,6 +128,7 @@ from ._core import (  # noqa: F401
     sweep,
     sweep2,
     sweep_translational,
+    thicken,
     to_step,
     torsion,
     unique_knots,

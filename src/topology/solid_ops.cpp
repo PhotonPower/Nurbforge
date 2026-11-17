@@ -8,6 +8,7 @@
 #include <optional>
 #include <vector>
 
+#include "loops.hpp"
 #include "nurbforge/analysis/closest_point.hpp"
 #include "nurbforge/core/error.hpp"
 #include "nurbforge/geometry/primitives.hpp"
@@ -139,6 +140,10 @@ NurbsCurve map_points(const NurbsCurve& c, const std::function<Vec3(const Vec3&)
 Vec3 first(const NurbsCurve& c) { return c.evaluate(c.domain_start()); }
 Vec3 last(const NurbsCurve& c) { return c.evaluate(c.domain_end()); }
 
+}  // namespace
+
+namespace detail {
+
 // The region bounded by curves with the region on their left (outer loops counter-clockwise,
 // holes clockwise), all in one parameter plane: shared pieces (opposite directions) cancel, the
 // rest is chained into loops. Empty if the curves do not form closed loops.
@@ -207,7 +212,7 @@ std::vector<TrimLoop> union_loops(std::vector<NurbsCurve> cs, double eps) {
   return loops;
 }
 
-}  // namespace
+}  // namespace detail
 
 Shell cap(const Shell& shell, double tolerance, const std::string& label) {
   if (shell.is_closed()) return shell;
@@ -544,7 +549,7 @@ Shell merge_faces(const Shell& shell, double tolerance) {
     }
     std::vector<TrimmedSurface> merged;
     try {
-      auto loops = union_loops(std::move(curves), eps);
+      auto loops = detail::union_loops(std::move(curves), eps);
       std::vector<TrimLoop> outers, holes;
       for (auto& l : loops) (l.signed_area() > 0.0 ? outers : holes).push_back(std::move(l));
       if (outers.empty()) throw GeometryError("no outer loop");

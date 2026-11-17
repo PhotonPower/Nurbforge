@@ -52,6 +52,8 @@ add_library(nurbforge_core STATIC
   src/modeling/gordon.cpp
   src/modeling/offset.cpp
   src/modeling/fillet.cpp
+  src/modeling/blend.cpp
+  src/modeling/project.cpp
   src/analysis/closest_point.cpp
   src/analysis/properties.cpp
   src/analysis/intersect.cpp
@@ -67,6 +69,7 @@ add_library(nurbforge_core STATIC
   src/topology/boolean.cpp
   src/topology/solids.cpp
   src/topology/solid_ops.cpp
+  src/topology/region.cpp
   src/io/step.cpp
   src/io/step_read.cpp)
 add_library(Nurbforge::core ALIAS nurbforge_core)

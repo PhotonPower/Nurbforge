@@ -574,3 +574,23 @@ def test_merge_faces_after_union():
     m = nf.merge_faces(u)
     assert len(u.faces) == 14 and len(m.faces) == 10
     assert m.is_closed and m.volume() == pytest.approx(7.0, rel=1e-10)
+
+
+def test_region_boolean_blend_and_projection():
+    sq = nf.make_rectangle_curve((0, 0, 0), (2, 0, 0), (0, 2, 0))
+    hole = nf.make_circle((1, 1, 0), (0, 0, 1), 0.5)
+    ring = nf.region_boolean([sq], [hole], nf.BooleanOp.Difference)
+    assert len(ring) == 2
+    assert nf.region_area(ring) == pytest.approx(4 - math.pi * 0.25, rel=1e-10)
+    # sections of solids are regions too
+    sec = nf.section(nf.make_cylinder((0, 0, 0), (0, 0, 1), 1, 2), nf.Plane((0, 0, 1), (0, 0, 1)))
+    assert nf.region_area(sec) == pytest.approx(math.pi, rel=1e-9)
+    a, b = nf.make_line((0, 0, 0), (1, 0, 0)), nf.make_line((2, 1, 0), (2, 2, 0))
+    g1 = nf.blend_curves(a, nf.CurveEnd.End, b, nf.CurveEnd.Start, continuity=1)
+    assert g1.degree == 3 and nf.distance(g1(1.0), (2, 1, 0)) < 1e-14
+    saddle = nf.make_bilinear((-1, -1, 1), (1, -1, -1), (-1, 1, -1), (1, 1, 1))
+    curve, pcurve = nf.project_curve(nf.make_circle((0, 0, 3), (0, 0, 1), 0.5), saddle, (0, 0, -1))
+    p = curve(0.3)
+    assert p.z == pytest.approx(p.x * p.y, abs=1e-6)
+    w = pcurve(0.3)
+    assert nf.distance(saddle(w.x, w.y), p) < 1e-6

@@ -72,6 +72,11 @@
 - All geometry types picklable (processes, deepcopy) ✅
 - Concurrent constructive operations checked under ThreadSanitizer ✅
 
+## 0.12 – 2D profiles (#16)
+- Booleans of planar regions (exact curves, holes, touching regions), exact region area ✅
+- Blend curves between curve ends (G1 cubic, G2 quintic) ✅
+- Projection of curves onto surfaces (normal or directional, 3D curve + p-curve) ✅
+
 ## Infrastructure
 - ✅ Wheels via cibuildwheel (manylinux_2_28 for AlmaLinux 10 compatibility, win_amd64, macOS arm64/x86_64)
 - ✅ Sphinx site with Breathe (Doxygen) API docs on GitHub Pages

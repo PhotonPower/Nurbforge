@@ -5,6 +5,11 @@ versioning: [SemVer](https://semver.org).
 
 ## [Unreleased]
 ### Added
+- 2D profiles: `region_boolean(a, b, op)` (union / intersection / difference of planar regions
+  with exact curves; regions are loops of curves, nested loops are holes, `PlanarSection`s are
+  accepted) and `region_area`; `blend_curves(a, end0, b, end1, continuity, tension)` (G1 cubic or
+  G2 quintic transition); `project_curve(curve, surface, direction, tolerance)` returning the 3D
+  curve and its p-curve. LLM tools `blend` and `project`.
 - Parallel parameter studies in Python: the expensive operations (Booleans, plane splits, all
   solid operations, intersections, closest points, sections, offsets, sweeps, lofts, Coons and
   Gordon patches, optical surface fits, lengths, areas, volumes, mass properties, sewing) release

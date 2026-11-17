@@ -194,3 +194,48 @@ TEST_CASE("surface closest point on the boundary and local projection", "[closes
   const auto l = closest_point_local(patch, P, 0.4, 0.3);
   CHECK(l.distance < 1e-10);
 }
+
+TEST_CASE("closest point: curves and surfaces with kinks (C0 knots)", "[closest]") {
+  // A closed rectangle outline is one degree-1 curve with kinks at its corners. Near a corner
+  // the closest point lies on the edge before the kink; Newton must not use the one-sided
+  // derivative of the next span there (regression: the search returned the other edge).
+  const NurbsCurve rect = make_rectangle_curve({0, 0, 0}, {4, 0, 0}, {0, 3, 0});
+  const NurbsCurve poly =
+      make_polyline({{0, 0, 0}, {2, 0, 0}, {3, 1, 0}, {3, 3, 0}, {1, 2, 0}, {0, 0, 0}});
+  Rng rng;
+  for (const NurbsCurve* c : {&rect, &poly}) {
+    const auto dense = c->sample(20001);
+    for (int k = 0; k < 400; ++k) {
+      const Vec3 P{rng(-0.5, 4.5), rng(-0.5, 3.5), rng(-0.2, 0.2)};
+      double best = std::numeric_limits<double>::max();
+      for (const auto& q : dense) best = std::min(best, distance(q, P));
+      const auto cp = closest_point(*c, P);
+      CHECK(cp.distance <= best + 1e-9);
+      CHECK(cp.distance >= best - 1e-3);  // the dense sampling is an upper bound
+      CHECK(distance(c->evaluate(cp.u), cp.point) <= 1e-12);
+    }
+  }
+  // the reported case: next to the corner (0, 3) the top edge is closer than the left edge
+  const auto cp = closest_point(rect, {0.2, 2.9, 0});
+  CHECK(std::abs(cp.distance - 0.1) <= 1e-12);
+  CHECK(std::abs(cp.point.y - 3.0) <= 1e-12);
+
+  // surfaces: the extruded outline is a box side with kinks along its vertical edges
+  const NurbsSurface band = extrude(rect, {0, 0, 2});
+  for (int k = 0; k < 200; ++k) {
+    const Vec3 P{rng(-0.5, 4.5), rng(-0.5, 3.5), rng(0.1, 1.9)};
+    // exact distance to the four side faces of the open box
+    const double dx = std::min(std::abs(P.x), std::abs(P.x - 4.0));
+    const double dy = std::min(std::abs(P.y), std::abs(P.y - 3.0));
+    const bool in_x = P.x >= 0 && P.x <= 4, in_y = P.y >= 0 && P.y <= 3;
+    double exact;
+    if (in_x && in_y) {
+      exact = std::min(dx, dy);
+    } else {
+      const double ox = in_x ? 0.0 : dx, oy = in_y ? 0.0 : dy;
+      exact = in_x ? oy : (in_y ? ox : std::hypot(ox, oy));
+    }
+    const auto sp = closest_point(band, P);
+    CHECK(std::abs(sp.distance - exact) <= 1e-9);
+  }
+}

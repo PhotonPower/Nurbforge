@@ -120,7 +120,10 @@ struct CurveSearch {
         const double d = dist2(curve.evaluate(u), P);
         if (d < d0) { d0 = d; u0 = u; }
       }
-      consider(newton_curve(curve, P, u0, a, b, tol));
+      // Newton on the segment, not on the whole curve: at a C0 knot (a kink) the curve's
+      // derivative is one-sided and belongs to the next span, which would push the iteration
+      // out of this segment onto the clamp
+      consider(newton_curve(seg, P, u0, a, b, tol));
       return;
     }
     const double mid = 0.5 * (seg.domain_start() + seg.domain_end());
@@ -236,8 +239,9 @@ struct SurfaceSearch {
         }
       std::partial_sort(starts.begin(), starts.begin() + 3, starts.end(),
                         [](const Start& x, const Start& y) { return x.d < y.d; });
+      // Newton on the patch, not on the whole surface (one-sided derivatives at C0 knots)
       for (int k = 0; k < 3; ++k)
-        consider(newton_surface(surface, P, starts[static_cast<std::size_t>(k)].u,
+        consider(newton_surface(p, P, starts[static_cast<std::size_t>(k)].u,
                                 starts[static_cast<std::size_t>(k)].v, ur, vr, tol));
       return;
     }

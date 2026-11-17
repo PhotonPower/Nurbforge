@@ -19,6 +19,11 @@ versioning: [SemVer](https://semver.org).
   builds a consumer project (`tests/install`) against the installed package on all platforms.
 - Tutorial: NumPy arrays of three numbers (e.g. rows of an `(n, 3)` array) are accepted as
   points; the tutorial said they were not (#70).
+- `closest_point` on curves and surfaces with kinks (C0 knots, e.g. polylines, rectangle
+  outlines and their extrusions) could return a point on the wrong side of a corner: Newton ran
+  on the whole curve and took the one-sided derivative of the next span at the segment end. It
+  now runs on the Bézier segment / patch itself. This also fixes `hatch(contours=...)` for
+  loops made of single kinked curves, which failed with "contour ... does not close" (#69).
 
 ## [0.9.0] – 2026-11-17
 Meshing for solvers: local mesh sizes by face label, curvature-based sizing and BEM-ready

@@ -310,8 +310,12 @@ def main() -> int:
     if args.check:
         old = args.out.read_text(encoding="utf-8") if args.out.exists() else ""
         if old != text:
-            print(f"{args.out} is out of date; run docs/manual/gen_agent_reference.py",
-                  file=sys.stderr)
+            import difflib
+
+            diff = difflib.unified_diff(old.splitlines(), text.splitlines(), "committed",
+                                        "generated", n=0, lineterm="")
+            print(f"{args.out} is out of date; run docs/manual/gen_agent_reference.py\n" +
+                  "\n".join(list(diff)[:60]), file=sys.stderr)
             return 1
         print(f"{args.out} is up to date")
         return 0

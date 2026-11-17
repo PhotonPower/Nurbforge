@@ -58,6 +58,15 @@
 - Local mesh sizes by face label or surface tag, growth with distance, curvature-based sizes ✅
 - BEM-ready closed shells: watertight surface meshes with consistent outward orientation ✅
 
+## 0.10 – Solids for simulation (#18)
+- Split a solid by a plane (symmetry), cut faces labelled ✅
+- Cap planar openings of a shell (exact trim curves, nested openings as holes) ✅
+- Thicken an open, smooth shell into a solid (offset + ruled side walls, symmetric option) ✅
+- Hollow a smooth solid (inner void, or open at labelled faces) ✅
+- Pipe along a path with constant, tapered or function radius, end faces labelled inlet/outlet ✅
+- Defeaturing: remove small through and blind holes ✅; merge faces on the same surface
+- LLM tools for all solid operations ✅
+
 ## Infrastructure
 - ✅ Wheels via cibuildwheel (manylinux_2_28 for AlmaLinux 10 compatibility, win_amd64, macOS arm64/x86_64)
 - ✅ Sphinx site with Breathe (Doxygen) API docs on GitHub Pages

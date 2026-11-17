@@ -5,6 +5,22 @@ versioning: [SemVer](https://semver.org).
 
 ## [Unreleased]
 ### Added
+- `split(shell, plane, tolerance=1e-6, cut_label="cut")` (C++ and Python): splits a closed solid
+  by a plane into the closed parts below and above; the new faces in the plane are labelled
+  (e.g. for symmetry boundary conditions).
+- `cap(shell, tolerance=1e-6, label="cap")`: closes the planar openings of a shell with planar
+  faces trimmed exactly by the opening's edges (nested openings become holes).
+- `thicken(shell, thickness, symmetric=False, tolerance=1e-6, wall_label="wall")`: gives an
+  open, smooth shell a wall thickness (faces offset with their trim loops, ruled side walls).
+- `make_pipe(path, radius, end_radius=-1)` / `make_pipe(path, radius_function)`: solid pipe
+  along a path (rotation-minimising frame, constant, tapered or function radius), faces labelled
+  `wall`, `inlet`, `outlet`; `pipe_surface(path, radius_function, options)` for the wall alone.
+- `remove_holes(shell, max_size)`: defeaturing - fills through and blind holes smaller than
+  `max_size` and deletes the faces of the removed features.
+- `hollow(shell, thickness, open_labels=[])`: hollows a smooth solid to a wall (inner void, or
+  open at the faces with the given labels).
+- LLM tools for the solid operations: `split_solid`, `cap`, `thicken`, `hollow`, `pipe`,
+  `remove_holes`.
 - User manual (LaTeX/PDF, `docs/manual`): installation, concepts and every part of the API in
   18 chapters with 40 tested example scripts, plus a command reference generated from the
   installed package (every class, method, property, enumeration and function of `nurbforge`,
@@ -17,6 +33,9 @@ versioning: [SemVer](https://semver.org).
   face, may end on trim loops or other cuts and may cross).
 
 ### Fixed
+- `surface_curvature` (and therefore `offset_surface`, `thicken`) threw "cannot normalize a
+  zero-length vector" near the poles of (flipped) spheres: the principal-direction vector of a
+  nearly umbilic point is tiny but valid there; directions are now scaled by their own length.
 - Installed CMake package: `NurbforgeConfig.cmake` now finds its `Threads` dependency
   (`find_dependency`), so `find_package(Nurbforge)` works without a preceding
   `find_package(Threads)`, and a version file allows `find_package(Nurbforge 0.9)` (#67). CI

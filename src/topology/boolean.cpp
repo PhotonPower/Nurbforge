@@ -10,8 +10,10 @@
 #include "nurbforge/core/error.hpp"
 #include "nurbforge/fitting/fit.hpp"
 #include "nurbforge/geometry/primitives.hpp"
+#include "nurbforge/geometry/transform.hpp"
 #include "nurbforge/nurbs/join.hpp"
 #include "nurbforge/nurbs/knot_vector.hpp"
+#include "nurbforge/topology/solids.hpp"
 
 namespace nf {
 
@@ -610,6 +612,37 @@ Shell boolean(const Shell& a_in, const Shell& b_in, BooleanOp op, double toleran
   // the pieces keep the orientation of their (outward oriented) shells; difference pieces of B
   // are flipped – re-orienting here would turn inner voids outwards
   return Shell::sew(std::move(result), tolerance);
+}
+
+std::pair<Shell, Shell> split(const Shell& shell, const Plane& plane, double tolerance,
+                              const std::string& cut_label) {
+  if (!shell.is_closed()) throw GeometryError("split: the shell must be closed");
+  const double ln = norm(plane.normal);
+  if (!(ln > 0.0)) throw GeometryError("split: the plane normal is zero");
+  const Vec3 n = plane.normal * (1.0 / ln);
+  // bounding box of the control points (contains the shell)
+  Vec3 lo{1e300, 1e300, 1e300}, hi{-1e300, -1e300, -1e300};
+  for (const auto& f : shell.faces())
+    for (const auto& p : f.surface().control_points()) {
+      lo = {std::min(lo.x, p.x), std::min(lo.y, p.y), std::min(lo.z, p.z)};
+      hi = {std::max(hi.x, p.x), std::max(hi.y, p.y), std::max(hi.z, p.z)};
+    }
+  const Vec3 mid = (lo + hi) * 0.5;
+  const double L = std::max(distance(lo, hi), 1e-12);
+  const double side = dot(mid - plane.point, n);
+  if (side > L) return {Shell{}, shell};  // the plane does not cut the shell
+  if (side < -L) return {shell, Shell{}};
+  // half-space box: in plane coordinates (s, t, n) the box [-2L, 2L]^2 x [0, 2L] around the
+  // projection of the shell's centre, mapped into place
+  const Vec3 c = mid - n * dot(mid - plane.point, n);
+  const Vec3 s = normalized(any_perpendicular(n)), t = cross(n, s);
+  const Transform frame(
+      std::array<double, 12>{s.x, t.x, n.x, c.x, s.y, t.y, n.y, c.y, s.z, t.z, n.z, c.z});
+  const Shell half = make_box({-2 * L, -2 * L, 0.0}, {4 * L, 4 * L, 2 * L})
+                         .with_face_labels(std::vector<std::string>(6, cut_label))
+                         .transformed(frame);
+  return {boolean(shell, half, BooleanOp::Difference, tolerance),
+          boolean(shell, half, BooleanOp::Intersection, tolerance)};
 }
 
 }  // namespace nf

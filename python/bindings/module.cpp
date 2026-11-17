@@ -874,6 +874,46 @@ PYBIND11_MODULE(_core, m) {
       py::arg("face"), py::arg("cuts"), py::arg("tolerance") = Tolerance{},
       "Split a trimmed face along parameter-space curves (general planar arrangement): cuts are "
       "clipped to the face, may end on the trim loops or on other cuts and may cross each other.");
+  m.def("split", py::overload_cast<const Shell&, const Plane&, double, const std::string&>(&split),
+        py::arg("shell"), py::arg("plane"), py::arg("tolerance") = 1e-6,
+        py::arg("cut_label") = "cut",
+        "Split a closed shell by a plane -> (below, above): two closed shells, below opposite to "
+        "the plane normal. The new faces in the plane get `cut_label` (e.g. for a symmetry "
+        "boundary condition); a part is an empty shell if the plane misses the solid.");
+  m.def("cap", &cap, py::arg("shell"), py::arg("tolerance") = 1e-6, py::arg("label") = "cap",
+        "Close the planar openings of a shell with planar faces trimmed exactly by the opening's "
+        "edges (coplanar nested openings: faces with holes). The new faces get `label`; the "
+        "result is sewn and oriented outwards. Raises GeometryError for non-planar openings.");
+  m.def("thicken", &thicken, py::arg("shell"), py::arg("thickness"), py::arg("symmetric") = false,
+        py::arg("tolerance") = 1e-6, py::arg("wall_label") = "wall",
+        "Give an open shell a wall thickness: faces offset along S_u x S_v (negative: against it; "
+        "symmetric: +-thickness/2), free edges closed by ruled side walls labelled `wall_label`, "
+        "offset faces labelled '<label>_offset'. The faces must join smoothly; raises "
+        "GeometryError at creases or where the thickness reaches a radius of curvature.");
+  m.def("make_pipe", py::overload_cast<const NurbsCurve&, double, double, double>(&make_pipe),
+        py::arg("path"), py::arg("radius"), py::arg("end_radius") = -1.0,
+        py::arg("tolerance") = 1e-6,
+        "Solid pipe along a path: circular cross-section (radius varying linearly to "
+        "`end_radius` if given), planar end faces. Faces labelled 'wall', 'inlet', 'outlet'; a "
+        "closed path gives a ring.");
+  m.def("make_pipe",
+        py::overload_cast<const NurbsCurve&, const std::function<double(double)>&, double>(
+            &make_pipe),
+        py::arg("path"), py::arg("radius"), py::arg("tolerance") = 1e-6,
+        "Solid pipe whose radius is the function radius(t) of the normalised path parameter t in "
+        "[0, 1] (smooth and positive).");
+  m.def("pipe_surface", &pipe_surface, py::arg("path"), py::arg("radius"),
+        py::arg("options") = SweepOptions{},
+        "Pipe wall: a circle of radius radius(t) (t in [0, 1] along the path) swept with the "
+        "rotation-minimising frame; u around the circle, v along the path.");
+  m.def("remove_holes", &remove_holes, py::arg("shell"), py::arg("max_size"),
+        py::arg("tolerance") = 1e-6,
+        "Defeaturing: fill the holes (through or blind) of a closed shell whose loops are smaller "
+        "than max_size across; the faces of the removed features are deleted.");
+  m.def("hollow", &hollow, py::arg("shell"), py::arg("thickness"),
+        py::arg("open_labels") = std::vector<std::string>{}, py::arg("tolerance") = 1e-6,
+        "Hollow a smooth closed shell to a wall of the given thickness: an inner void, or - with "
+        "open_labels - removing the faces with these labels and thickening the rest inwards.");
   m.def("integrate", &integrate, py::arg("f"), py::arg("a"), py::arg("b"),
         py::arg("rel_tol") = kIntegrationRelTol, py::arg("breaks") = std::vector<double>{},
         py::arg("abs_tol") = 0.0, "Globally adaptive Gauss-Kronrod integral of f over [a, b].");

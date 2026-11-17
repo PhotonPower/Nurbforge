@@ -412,6 +412,66 @@ def _build_tools() -> list[Tool]:
             return f"stored {name}: closed shell, volume {res.volume(1e-7):.6g}"
         return f"stored {name}: shell with {len(res.free_edges())} free edges"
 
+    def _as_shell(o):
+        if isinstance(o, nf.Shell):
+            return o
+        if isinstance(o, nf.NurbsSurface):
+            o = nf.TrimmedSurface(o)
+        if isinstance(o, nf.TrimmedSurface):
+            return nf.Shell.sew([o])
+        raise ValueError("expected a shell or a surface")
+
+    def _report(ws, name, res):
+        ws.put(name, res)
+        if res.is_closed:
+            return (f"stored {name}: closed shell, {len(res.faces)} faces, volume "
+                    f"{res.volume(1e-7):.6g}, labels {sorted(set(res.face_labels))}")
+        return f"stored {name}: shell with {len(res.free_edges())} free edges"
+
+    @add("split_solid", "Split a closed solid by a plane into the part below (opposite to the "
+         "normal, stored as name + '_below') and above (name + '_above'). The new faces in the "
+         "plane get the label cut_label (default 'cut'), e.g. for a symmetry condition.",
+         {"name": _NAME, "solid": _NAME, "point": _VEC, "normal": _VEC,
+          "cut_label": {"type": "string"}}, ["name", "solid", "point", "normal"])
+    def _(ws, name, solid, point, normal, cut_label="cut"):
+        below, above = nf.split(ws.get(solid), nf.Plane(point, normal), cut_label=cut_label)
+        return "\n".join([_report(ws, name + "_below", below),
+                          _report(ws, name + "_above", above)])
+
+    @add("cap", "Close the planar openings of an open shell with planar faces (label 'cap').",
+         {"name": _NAME, "shell": _NAME}, ["name", "shell"])
+    def _(ws, name, shell):
+        return _report(ws, name, nf.cap(_as_shell(ws.get(shell))))
+
+    @add("thicken", "Give an open smooth shell or a surface a wall thickness along its normal "
+         "(negative: other side; symmetric: half on each side). Side walls get label 'wall'.",
+         {"name": _NAME, "shell": _NAME, "thickness": {"type": "number"},
+          "symmetric": {"type": "boolean"}}, ["name", "shell", "thickness"])
+    def _(ws, name, shell, thickness, symmetric=False):
+        return _report(ws, name, nf.thicken(_as_shell(ws.get(shell)), thickness, symmetric))
+
+    @add("hollow", "Hollow a smooth closed solid to a wall of the given thickness: an inner "
+         "void, or open at the faces whose labels are listed in open_labels.",
+         {"name": _NAME, "solid": _NAME, "thickness": {"type": "number"},
+          "open_labels": {"type": "array", "items": {"type": "string"}}},
+         ["name", "solid", "thickness"])
+    def _(ws, name, solid, thickness, open_labels=()):
+        return _report(ws, name, nf.hollow(ws.get(solid), thickness, list(open_labels)))
+
+    @add("pipe", "Solid pipe along a path curve with a circular cross-section of the given "
+         "radius (end_radius: linear taper). Faces labelled 'wall', 'inlet', 'outlet'.",
+         {"name": _NAME, "path": _NAME, "radius": {"type": "number"},
+          "end_radius": {"type": "number"}}, ["name", "path", "radius"])
+    def _(ws, name, path, radius, end_radius=-1.0):
+        return _report(ws, name, nf.make_pipe(ws.get(path), radius, end_radius))
+
+    @add("remove_holes", "Defeaturing: fill the through and blind holes of a closed solid that "
+         "are smaller than max_size across.",
+         {"name": _NAME, "solid": _NAME, "max_size": {"type": "number"}},
+         ["name", "solid", "max_size"])
+    def _(ws, name, solid, max_size):
+        return _report(ws, name, nf.remove_holes(ws.get(solid), max_size))
+
     @add("export_step", "Write shells (from 'sew' or 'boolean'; surfaces are sewn into a shell "
          "each) to a STEP file with the native writer. Closed shells become solids.",
          {"objects": {"type": "array", "items": _NAME, "minItems": 1},

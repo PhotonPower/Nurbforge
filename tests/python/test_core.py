@@ -505,3 +505,64 @@ def test_transform_operator_on_curves_surfaces_and_faces():
     assert g.label == "aperture" and g.area() == pytest.approx(f.area(), rel=1e-12)
     m = f.transformed(nf.Transform.mirror((0, 0, 0), (0, 0, 1)))
     assert m.surface.normal(0.5, 0.5).z == pytest.approx(-1.0)
+def test_split_solid_by_plane_labels_the_cut():
+    part = nf.boolean(nf.make_box((-2, -1, 0), (4, 2, 1)),
+                      nf.make_cylinder((0, 0, -1), (0, 0, 1), 0.4, 3), nf.BooleanOp.Difference)
+    below, above = nf.split(part, nf.Plane((0, 0, 0), (1, 0, 0)), cut_label="symmetry")
+    v = (8 - math.pi * 0.16) / 2
+    for half in (below, above):
+        assert half.is_closed
+        assert half.volume() == pytest.approx(v, rel=1e-6)
+        assert len(half.faces_labeled("symmetry")) == 2
+    empty, whole = nf.split(part, nf.Plane((0, 0, -5), (0, 0, 1)))
+    assert not empty.faces and whole.volume() == pytest.approx(2 * v, rel=1e-6)
+
+
+def test_cap_closes_planar_openings():
+    side = nf.extrude(nf.make_circle((0, 0, 0), (0, 0, 1), 1.5), (0, 0, 2))
+    tube = nf.Shell.sew([nf.TrimmedSurface(side)])
+    assert not tube.is_closed
+    solid = nf.cap(tube, label="end")
+    assert solid.is_closed and solid.is_consistently_oriented
+    assert solid.volume() == pytest.approx(math.pi * 1.5**2 * 2, rel=1e-8)
+    assert len(solid.faces_labeled("end")) == 2
+    saddle = nf.Shell.sew([nf.TrimmedSurface(nf.make_bilinear((0, 0, 0), (1, 0, 1), (0, 1, 1),
+                                                                (1, 1, 0)))])
+    with pytest.raises(nf.GeometryError, match="not planar"):
+        nf.cap(saddle)
+
+
+def test_thicken_plate_and_washer():
+    plate = nf.Shell.sew([nf.TrimmedSurface(nf.make_rectangle((0, 0, 0), (2, 0, 0), (0, 3, 0)))])
+    solid = nf.thicken(plate, 0.1)
+    assert solid.is_closed and solid.volume() == pytest.approx(0.6, rel=1e-8)
+    assert len(solid.faces_labeled("wall")) == 4
+    sq = nf.make_rectangle((-2, -2, 0), (4, 0, 0), (0, 4, 0))
+    washer = nf.Shell.sew([nf.TrimmedSurface(sq, nf.circle_loop(0.5, 0.5, 0.5),
+                                             [nf.circle_loop(0.5, 0.5, 0.25)])])
+    assert nf.thicken(washer, 0.5, symmetric=True).volume() == pytest.approx(
+        math.pi * 3 * 0.5, rel=1e-8)
+
+
+def test_make_pipe_constant_tapered_and_function_radius():
+    line = nf.make_line((0, 0, 0), (0, 0, 4))
+    assert nf.make_pipe(line, 0.5).volume() == pytest.approx(math.pi * 0.25 * 4, rel=1e-7)
+    cone = nf.make_pipe(line, 1.0, end_radius=0.5)
+    assert cone.volume() == pytest.approx(math.pi * 4 / 3 * 1.75, rel=1e-7)
+    assert {"wall", "inlet", "outlet"} <= set(cone.face_labels)
+    bulge = nf.make_pipe(line, lambda t: 0.5 + 0.2 * math.sin(math.pi * t))
+    integral = 0.25 + 2 * 0.5 * 0.2 * 2 / math.pi + 0.04 / 2
+    assert bulge.volume() == pytest.approx(math.pi * 4 * integral, rel=1e-6)
+    wall = nf.pipe_surface(line, lambda t: 0.5)
+    assert nf.distance(wall(0.3, 0.5), (0, 0, 2)) == pytest.approx(0.5, rel=1e-6)  # v: path parameter
+
+
+def test_remove_holes_and_hollow():
+    plate = nf.make_box((-3, -2, 0), (6, 4, 1))
+    part = nf.boolean(plate, nf.make_cylinder((-1.5, 0, -1), (0, 0, 1), 0.2, 3), nf.BooleanOp.Difference)
+    part = nf.boolean(part, nf.make_cylinder((0, 0, -1), (0, 0, 1), 1.0, 3), nf.BooleanOp.Difference)
+    clean = nf.remove_holes(part, 0.8)
+    assert clean.is_closed and clean.volume() == pytest.approx(24 - math.pi, rel=1e-7)
+    ball = nf.hollow(nf.make_sphere((0, 0, 0), 1.0), 0.1)
+    assert ball.volume() == pytest.approx(4 / 3 * math.pi * (1 - 0.9**3), rel=1e-7)
+    assert len(ball.components()) == 2

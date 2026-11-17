@@ -7,6 +7,7 @@
 #include <vector>
 
 #include "nurbforge/core/error.hpp"
+#include "nurbforge/geometry/primitives.hpp"
 #include "nurbforge/geometry/transform.hpp"
 #include "nurbforge/modeling/construct.hpp"
 #include "nurbforge/modeling/loft.hpp"
@@ -227,6 +228,26 @@ NurbsSurface sweep2(const NurbsCurve& profile_in, const NurbsCurve& rail1_in,
     return Transform::translation(rail1.evaluate(v)) * linear(R) * Transform::translation(-x0);
   };
   return skin_adaptive(profile, place, break_points({&rail1, &rail2}, a, b), opt);
+}
+
+NurbsSurface pipe_surface(const NurbsCurve& path, const std::function<double(double)>& radius,
+                          const SweepOptions& opt) {
+  const double a = path.domain_start(), b = path.domain_end();
+  const auto r_at = [&](double v) {
+    const double r = radius((v - a) / (b - a));
+    if (!(r > 0.0)) throw GeometryError("pipe: the radius must be positive along the path");
+    return r;
+  };
+  const Vec3 x0 = path.evaluate(a);
+  const RotationMinimizingFrame rmf(path);
+  const Mat3 F0 = rmf.frame(a);
+  // unit circle at the path start, normal to the tangent; scaled to r(v) at every section
+  const NurbsCurve profile = make_circle(x0, unit_tangent(path, a), 1.0);
+  const Placement place = [&](double v) {
+    return Transform::translation(path.evaluate(v)) * linear(relative(rmf.frame(v), F0)) *
+           Transform::scaling({0, 0, 0}, r_at(v)) * Transform::translation(-x0);
+  };
+  return skin_adaptive(profile, place, break_points({&path}, a, b), opt);
 }
 
 }  // namespace nf

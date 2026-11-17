@@ -2,6 +2,10 @@
 /// @file boolean.hpp
 /// Boolean operations on closed shells and point-in-solid classification.
 
+#include <string>
+#include <utility>
+
+#include "nurbforge/analysis/section.hpp"
 #include "nurbforge/topology/shell.hpp"
 
 namespace nf {
@@ -29,5 +33,14 @@ enum class BooleanOp { Union, Intersection, Difference };
 /// whose common part crosses the seam of a closed surface. Throws GeometryError for open input
 /// shells.
 [[nodiscard]] Shell boolean(const Shell& a, const Shell& b, BooleanOp op, double tolerance = 1e-6);
+
+/// Splits a closed shell by a plane into the part below (opposite to the normal) and the part
+/// above (on the side of the normal); both are closed. The new faces in the plane get the label
+/// `cut_label`, e.g. to apply a symmetry boundary condition there; all other faces keep their
+/// labels. A part is an empty shell if the plane does not cut the solid. Implemented as the
+/// intersection and difference with a half-space box that covers the shell.
+[[nodiscard]] std::pair<Shell, Shell> split(const Shell& shell, const Plane& plane,
+                                            double tolerance = 1e-6,
+                                            const std::string& cut_label = "cut");
 
 }  // namespace nf

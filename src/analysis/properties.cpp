@@ -65,7 +65,8 @@ double gk15(const F& f, double a, double b, double& err) {
 // used up. Unlike local recursive bisection this cannot explode when the integrand is
 // dominated by rounding noise (e.g. a nearly vanishing factor), and the work stays bounded.
 template <class F>
-double adaptive_1d(const F& f, const std::vector<double>& x, double abs_tol, std::size_t budget = 4000) {
+double adaptive_1d(const F& f, const std::vector<double>& x, double abs_tol,
+                   std::size_t budget = 4000) {
   struct Interval {
     double a, b, value, error;
   };
@@ -138,8 +139,9 @@ double adaptive_2d(const F& f, const std::vector<double>& xu, const std::vector<
     heap.pop();
     total -= w.value;
     error -= w.error;
-    for (const auto& [a0, a1, b0, b1] : {std::array<double, 4>{w.ua, um, w.va, vm}, std::array<double, 4>{um, w.ub, w.va, vm},
-                                         std::array<double, 4>{w.ua, um, vm, w.vb}, std::array<double, 4>{um, w.ub, vm, w.vb}}) {
+    for (const auto& [a0, a1, b0, b1] :
+         {std::array<double, 4>{w.ua, um, w.va, vm}, std::array<double, 4>{um, w.ub, w.va, vm},
+          std::array<double, 4>{w.ua, um, vm, w.vb}, std::array<double, 4>{um, w.ub, vm, w.vb}}) {
       double e = 0.0;
       const double v = gk15_2d(f, a0, a1, b0, b1, e);
       heap.push({a0, a1, b0, b1, v, e});
@@ -180,7 +182,8 @@ double integrate(const std::function<double(double)>& f, double a, double b, dou
 double curvature(const NurbsCurve& c, double u) {
   const auto D = c.derivatives(u, 2);
   const double n1 = norm(D[1]);
-  if (n1 <= tol::kLength) throw GeometryError("curvature: C'(u) vanishes at u = " + std::to_string(u));
+  if (n1 <= tol::kLength)
+    throw GeometryError("curvature: C'(u) vanishes at u = " + std::to_string(u));
   return norm(cross(D[1], D[2])) / (n1 * n1 * n1);
 }
 
@@ -189,7 +192,8 @@ double torsion(const NurbsCurve& c, double u) {
   const Vec3 cr = cross(D[1], D[2]);
   const double n1 = norm(D[1]), ncr = norm(cr);
   if (n1 <= tol::kLength || ncr <= tol::kAngular * n1 * (n1 + norm(D[2])))
-    throw GeometryError("torsion: undefined where the curvature vanishes (u = " + std::to_string(u) + ")");
+    throw GeometryError(
+        "torsion: undefined where the curvature vanishes (u = " + std::to_string(u) + ")");
   return dot(cr, D[3]) / (ncr * ncr);
 }
 
@@ -225,7 +229,10 @@ double parameter_at_length(const NurbsCurve& c, double s, double rel_tol) {
   double u = a + (b - a) * s / L;
   double F = arc_length(c, a, u, rel_tol) - s;
   for (int it = 0; it < 100 && std::abs(F) > eps; ++it) {
-    if (F < 0.0) lo = u; else hi = u;
+    if (F < 0.0)
+      lo = u;
+    else
+      hi = u;
     const double speed = norm(c.derivatives(u, 1)[1]);
     double un = speed > 0.0 ? u - F / speed : 0.5 * (lo + hi);
     if (!(un > lo && un < hi)) un = 0.5 * (lo + hi);  // bisection fallback

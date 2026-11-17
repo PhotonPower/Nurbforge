@@ -1,5 +1,4 @@
 #include <catch2/catch_test_macros.hpp>
-
 #include <cmath>
 #include <numbers>
 
@@ -14,7 +13,8 @@ constexpr double pi = std::numbers::pi;
 
 TEST_CASE("tilted planar section of a sphere", "[section]") {
   const double R = 2.0, d = 0.9;
-  const auto sphere = revolve(make_arc({0, 0, 0}, {0, 0, -1}, {1, 0, 0}, R, 0.0, pi), {0, 0, 0}, {0, 0, 1}, 2 * pi);
+  const auto sphere =
+      revolve(make_arc({0, 0, 0}, {0, 0, -1}, {1, 0, 0}, R, 0.0, pi), {0, 0, 0}, {0, 0, 1}, 2 * pi);
   const Vec3 n = normalized(Vec3{1, 2, 2});
   const Plane plane{d * n, n};  // plane.point is the foot of the centre: circle about (0, 0)
   const auto r = planar_section(sphere, plane);

@@ -11,6 +11,8 @@ versioning: [SemVer](https://semver.org).
   `nurbforge.mesh` and `nurbforge.llm`, and all LLM tools). `python docs/manual/build.py` builds
   it; CI builds it for documentation changes and attaches `nurbforge-manual.pdf` to every
   release. A test runs all examples and fails if a public API entry has no description.
+- `TrimmedSurface.transformed(t)` (loops and label kept, reflections keep the normal) and
+  `transform * obj` for curves, surfaces and trimmed faces in Python (was shells only).
 - Python: `split(face, cuts)` for trimmed faces (general planar arrangement: cuts clipped to the
   face, may end on trim loops or other cuts and may cross).
 
@@ -36,6 +38,10 @@ versioning: [SemVer](https://semver.org).
   (FMA contraction); points on a seam now count as inside if the face covers either side of it,
   and intersection curves that repeat another one in 3D (one per side of the seam) are used once.
   A test covers all three operations; the whole C++ suite also passes with `-ffp-contract=off`.
+
+### Changed
+- All C++ sources are formatted with clang-format 23.1.5; CI now enforces the format (it was
+  report-only).
 
 ## [0.9.0] – 2026-11-17
 Meshing for solvers: local mesh sizes by face label, curvature-based sizing and BEM-ready

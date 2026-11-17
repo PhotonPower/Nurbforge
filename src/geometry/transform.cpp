@@ -32,9 +32,9 @@ Transform Transform::scaling(const Vec3& center, const Vec3& f) {
 Transform Transform::mirror(const Vec3& point, const Vec3& normal) {
   const Vec3 n = normalized(normal);
   // Householder: I - 2 n n^T
-  const Transform h({1 - 2 * n.x * n.x, -2 * n.x * n.y, -2 * n.x * n.z, 0,
-                     -2 * n.y * n.x, 1 - 2 * n.y * n.y, -2 * n.y * n.z, 0,
-                     -2 * n.z * n.x, -2 * n.z * n.y, 1 - 2 * n.z * n.z, 0});
+  const Transform h({1 - 2 * n.x * n.x, -2 * n.x * n.y, -2 * n.x * n.z, 0, -2 * n.y * n.x,
+                     1 - 2 * n.y * n.y, -2 * n.y * n.z, 0, -2 * n.z * n.x, -2 * n.z * n.y,
+                     1 - 2 * n.z * n.z, 0});
   return translation(point) * h * translation(-point);
 }
 
@@ -45,8 +45,7 @@ Vec3 Transform::apply(const Vec3& p) const {
 }
 
 Vec3 Transform::apply_vector(const Vec3& v) const {
-  return {m_[0] * v.x + m_[1] * v.y + m_[2] * v.z,
-          m_[4] * v.x + m_[5] * v.y + m_[6] * v.z,
+  return {m_[0] * v.x + m_[1] * v.y + m_[2] * v.z, m_[4] * v.x + m_[5] * v.y + m_[6] * v.z,
           m_[8] * v.x + m_[9] * v.y + m_[10] * v.z};
 }
 
@@ -57,7 +56,8 @@ Transform operator*(const Transform& a, const Transform& b) {
   for (int r = 0; r < 3; ++r) {
     for (int c = 0; c < 4; ++c) {
       double v = 0.0;
-      for (int k = 0; k < 3; ++k) v += A[static_cast<std::size_t>(4 * r + k)] * B[static_cast<std::size_t>(4 * k + c)];
+      for (int k = 0; k < 3; ++k)
+        v += A[static_cast<std::size_t>(4 * r + k)] * B[static_cast<std::size_t>(4 * k + c)];
       if (c == 3) v += A[static_cast<std::size_t>(4 * r + 3)];
       C[static_cast<std::size_t>(4 * r + c)] = v;
     }

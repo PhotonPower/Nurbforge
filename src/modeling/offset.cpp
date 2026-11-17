@@ -126,8 +126,9 @@ Vec3 offset_point(const NurbsCurve& seg, double t, double d, const Vec3& n, doub
     const double signed_kappa = dot(n, cross(D[1], D[2])) >= 0.0 ? kappa : -kappa;
     if (d * signed_kappa >= 1.0 - kCuspMargin)
       throw GeometryError("offset_curve: |distance| = " + num(std::abs(d)) +
-                          " reaches the radius of curvature " + num(1.0 / kappa) + " at u = " +
-                          num(t) + " on the side of the centre of curvature (the offset would "
+                          " reaches the radius of curvature " + num(1.0 / kappa) +
+                          " at u = " + num(t) +
+                          " on the side of the centre of curvature (the offset would "
                           "have a cusp)");
   }
   return D[0] + d * normalized(cross(n, D[1]));
@@ -214,7 +215,8 @@ void presize(Breaks& br, const Func2& g, const std::vector<double>& across, doub
     std::vector<bool> bad(br.t.size() - 1, false);
     bool any = false;
     for (double w : across)
-      any = fit_and_flag([&](double t) { return g(t, w); }, br, kSurfaceDegree, 10, tol, bad) || any;
+      any =
+          fit_and_flag([&](double t) { return g(t, w); }, br, kSurfaceDegree, 10, tol, bad) || any;
     if (!any) return;
     if (br.t.size() >= kMaxBreaks)
       throw GeometryError("offset_surface: tolerance " + num(tol) +
@@ -226,7 +228,8 @@ void presize(Breaks& br, const Func2& g, const std::vector<double>& across, doub
 std::vector<double> samples_of(const Breaks& br, std::size_t n) {
   std::vector<double> out;
   for (std::size_t i = 0; i + 1 < br.t.size(); ++i)
-    for (std::size_t q = (i == 0 ? 0 : 1); q <= n; ++q) out.push_back(lerp(br.t[i], br.t[i + 1], q, n));
+    for (std::size_t q = (i == 0 ? 0 : 1); q <= n; ++q)
+      out.push_back(lerp(br.t[i], br.t[i + 1], q, n));
   return out;
 }
 
@@ -305,8 +308,10 @@ NurbsCurve offset_curve(const NurbsCurve& c, double distance, const Vec3& plane_
   for (const Vec3& q : P) {
     const double h = std::abs(dot(q - P.front(), n));
     if (h > tolerance)
-      throw GeometryError("offset_curve: the curve does not lie in a plane normal to the given "
-                          "plane normal (control point off the plane by " + num(h) + ")");
+      throw GeometryError(
+          "offset_curve: the curve does not lie in a plane normal to the given "
+          "plane normal (control point off the plane by " +
+          num(h) + ")");
     extent = std::max(extent, nf::distance(q, P.front()));
   }
   const double min_speed = 1e-12 * std::max(extent, 1e-300) / (c.domain_end() - c.domain_start());
@@ -343,7 +348,8 @@ NurbsSurface offset_surface(const NurbsSurface& s, double distance, double toler
     const Vec3 n = cross(D[1], D[2]);
     const double scale = std::max(norm(D[1]), norm(D[2]));
     // regular point (same test as NurbsSurface::normal), otherwise the limit normal
-    if (scale > 0.0 && norm(n) > tol::kAngular * scale * scale) return D[0] + (distance / norm(n)) * n;
+    if (scale > 0.0 && norm(n) > tol::kAngular * scale * scale)
+      return D[0] + (distance / norm(n)) * n;
     return D[0] + distance * s.normal(u, v);
   };
   return fit_tensor(f, surface_breaks(s.knots_u(), s.degree_u()),

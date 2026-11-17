@@ -1,15 +1,15 @@
 #include "nurbforge/analysis/surface_intersect.hpp"
 
 #include <algorithm>
-#include <atomic>
-#include <exception>
-#include <mutex>
-#include <thread>
 #include <array>
+#include <atomic>
 #include <cmath>
+#include <exception>
 #include <limits>
+#include <mutex>
 #include <numbers>
 #include <optional>
+#include <thread>
 
 #include "nurbforge/analysis/closest_point.hpp"
 #include "nurbforge/analysis/intersect.hpp"
@@ -155,7 +155,8 @@ class Ssi {
     const auto ua = a.domain_u(), va = a.domain_v(), ub = b.domain_u(), vb = b.domain_v();
     lo_ = {ua[0], va[0], ub[0], vb[0]};
     hi_ = {ua[1], va[1], ub[1], vb[1]};
-    const std::array<const KnotVector*, 4> kv{&a.knots_u(), &a.knots_v(), &b.knots_u(), &b.knots_v()};
+    const std::array<const KnotVector*, 4> kv{&a.knots_u(), &a.knots_v(), &b.knots_u(),
+                                              &b.knots_v()};
     for (std::size_t k = 0; k < 4; ++k)
       for (double kn : unique_knots(*kv[k]).first)
         if (kn > lo_[k] && kn < hi_[k]) knots_[k].push_back(kn);
@@ -185,9 +186,8 @@ class Ssi {
     seeds.insert(seeds.end(), direct.begin() + static_cast<std::ptrdiff_t>(next), direct.end());
     leaves_.clear();
     // seeds on a domain boundary first: open curves are then traced from their ends
-    std::stable_sort(seeds.begin(), seeds.end(), [&](const X4& x, const X4& y) {
-      return on_boundary(x) && !on_boundary(y);
-    });
+    std::stable_sort(seeds.begin(), seeds.end(),
+                     [&](const X4& x, const X4& y) { return on_boundary(x) && !on_boundary(y); });
     for (const auto& s : seeds) trace_from(s);
     join_touching();
     return std::move(result_);
@@ -328,7 +328,8 @@ class Ssi {
     if (x) seeds.push_back(*x);
   }
 
-  void collect_seeds(const NurbsSurface& p, const NurbsSurface& q, int depth, std::vector<X4>& seeds) {
+  void collect_seeds(const NurbsSurface& p, const NurbsSurface& q, int depth,
+                     std::vector<X4>& seeds) {
     if (!overlap(box(p.control_points()), box(q.control_points()), tol_.length)) return;
     const Cone cp = normal_cone(p), cq = normal_cone(q);
     const double th = std::acos(std::clamp(dot(cp.axis, cq.axis), -1.0, 1.0));
@@ -349,13 +350,18 @@ class Ssi {
       double bd = std::numeric_limits<double>::max();
       for (int i = 0; i <= 2; ++i)
         for (int j = 0; j <= 2; ++j) {
-          const double u1 = up[0] + (up[1] - up[0]) * i / 2.0, v1 = vp[0] + (vp[1] - vp[0]) * j / 2.0;
+          const double u1 = up[0] + (up[1] - up[0]) * i / 2.0,
+                       v1 = vp[0] + (vp[1] - vp[0]) * j / 2.0;
           const Vec3 P = a_.evaluate(u1, v1);
           for (int k = 0; k <= 2; ++k)
             for (int l = 0; l <= 2; ++l) {
-              const double u2 = uq[0] + (uq[1] - uq[0]) * k / 2.0, v2 = vq[0] + (vq[1] - vq[0]) * l / 2.0;
+              const double u2 = uq[0] + (uq[1] - uq[0]) * k / 2.0,
+                           v2 = vq[0] + (vq[1] - vq[0]) * l / 2.0;
               const double d = distance(P, b_.evaluate(u2, v2));
-              if (d < bd) { bd = d; best = {u1, v1, u2, v2}; }
+              if (d < bd) {
+                bd = d;
+                best = {u1, v1, u2, v2};
+              }
             }
         }
       add_seed(refine(best), seeds);
@@ -456,9 +462,14 @@ class Ssi {
         for (double kn : knots_[k]) {
           if ((from[k] - kn) * (y[k] - kn) >= 0.0) continue;  // not strictly crossed
           const double eps = 1e-9 * (hi_[k] - lo_[k]);
-          if (std::abs(from[k] - kn) <= eps && std::abs(y[k] - kn) <= eps) continue;  // runs along it
+          if (std::abs(from[k] - kn) <= eps && std::abs(y[k] - kn) <= eps)
+            continue;  // runs along it
           const double f = (kn - from[k]) / (y[k] - from[k]);
-          if (f < fmin) { fmin = f; kk = k; kappa = kn; }
+          if (f < fmin) {
+            fmin = f;
+            kk = k;
+            kappa = kn;
+          }
         }
       if (kk == 4) return;
       X4 guess;
@@ -467,7 +478,8 @@ class Ssi {
       const auto xc = solve_on_bound(guess, kk);
       if (!xc) return;
       const Vec3 q = make_point(*xc).point;
-      if (distance(q, make_point(from).point) > tol_.length && distance(q, make_point(y).point) > tol_.length)
+      if (distance(q, make_point(from).point) > tol_.length &&
+          distance(q, make_point(y).point) > tol_.length)
         pts.push_back({*xc, true});
       from = *xc;
       from[kk] = kappa;
@@ -543,10 +555,16 @@ class Ssi {
           const double eps = 1e-9 * (hi_[k] - lo_[k]);
           if (xn < lo_[k] - eps && dx[k] < 0.0) {
             const double fk = (lo_[k] - x[k]) / (h * dx[k]);
-            if (fk < f) { f = fk; hit = k; }
+            if (fk < f) {
+              f = fk;
+              hit = k;
+            }
           } else if (xn > hi_[k] + eps && dx[k] > 0.0) {
             const double fk = (hi_[k] - x[k]) / (h * dx[k]);
-            if (fk < f) { f = fk; hit = k; }
+            if (fk < f) {
+              f = fk;
+              hit = k;
+            }
           }
         }
         X4 xp;
@@ -565,19 +583,31 @@ class Ssi {
           continue;
         }
         const auto xc = correct(clamp(xp), P + h * t, t);
-        if (!xc) { h *= 0.5; continue; }
+        if (!xc) {
+          h *= 0.5;
+          continue;
+        }
         const Vec3 Pn = make_point(*xc).point;
         const double len = distance(Pn, P);
         auto tn = tangent(*xc);
-        if (!tn || len < 0.3 * h || len > 2.0 * h) { h *= 0.5; continue; }
+        if (!tn || len < 0.3 * h || len > 2.0 * h) {
+          h *= 0.5;
+          continue;
+        }
         // the step must advance along the marching direction: near a pole the corrector can
         // find a point behind the current one on the same meridian (the curve continues on the
         // opposite meridian, out of reach of a local correction); accepting it would reverse
         // the march and trace the same branch again
-        if (dot(Pn - P, t) < 0.5 * len) { h *= 0.5; continue; }
+        if (dot(Pn - P, t) < 0.5 * len) {
+          h *= 0.5;
+          continue;
+        }
         if (dot(*tn, t) < 0.0) *tn = -*tn;
         const double theta = std::acos(std::clamp(dot(*tn, t), -1.0, 1.0));
-        if (theta > 0.2 || len * theta / 8.0 > chord_) { h *= 0.5; continue; }
+        if (theta > 0.2 || len * theta / 8.0 > chord_) {
+          h *= 0.5;
+          continue;
+        }
         // parameter-space control: near poles or strongly varying parametrisations the p-curves
         // bend much more than the 3D curve. Compare the corrected midpoint with the linear
         // parameter midpoint (in model units via |S_u|, |S_v|).
@@ -587,9 +617,14 @@ class Ssi {
           const Vec3 tm = normalized(t + *tn);
           if (const auto xs = correct(xm, 0.5 * (P + Pn), tm)) {
             const Eval em = eval(xm);
-            const double dev1 = std::abs((*xs)[0] - xm[0]) * norm(em.su1) + std::abs((*xs)[1] - xm[1]) * norm(em.sv1);
-            const double dev2 = std::abs((*xs)[2] - xm[2]) * norm(em.su2) + std::abs((*xs)[3] - xm[3]) * norm(em.sv2);
-            if (std::max(dev1, dev2) > chord_) { h *= 0.5; continue; }
+            const double dev1 = std::abs((*xs)[0] - xm[0]) * norm(em.su1) +
+                                std::abs((*xs)[1] - xm[1]) * norm(em.sv1);
+            const double dev2 = std::abs((*xs)[2] - xm[2]) * norm(em.su2) +
+                                std::abs((*xs)[3] - xm[3]) * norm(em.sv2);
+            if (std::max(dev1, dev2) > chord_) {
+              h *= 0.5;
+              continue;
+            }
           }
         }
         // stepping over a pole: the corrector may land on the opposite meridian (u jumps by half
@@ -603,7 +638,8 @@ class Ssi {
           std::size_t jump = 4;
           for (std::size_t k = 0; k < 4; ++k) {
             const double change = std::abs((*xc)[k] - x[k]), range = hi_[k] - lo_[k];
-            if (change > 0.25 * range && change > 4.0 * std::abs(h * dx[k]) + 1e-12 * range) jump = k;
+            if (change > 0.25 * range && change > 4.0 * std::abs(h * dx[k]) + 1e-12 * range)
+              jump = k;
           }
           if (jump < 4) {
             end_on_nearest_bound(x, P, jump, 1.0, pts);
@@ -623,7 +659,8 @@ class Ssi {
         bool params_close = true;
         for (std::size_t k = 0; k < 4; ++k)
           if (std::abs(x[k] - x_start[k]) > 0.25 * (hi_[k] - lo_[k])) params_close = false;
-        if (travelled > 3.0 * h && params_close && distance(Pn, start) < 1.2 * h && dot(t, t_start) > 0.0) {
+        if (travelled > 3.0 * h && params_close && distance(Pn, start) < 1.2 * h &&
+            dot(t, t_start) > 0.0) {
           closed = true;
           return pts;
         }
@@ -692,7 +729,8 @@ class Ssi {
       const double eps = 1e-9 * (hi_[k] - lo_[k]);
       return x[k] <= lo_[k] + eps ? -1 : x[k] >= hi_[k] - eps ? 1 : 0;
     };
-    const auto end_tangent = [&](const std::vector<SurfaceSurfacePoint>& pts, bool at_end) -> std::optional<Vec3> {
+    const auto end_tangent = [&](const std::vector<SurfaceSurfacePoint>& pts,
+                                 bool at_end) -> std::optional<Vec3> {
       const SurfaceSurfacePoint& p = at_end ? pts.back() : pts.front();
       const SurfaceSurfacePoint& q = at_end ? pts[pts.size() - 2] : pts[1];
       auto t = tangent({p.u1, p.v1, p.u2, p.v2});
@@ -749,11 +787,14 @@ class Ssi {
                    (distance(b.pts[from].point, pa) <= 10.0 * tol_.length ||
                     (ta && dot(b.pts[from].point - pa, *ta) <= 0.0)))
               ++from;
-            a.pts.insert(a.pts.end(), b.pts.begin() + static_cast<std::ptrdiff_t>(from), b.pts.end());
+            a.pts.insert(a.pts.end(), b.pts.begin() + static_cast<std::ptrdiff_t>(from),
+                         b.pts.end());
             a.brk.push_back(false);
-            a.brk.insert(a.brk.end(), b.brk.begin() + static_cast<std::ptrdiff_t>(from) + 1, b.brk.end());
-            const bool closed = distance(a.pts.front().point, a.pts.back().point) <= 10.0 * tol_.length &&
-                                params_near(a.pts.front(), a.pts.back());
+            a.brk.insert(a.brk.end(), b.brk.begin() + static_cast<std::ptrdiff_t>(from) + 1,
+                         b.brk.end());
+            const bool closed =
+                distance(a.pts.front().point, a.pts.back().point) <= 10.0 * tol_.length &&
+                params_near(a.pts.front(), a.pts.back());
             if (closed) a.pts.back() = a.pts.front();
             result_.curves[i] = fit(a.pts, a.brk, closed);
             raw_.erase(raw_.begin() + static_cast<std::ptrdiff_t>(j));
@@ -807,7 +848,8 @@ class Ssi {
     double sign[2] = {0.0, 0.0};
     for (int s = 0; s < 2; ++s) {
       const double f = s == 0 ? delta : -delta;
-      const double u = std::clamp(m.u1 + f * d[0], lo_[0], hi_[0]), v = std::clamp(m.v1 + f * d[1], lo_[1], hi_[1]);
+      const double u = std::clamp(m.u1 + f * d[0], lo_[0], hi_[0]),
+                   v = std::clamp(m.v1 + f * d[1], lo_[1], hi_[1]);
       const Vec3 Q = a_.evaluate(u, v);
       if (distance(Q, m.point) < 0.5 * delta) return false;  // clamped at the domain boundary
       const SurfacePoint foot = closest_point(b_, Q);
@@ -858,7 +900,8 @@ class Ssi {
   // Short pieces (closely spaced knot lines) would be interpolated with degree < 3; they get
   // additional exact points on the intersection curve (corrected midpoints of the longest gap).
   // Exact intersection point between two traced points (corrected parameter midpoint).
-  std::optional<SurfaceSurfacePoint> midpoint(const SurfaceSurfacePoint& p, const SurfaceSurfacePoint& q) const {
+  std::optional<SurfaceSurfacePoint> midpoint(const SurfaceSurfacePoint& p,
+                                              const SurfaceSurfacePoint& q) const {
     const X4 xm{0.5 * (p.u1 + q.u1), 0.5 * (p.v1 + q.v1), 0.5 * (p.u2 + q.u2), 0.5 * (p.v2 + q.v2)};
     const Vec3 chord = q.point - p.point;
     if (norm(chord) <= 0.0) return std::nullopt;
@@ -885,7 +928,8 @@ class Ssi {
     std::vector<double> t(P.size(), t0);  // chord length, continuing from the previous piece
     for (std::size_t k = 1; k < P.size(); ++k) t[k] = t[k - 1] + distance(P[k], P[k - 1]);
     const std::size_t deg = std::min<std::size_t>(3, P.size() - 1);
-    return {interpolate_curve(P, deg, t), interpolate_curve(Q1, deg, t), interpolate_curve(Q2, deg, t)};
+    return {interpolate_curve(P, deg, t), interpolate_curve(Q1, deg, t),
+            interpolate_curve(Q2, deg, t)};
   }
 
   // Fits one piece; short pieces get extra points (degree 3), and exact points are inserted
@@ -895,7 +939,9 @@ class Ssi {
       if (piece.size() < 4) {  // longest gap first
         std::size_t g = 0;
         for (std::size_t k = 1; k + 1 < piece.size(); ++k)
-          if (distance(piece[k + 1].point, piece[k].point) > distance(piece[g + 1].point, piece[g].point)) g = k;
+          if (distance(piece[k + 1].point, piece[k].point) >
+              distance(piece[g + 1].point, piece[g].point))
+            g = k;
         if (const auto m = midpoint(piece[g], piece[g + 1])) {
           piece.insert(piece.begin() + static_cast<std::ptrdiff_t>(g + 1), *m);
           continue;
@@ -908,7 +954,8 @@ class Ssi {
         const double tn = tk + distance(piece[k + 1].point, piece[k].point);
         const double tm = 0.5 * (tk + tn);
         const Vec3 q = f.c.evaluate(tm), w1 = f.c1.evaluate(tm), w2 = f.c2.evaluate(tm);
-        const double e = std::max(distance(a_.evaluate(w1.x, w1.y), q), distance(b_.evaluate(w2.x, w2.y), q));
+        const double e =
+            std::max(distance(a_.evaluate(w1.x, w1.y), q), distance(b_.evaluate(w2.x, w2.y), q));
         if (e > fit_) bad.push_back(k);
         tk = tn;
       }

@@ -43,7 +43,8 @@ std::uint64_t fnv1a(const char* text) {
 }
 
 Shell sphere(const Vec3& c, double r) {
-  return Shell::sew({TrimmedSurface(revolve(make_arc(c, {0, 0, -1}, {1, 0, 0}, r, 0.0, pi), c, {0, 0, 1}, 2 * pi))});
+  return Shell::sew({TrimmedSurface(
+      revolve(make_arc(c, {0, 0, -1}, {1, 0, 0}, r, 0.0, pi), c, {0, 0, 1}, 2 * pi))});
 }
 
 Shell box(const Vec3& lo, const Vec3& hi) {
@@ -73,7 +74,8 @@ Shell torus(const Vec3& c, double R, double r) {  // axis z
 Shell rotated(const Shell& s, const Vec3& axis, double angle) {
   std::vector<TrimmedSurface> faces;
   for (const auto& f : s.faces())
-    faces.emplace_back(f.surface().transformed(Transform::rotation({0, 0, 0}, axis, angle)), f.outer(), f.holes());
+    faces.emplace_back(f.surface().transformed(Transform::rotation({0, 0, 0}, axis, angle)),
+                       f.outer(), f.holes());
   return Shell::sew(std::move(faces));
 }
 
@@ -99,7 +101,8 @@ const std::vector<Family>& families() {
          const double r2 = g(0.6, 1.5);
          Vec3 c = draw_vec(g, -1.5, 1.5);
          const double d = norm(c);
-         if (d >= r1 + r2 - 0.05 || d <= std::abs(r1 - r2) + 0.05) c = normalized(c) * (0.5 * (r1 + r2 + std::abs(r1 - r2)));
+         if (d >= r1 + r2 - 0.05 || d <= std::abs(r1 - r2) + 0.05)
+           c = normalized(c) * (0.5 * (r1 + r2 + std::abs(r1 - r2)));
          return std::pair{sphere({0, 0, 0}, r1), sphere(c, r2)};
        }},
       {"sphere/cylinder",
@@ -188,7 +191,8 @@ const std::vector<Family>& families() {
          const double h = g(0.5, 1.5);
          const double w = g(0.3, 1.0);
          // box face at x = r (outside the cylinder), rotated about the axis
-         return std::pair{cylinder({0, 0, 0}, r, 2.0), rotated_z(box({r, -1.0, z0}, {r + w, 1.0, z0 + h}), angle)};
+         return std::pair{cylinder({0, 0, 0}, r, 2.0),
+                          rotated_z(box({r, -1.0, z0}, {r + w, 1.0, z0 + h}), angle)};
        }},
       {"touch cylinder in box",
        [](Rng& g) {
@@ -198,7 +202,8 @@ const std::vector<Family>& families() {
          const double ex = g(0.1, 0.6);
          const double ey = g(0.1, 0.6);
          // box touching the cylinder on its -x and -y sides, then rotated about the axis
-         return std::pair{rotated_z(box({-r, -r, z0}, {r + ex, r + ey, z0 + 0.8}), angle), cylinder({0, 0, 0}, r, 2.0)};
+         return std::pair{rotated_z(box({-r, -r, z0}, {r + ex, r + ey, z0 + 0.8}), angle),
+                          cylinder({0, 0, 0}, r, 2.0)};
        }},
       {"touch cylinder/cylinder",
        [](Rng& g) {
@@ -220,8 +225,9 @@ const std::vector<Family>& families() {
          // sphere touching the side from outside, or from inside (rs < r)
          const double rsi = 0.8 * std::min(rs, r);
          const double d = inside < 0.5 ? r + rs : r - rsi;
-         return std::pair{cylinder({0, 0, 0}, r, 2.0),
-                          sphere({d * std::cos(angle), d * std::sin(angle), z}, inside < 0.5 ? rs : rsi)};
+         return std::pair{
+             cylinder({0, 0, 0}, r, 2.0),
+             sphere({d * std::cos(angle), d * std::sin(angle), z}, inside < 0.5 ? rs : rsi)};
        }},
   };
   return fams;
@@ -259,7 +265,8 @@ int main(int argc, char** argv) {
         }
         const auto vol = [](const Shell& r) { return r.faces().empty() ? 0.0 : r.volume(1e-7); };
         const double vu = vol(u), vi = vol(i), vd = vol(d);
-        const double e1 = std::abs(vu + vi - va - vb) / (va + vb), e2 = std::abs(vd - (va - vi)) / va;
+        const double e1 = std::abs(vu + vi - va - vb) / (va + vb),
+                     e2 = std::abs(vd - (va - vi)) / va;
         worst = std::max({worst, e1, e2});
         if (e1 > 1e-5 || e2 > 1e-5 || vi < -1e-9) {
           ++failed;
@@ -275,7 +282,8 @@ int main(int argc, char** argv) {
     std::printf("%-18s %d/%d failed\n", fam.name, fam_failed, n);
     std::fflush(stdout);
   }
-  std::printf("total %d cases (3 Booleans each), %d failed, worst identity error %.2e, %.2f s per case\n", total,
-              failed, worst, total > 0 ? seconds / total : 0.0);
+  std::printf(
+      "total %d cases (3 Booleans each), %d failed, worst identity error %.2e, %.2f s per case\n",
+      total, failed, worst, total > 0 ? seconds / total : 0.0);
   return failed == 0 ? 0 : 1;
 }

@@ -40,10 +40,14 @@ std::string str(const std::string& s) {
   std::string out = "'";
   for (const char c : s) {
     const auto u = static_cast<unsigned char>(c);
-    if (c == '\'') out += "''";
-    else if (c == '\\') out += "\\\\";
-    else if (u >= 32 && u < 127) out += c;
-    else out += '_';
+    if (c == '\'')
+      out += "''";
+    else if (c == '\\')
+      out += "\\\\";
+    else if (u >= 32 && u < 127)
+      out += c;
+    else
+      out += '_';
   }
   return out + "'";
 }
@@ -63,9 +67,10 @@ std::string list(std::size_t n, F&& item) {
 }
 
 std::string utc_now() {
-  const long long secs = static_cast<long long>(
-      std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now().time_since_epoch())
-          .count());
+  const long long secs =
+      static_cast<long long>(std::chrono::duration_cast<std::chrono::seconds>(
+                                 std::chrono::system_clock::now().time_since_epoch())
+                                 .count());
   const long long rem = secs % 86400;
   // civil_from_days (H. Hinnant)
   const long long day_count = secs / 86400 + 719468;
@@ -135,16 +140,18 @@ std::size_t write_curve(Writer& w, const NurbsCurve& c) {
   const std::string pts = list(ids.size(), [&](std::size_t i) { return ref(ids[i]); });
   const Knots k = knots(c.knots());
   const std::string deg = std::to_string(c.degree());
-  const bool closed = distance(c.evaluate(c.domain_start()), c.evaluate(c.domain_end())) <= 1e-12 * extent(P);
+  const bool closed =
+      distance(c.evaluate(c.domain_start()), c.evaluate(c.domain_end())) <= 1e-12 * extent(P);
   const std::string form = ",.UNSPECIFIED.," + logical(closed) + ",.F.";
   if (!rational(c.weights()))
-    return w.add("B_SPLINE_CURVE_WITH_KNOTS(''," + deg + "," + pts + form + "," + k.mults + "," + k.values +
-                 ",.UNSPECIFIED.)");
+    return w.add("B_SPLINE_CURVE_WITH_KNOTS(''," + deg + "," + pts + form + "," + k.mults + "," +
+                 k.values + ",.UNSPECIFIED.)");
   const auto& W = c.weights();
-  return w.add("(BOUNDED_CURVE() B_SPLINE_CURVE(" + deg + "," + pts + form + ") B_SPLINE_CURVE_WITH_KNOTS(" +
-               k.mults + "," + k.values + ",.UNSPECIFIED.) CURVE() GEOMETRIC_REPRESENTATION_ITEM() " +
-               "RATIONAL_B_SPLINE_CURVE(" + list(W.size(), [&](std::size_t i) { return real(W[i]); }) +
-               ") REPRESENTATION_ITEM(''))");
+  return w.add(
+      "(BOUNDED_CURVE() B_SPLINE_CURVE(" + deg + "," + pts + form + ") B_SPLINE_CURVE_WITH_KNOTS(" +
+      k.mults + "," + k.values + ",.UNSPECIFIED.) CURVE() GEOMETRIC_REPRESENTATION_ITEM() " +
+      "RATIONAL_B_SPLINE_CURVE(" + list(W.size(), [&](std::size_t i) { return real(W[i]); }) +
+      ") REPRESENTATION_ITEM(''))");
 }
 
 std::size_t write_surface(Writer& w, const NurbsSurface& s) {
@@ -162,15 +169,18 @@ std::size_t write_surface(Writer& w, const NurbsSurface& s) {
   for (std::size_t i = 0; i < nu; ++i)
     v_closed = v_closed && distance(s.control_point(i, 0), s.control_point(i, nv - 1)) <= tol;
   const Knots ku = knots(s.knots_u()), kv = knots(s.knots_v());
-  const std::string head = std::to_string(s.degree_u()) + "," + std::to_string(s.degree_v()) + "," + net +
-                           ",.UNSPECIFIED.," + logical(u_closed) + "," + logical(v_closed) + ",.F.";
-  const std::string kn = ku.mults + "," + kv.mults + "," + ku.values + "," + kv.values + ",.UNSPECIFIED.";
-  if (!rational(s.weights())) return w.add("B_SPLINE_SURFACE_WITH_KNOTS(''," + head + "," + kn + ")");
+  const std::string head = std::to_string(s.degree_u()) + "," + std::to_string(s.degree_v()) + "," +
+                           net + ",.UNSPECIFIED.," + logical(u_closed) + "," + logical(v_closed) +
+                           ",.F.";
+  const std::string kn =
+      ku.mults + "," + kv.mults + "," + ku.values + "," + kv.values + ",.UNSPECIFIED.";
+  if (!rational(s.weights()))
+    return w.add("B_SPLINE_SURFACE_WITH_KNOTS(''," + head + "," + kn + ")");
   const std::string weights = list(nu, [&](std::size_t i) {
     return list(nv, [&](std::size_t j) { return real(s.weight(i, j)); });
   });
-  return w.add("(BOUNDED_SURFACE() B_SPLINE_SURFACE(" + head + ") B_SPLINE_SURFACE_WITH_KNOTS(" + kn +
-               ") GEOMETRIC_REPRESENTATION_ITEM() RATIONAL_B_SPLINE_SURFACE(" + weights +
+  return w.add("(BOUNDED_SURFACE() B_SPLINE_SURFACE(" + head + ") B_SPLINE_SURFACE_WITH_KNOTS(" +
+               kn + ") GEOMETRIC_REPRESENTATION_ITEM() RATIONAL_B_SPLINE_SURFACE(" + weights +
                ") REPRESENTATION_ITEM('') SURFACE())");
 }
 
@@ -245,12 +255,15 @@ class ShellWriter {
       if (uses.empty()) continue;  // only degenerate pieces (pole)
       std::vector<std::size_t> oe;
       for (const auto& u : uses)
-        oe.push_back(w_.add("ORIENTED_EDGE('',*,*," + ref(edge(u.edge)) + "," + logical(!u.reversed) + ")"));
-      const std::size_t loop = w_.add("EDGE_LOOP(''," + list(oe.size(), [&](std::size_t i) { return ref(oe[i]); }) + ")");
-      bounds.push_back(w_.add(std::string(l == 0 ? "FACE_OUTER_BOUND" : "FACE_BOUND") + "(''," + ref(loop) + "," +
-                              logical(!flip) + ")"));
+        oe.push_back(
+            w_.add("ORIENTED_EDGE('',*,*," + ref(edge(u.edge)) + "," + logical(!u.reversed) + ")"));
+      const std::size_t loop = w_.add(
+          "EDGE_LOOP(''," + list(oe.size(), [&](std::size_t i) { return ref(oe[i]); }) + ")");
+      bounds.push_back(w_.add(std::string(l == 0 ? "FACE_OUTER_BOUND" : "FACE_BOUND") + "(''," +
+                              ref(loop) + "," + logical(!flip) + ")"));
     }
-    return w_.add("ADVANCED_FACE(" + str(t.label()) + "," + list(bounds.size(), [&](std::size_t i) { return ref(bounds[i]); }) + "," +
+    return w_.add("ADVANCED_FACE(" + str(t.label()) + "," +
+                  list(bounds.size(), [&](std::size_t i) { return ref(bounds[i]); }) + "," +
                   ref(surf) + "," + logical(!flip) + ")");
   }
 
@@ -260,7 +273,8 @@ class ShellWriter {
   std::vector<std::size_t> vertex_, edge_;
 
   std::size_t vertex(std::size_t i) {
-    if (!vertex_[i]) vertex_[i] = w_.add("VERTEX_POINT(''," + ref(point(w_, sh_.vertices()[i])) + ")");
+    if (!vertex_[i])
+      vertex_[i] = w_.add("VERTEX_POINT(''," + ref(point(w_, sh_.vertices()[i])) + ")");
     return vertex_[i];
   }
   std::size_t edge(std::size_t e) {
@@ -283,7 +297,8 @@ std::vector<std::vector<std::size_t>> components(const Shell& sh) {
     return x;
   };
   for (const auto& e : sh.edges())
-    for (std::size_t k = 1; k < e.uses.size(); ++k) parent[find(e.uses[k].face)] = find(e.uses[0].face);
+    for (std::size_t k = 1; k < e.uses.size(); ++k)
+      parent[find(e.uses[k].face)] = find(e.uses[0].face);
   std::vector<std::vector<std::size_t>> out;
   std::vector<std::size_t> slot(parent.size(), std::numeric_limits<std::size_t>::max());
   for (std::size_t f = 0; f < parent.size(); ++f) {
@@ -300,7 +315,8 @@ std::vector<std::vector<std::size_t>> components(const Shell& sh) {
 /// Signed volume enclosed by a closed component (divergence theorem, as Shell::volume).
 double signed_volume(const Shell& sh, const std::vector<std::size_t>& faces) {
   double size = 1e-300;
-  for (std::size_t f : faces) size = std::max(size, extent(sh.faces()[f].surface().control_points()));
+  for (std::size_t f : faces)
+    size = std::max(size, extent(sh.faces()[f].surface().control_points()));
   const double abs_tol = 1e-9 * size * size * size / static_cast<double>(faces.size());
   double V = 0.0;
   for (std::size_t f : faces) {
@@ -326,7 +342,8 @@ std::vector<std::size_t> write_solids(Writer& w, const Shell& input, const std::
   const auto closed_shell = [&](const std::vector<std::size_t>& faces, bool flip) {
     std::vector<std::size_t> ids;
     for (std::size_t f : faces) ids.push_back(sw.face(f, flip));
-    return w.add("CLOSED_SHELL(" + str(name) + "," + list(ids.size(), [&](std::size_t i) { return ref(ids[i]); }) + ")");
+    return w.add("CLOSED_SHELL(" + str(name) + "," +
+                 list(ids.size(), [&](std::size_t i) { return ref(ids[i]); }) + ")");
   };
   // assign every inward component to the smallest outward component containing it
   constexpr std::size_t none = std::numeric_limits<std::size_t>::max();
@@ -337,7 +354,8 @@ std::vector<std::size_t> write_solids(Writer& w, const Shell& input, const std::
       if (vol[i] >= 0.0) continue;
       const Vec3 probe = [&] {
         for (const auto& e : sh.edges())
-          if (!e.uses.empty() && std::find(comps[i].begin(), comps[i].end(), e.uses[0].face) != comps[i].end())
+          if (!e.uses.empty() &&
+              std::find(comps[i].begin(), comps[i].end(), e.uses[0].face) != comps[i].end())
             return sh.vertices()[e.v0];
         return sh.faces()[comps[i][0]].surface().control_points()[0];
       }();
@@ -360,11 +378,14 @@ std::vector<std::size_t> write_solids(Writer& w, const Shell& input, const std::
     std::vector<std::size_t> voids;
     for (std::size_t i = 0; i < comps.size(); ++i)
       if (owner[i] == j)  // void shell: normals reversed to point out of the void, orientation .F.
-        voids.push_back(w.add("ORIENTED_CLOSED_SHELL('',*," + ref(closed_shell(comps[i], true)) + ",.F.)"));
-    if (voids.empty()) solids.push_back(w.add("MANIFOLD_SOLID_BREP(" + str(name) + "," + ref(cs) + ")"));
+        voids.push_back(
+            w.add("ORIENTED_CLOSED_SHELL('',*," + ref(closed_shell(comps[i], true)) + ",.F.)"));
+    if (voids.empty())
+      solids.push_back(w.add("MANIFOLD_SOLID_BREP(" + str(name) + "," + ref(cs) + ")"));
     else
       solids.push_back(w.add("BREP_WITH_VOIDS(" + str(name) + "," + ref(cs) + "," +
-                             list(voids.size(), [&](std::size_t i) { return ref(voids[i]); }) + ")"));
+                             list(voids.size(), [&](std::size_t i) { return ref(voids[i]); }) +
+                             ")"));
   }
   return solids;
 }
@@ -373,20 +394,27 @@ std::size_t write_open_shell(Writer& w, const Shell& sh, const std::string& name
   ShellWriter sw(w, sh);
   std::vector<std::size_t> ids;
   for (std::size_t f = 0; f < sh.faces().size(); ++f) ids.push_back(sw.face(f, false));
-  return w.add("OPEN_SHELL(" + str(name) + "," + list(ids.size(), [&](std::size_t i) { return ref(ids[i]); }) + ")");
+  return w.add("OPEN_SHELL(" + str(name) + "," +
+               list(ids.size(), [&](std::size_t i) { return ref(ids[i]); }) + ")");
 }
 
 std::size_t write_length_unit(Writer& w, StepLengthUnit unit) {
   switch (unit) {
-    case StepLengthUnit::Millimetre: return w.add("(LENGTH_UNIT() NAMED_UNIT(*) SI_UNIT(.MILLI.,.METRE.))");
-    case StepLengthUnit::Centimetre: return w.add("(LENGTH_UNIT() NAMED_UNIT(*) SI_UNIT(.CENTI.,.METRE.))");
-    case StepLengthUnit::Metre: return w.add("(LENGTH_UNIT() NAMED_UNIT(*) SI_UNIT($,.METRE.))");
-    case StepLengthUnit::Micrometre: return w.add("(LENGTH_UNIT() NAMED_UNIT(*) SI_UNIT(.MICRO.,.METRE.))");
+    case StepLengthUnit::Millimetre:
+      return w.add("(LENGTH_UNIT() NAMED_UNIT(*) SI_UNIT(.MILLI.,.METRE.))");
+    case StepLengthUnit::Centimetre:
+      return w.add("(LENGTH_UNIT() NAMED_UNIT(*) SI_UNIT(.CENTI.,.METRE.))");
+    case StepLengthUnit::Metre:
+      return w.add("(LENGTH_UNIT() NAMED_UNIT(*) SI_UNIT($,.METRE.))");
+    case StepLengthUnit::Micrometre:
+      return w.add("(LENGTH_UNIT() NAMED_UNIT(*) SI_UNIT(.MICRO.,.METRE.))");
     case StepLengthUnit::Inch: {
       const std::size_t mm = w.add("(LENGTH_UNIT() NAMED_UNIT(*) SI_UNIT(.MILLI.,.METRE.))");
-      const std::size_t factor = w.add("LENGTH_MEASURE_WITH_UNIT(LENGTH_MEASURE(25.4)," + ref(mm) + ")");
+      const std::size_t factor =
+          w.add("LENGTH_MEASURE_WITH_UNIT(LENGTH_MEASURE(25.4)," + ref(mm) + ")");
       const std::size_t dim = w.add("DIMENSIONAL_EXPONENTS(1.,0.,0.,0.,0.,0.,0.)");
-      return w.add("(CONVERSION_BASED_UNIT('INCH'," + ref(factor) + ") LENGTH_UNIT() NAMED_UNIT(" + ref(dim) + "))");
+      return w.add("(CONVERSION_BASED_UNIT('INCH'," + ref(factor) + ") LENGTH_UNIT() NAMED_UNIT(" +
+                   ref(dim) + "))");
     }
   }
   throw GeometryError("write_step: unknown length unit");
@@ -416,29 +444,34 @@ std::string to_step(const std::vector<Shell>& shells, const StepOptions& options
   Writer w;
   // product structure (AP214 conformance class 1 boilerplate)
   const std::size_t app = w.add("APPLICATION_CONTEXT('automotive design')");
-  w.add("APPLICATION_PROTOCOL_DEFINITION('international standard','automotive_design',2000," + ref(app) + ")");
+  w.add("APPLICATION_PROTOCOL_DEFINITION('international standard','automotive_design',2000," +
+        ref(app) + ")");
   const std::size_t pctx = w.add("PRODUCT_CONTEXT(''," + ref(app) + ",'mechanical')");
-  const std::size_t product = w.add("PRODUCT(" + str(options.name) + "," + str(options.name) + ",''," + "(" +
-                                    ref(pctx) + "))");
+  const std::size_t product = w.add("PRODUCT(" + str(options.name) + "," + str(options.name) +
+                                    ",''," + "(" + ref(pctx) + "))");
   w.add("PRODUCT_RELATED_PRODUCT_CATEGORY('part',$,(" + ref(product) + "))");
   const std::size_t pdf = w.add("PRODUCT_DEFINITION_FORMATION('',''," + ref(product) + ")");
-  const std::size_t pdctx = w.add("PRODUCT_DEFINITION_CONTEXT('part definition'," + ref(app) + ",'design')");
-  const std::size_t pd = w.add("PRODUCT_DEFINITION('design',''," + ref(pdf) + "," + ref(pdctx) + ")");
+  const std::size_t pdctx =
+      w.add("PRODUCT_DEFINITION_CONTEXT('part definition'," + ref(app) + ",'design')");
+  const std::size_t pd =
+      w.add("PRODUCT_DEFINITION('design',''," + ref(pdf) + "," + ref(pdctx) + ")");
   const std::size_t pds = w.add("PRODUCT_DEFINITION_SHAPE('',''," + ref(pd) + ")");
 
   // representation context: units and uncertainty
   const std::size_t len = write_length_unit(w, options.unit);
   const std::size_t ang = w.add("(NAMED_UNIT(*) PLANE_ANGLE_UNIT() SI_UNIT($,.RADIAN.))");
   const std::size_t sr = w.add("(NAMED_UNIT(*) SI_UNIT($,.STERADIAN.) SOLID_ANGLE_UNIT())");
-  const std::size_t unc = w.add("UNCERTAINTY_MEASURE_WITH_UNIT(LENGTH_MEASURE(" + real(options.uncertainty) + ")," +
-                                ref(len) + ",'distance_accuracy_value','confusion accuracy')");
-  const std::size_t ctx = w.add("(GEOMETRIC_REPRESENTATION_CONTEXT(3) GLOBAL_UNCERTAINTY_ASSIGNED_CONTEXT((" +
-                                ref(unc) + ")) GLOBAL_UNIT_ASSIGNED_CONTEXT((" + ref(len) + "," + ref(ang) + "," +
-                                ref(sr) + ")) REPRESENTATION_CONTEXT('Context #1','3D Context with UNIT and " +
-                                "UNCERTAINTY'))");
+  const std::size_t unc =
+      w.add("UNCERTAINTY_MEASURE_WITH_UNIT(LENGTH_MEASURE(" + real(options.uncertainty) + ")," +
+            ref(len) + ",'distance_accuracy_value','confusion accuracy')");
+  const std::size_t ctx = w.add(
+      "(GEOMETRIC_REPRESENTATION_CONTEXT(3) GLOBAL_UNCERTAINTY_ASSIGNED_CONTEXT((" + ref(unc) +
+      ")) GLOBAL_UNIT_ASSIGNED_CONTEXT((" + ref(len) + "," + ref(ang) + "," + ref(sr) +
+      ")) REPRESENTATION_CONTEXT('Context #1','3D Context with UNIT and " + "UNCERTAINTY'))");
   const std::size_t origin = point(w, {0, 0, 0});
-  const std::size_t axis = w.add("AXIS2_PLACEMENT_3D(''," + ref(origin) + "," + ref(direction(w, {0, 0, 1})) + "," +
-                                 ref(direction(w, {1, 0, 0})) + ")");
+  const std::size_t axis =
+      w.add("AXIS2_PLACEMENT_3D(''," + ref(origin) + "," + ref(direction(w, {0, 0, 1})) + "," +
+            ref(direction(w, {1, 0, 0})) + ")");
 
   // geometry and topology
   if (!options.shell_names.empty() && options.shell_names.size() != shells.size())
@@ -463,13 +496,14 @@ std::string to_step(const std::vector<Shell>& shells, const StepOptions& options
   // MANIFOLD_SURFACE_SHAPE_REPRESENTATION; both: a plain SHAPE_REPRESENTATION holding both items
   std::vector<std::size_t> rep_items = solids;
   if (!open_shells.empty())
-    rep_items.push_back(w.add("SHELL_BASED_SURFACE_MODEL(''," +
-                              list(open_shells.size(), [&](std::size_t i) { return ref(open_shells[i]); }) + ")"));
+    rep_items.push_back(
+        w.add("SHELL_BASED_SURFACE_MODEL(''," +
+              list(open_shells.size(), [&](std::size_t i) { return ref(open_shells[i]); }) + ")"));
   const char* rep_type = open_shells.empty() ? "ADVANCED_BREP_SHAPE_REPRESENTATION"
                          : solids.empty()    ? "MANIFOLD_SURFACE_SHAPE_REPRESENTATION"
                                              : "SHAPE_REPRESENTATION";
-  const std::size_t rep =
-      w.add(std::string(rep_type) + "(" + str(options.name) + "," + items(rep_items) + "," + ref(ctx) + ")");
+  const std::size_t rep = w.add(std::string(rep_type) + "(" + str(options.name) + "," +
+                                items(rep_items) + "," + ref(ctx) + ")");
   w.add("SHAPE_DEFINITION_REPRESENTATION(" + ref(pds) + "," + ref(rep) + ")");
 
   // exchange structure
@@ -477,16 +511,18 @@ std::string to_step(const std::vector<Shell>& shells, const StepOptions& options
   std::string out;
   out += "ISO-10303-21;\nHEADER;\n";
   out += "FILE_DESCRIPTION(('Nurbforge B-rep model'),'2;1');\n";
-  out += "FILE_NAME(" + str(options.name) + "," + str(options.timestamp.empty() ? utc_now() : options.timestamp) +
-         ",(" + str(options.author) + "),(" + str(options.organization) + ")," + str(version) + "," + str(version) +
-         ",'');\n";
+  out += "FILE_NAME(" + str(options.name) + "," +
+         str(options.timestamp.empty() ? utc_now() : options.timestamp) + ",(" +
+         str(options.author) + "),(" + str(options.organization) + ")," + str(version) + "," +
+         str(version) + ",'');\n";
   out += "FILE_SCHEMA(('AUTOMOTIVE_DESIGN { 1 0 10303 214 1 1 1 1 }'));\nENDSEC;\nDATA;\n";
   for (std::size_t i = 0; i < w.data().size(); ++i) append_instance(out, i + 1, w.data()[i]);
   out += "ENDSEC;\nEND-ISO-10303-21;\n";
   return out;
 }
 
-void write_step(const std::string& path, const std::vector<Shell>& shells, const StepOptions& options) {
+void write_step(const std::string& path, const std::vector<Shell>& shells,
+                const StepOptions& options) {
   const std::string text = to_step(shells, options);
   std::ofstream f(path, std::ios::binary);
   if (!f) throw std::runtime_error("write_step: cannot open '" + path + "' for writing");

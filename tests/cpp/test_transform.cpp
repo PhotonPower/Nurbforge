@@ -11,7 +11,9 @@ using namespace nf;
 TEST_CASE("rotation about z", "[transform]") {
   const auto t = Transform::rotation({0, 0, 0}, {0, 0, 1}, std::numbers::pi / 2);
   const auto p = t.apply({1, 0, 5});
-  CHECK(p.x == Approx(0).margin(1e-14)); CHECK(p.y == Approx(1)); CHECK(p.z == Approx(5));
+  CHECK(p.x == Approx(0).margin(1e-14));
+  CHECK(p.y == Approx(1));
+  CHECK(p.z == Approx(5));
 }
 
 TEST_CASE("mirror is an involution", "[transform]") {

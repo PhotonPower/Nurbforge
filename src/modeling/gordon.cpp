@@ -48,7 +48,8 @@ NurbsCurve nonrational(const NurbsCurve& c_in, double tol) {
         result = result ? join(*result, piece, tol) : piece;
         break;
       }
-      if (N > 4097) throw GeometryError("gordon: cannot approximate a rational curve within tolerance");
+      if (N > 4097)
+        throw GeometryError("gordon: cannot approximate a rational curve within tolerance");
     }
   }
   return *result;
@@ -64,7 +65,10 @@ Meet intersect(const NurbsCurve& a, const NurbsCurve& b) {
   for (int i = 0; i <= 32; ++i) {
     const double t = b.domain_start() + (b.domain_end() - b.domain_start()) * i / 32.0;
     const double d = closest_point(a, b.evaluate(t)).distance;
-    if (d < best) { best = d; v = t; }
+    if (d < best) {
+      best = d;
+      v = t;
+    }
   }
   CurvePoint pa{};
   for (int it = 0; it < 200; ++it) {
@@ -100,21 +104,27 @@ NurbsSurface boolean_sum(NurbsSurface a, NurbsSurface b, NurbsSurface c) {
       for (std::size_t i = 0; i < kv.size(); ++i) {
         std::size_t j = 0;
         while (j < vals.size() && std::abs(vals[j] - kv[i]) >= tol::kParametric) ++j;
-        if (j == vals.size()) { vals.push_back(kv[i]); mults.push_back(0); }
+        if (j == vals.size()) {
+          vals.push_back(kv[i]);
+          mults.push_back(0);
+        }
         mults[j] = std::max(mults[j], static_cast<std::size_t>(km[i]));
       }
     }
     return std::pair{vals, mults};
   };
-  const auto missing = [](const KnotVector& k, const std::pair<std::vector<double>, std::vector<std::size_t>>& u) {
+  const auto missing = [](const KnotVector& k,
+                          const std::pair<std::vector<double>, std::vector<std::size_t>>& u) {
     std::vector<double> X;
     for (std::size_t j = 0; j < u.first.size(); ++j)
-      for (auto have = knot_multiplicity(k, u.first[j]); have < u.second[j]; ++have) X.push_back(u.first[j]);
+      for (auto have = knot_multiplicity(k, u.first[j]); have < u.second[j]; ++have)
+        X.push_back(u.first[j]);
     return X;
   };
   const auto uu = merge({&a.knots_u(), &b.knots_u(), &c.knots_u()});
   const auto uv = merge({&a.knots_v(), &b.knots_v(), &c.knots_v()});
-  for (auto* s : {&a, &b, &c}) *s = s->refine_knots_u(missing(s->knots_u(), uu)).refine_knots_v(missing(s->knots_v(), uv));
+  for (auto* s : {&a, &b, &c})
+    *s = s->refine_knots_u(missing(s->knots_u(), uu)).refine_knots_v(missing(s->knots_v(), uv));
   std::vector<Vec3> P(a.control_points().size());
   for (std::size_t i = 0; i < P.size(); ++i)
     P[i] = a.control_points()[i] + b.control_points()[i] - c.control_points()[i];
@@ -136,12 +146,16 @@ NurbsSurface gordon(const std::vector<NurbsCurve>& u_in, const std::vector<Nurbs
   std::vector<double> up(L), vp(K);
   for (std::size_t l = 0; l < L; ++l) {
     const Meet m = intersect(U[0], V[l]);
-    if (m.gap > tolerance) throw GeometryError("gordon: v-curve " + std::to_string(l) + " does not meet the first u-curve");
+    if (m.gap > tolerance)
+      throw GeometryError("gordon: v-curve " + std::to_string(l) +
+                          " does not meet the first u-curve");
     up[l] = m.u;
   }
   for (std::size_t k = 0; k < K; ++k) {
     const Meet m = intersect(V[0], U[k]);
-    if (m.gap > tolerance) throw GeometryError("gordon: u-curve " + std::to_string(k) + " does not meet the first v-curve");
+    if (m.gap > tolerance)
+      throw GeometryError("gordon: u-curve " + std::to_string(k) +
+                          " does not meet the first v-curve");
     vp[k] = m.u;
   }
   // order the curves by their network parameters
@@ -152,14 +166,23 @@ NurbsSurface gordon(const std::vector<NurbsCurve>& u_in, const std::vector<Nurbs
   std::sort(ov.begin(), ov.end(), [&](std::size_t x, std::size_t y) { return vp[x] < vp[y]; });
   std::vector<NurbsCurve> Us, Vs;
   std::vector<double> u_params, v_params;
-  for (auto l : ou) { Vs.push_back(V[l]); u_params.push_back(snap01(up[l], 1e-9)); }
-  for (auto k : ov) { Us.push_back(U[k]); v_params.push_back(snap01(vp[k], 1e-9)); }
-  if (u_params.front() != 0.0 || u_params.back() != 1.0 || v_params.front() != 0.0 || v_params.back() != 1.0)
+  for (auto l : ou) {
+    Vs.push_back(V[l]);
+    u_params.push_back(snap01(up[l], 1e-9));
+  }
+  for (auto k : ov) {
+    Us.push_back(U[k]);
+    v_params.push_back(snap01(vp[k], 1e-9));
+  }
+  if (u_params.front() != 0.0 || u_params.back() != 1.0 || v_params.front() != 0.0 ||
+      v_params.back() != 1.0)
     throw GeometryError("gordon: the outermost curves must lie on the ends of the crossing curves");
   for (std::size_t i = 1; i < L; ++i)
-    if (!(u_params[i] > u_params[i - 1])) throw GeometryError("gordon: two v-curves meet the u-curves at the same parameter");
+    if (!(u_params[i] > u_params[i - 1]))
+      throw GeometryError("gordon: two v-curves meet the u-curves at the same parameter");
   for (std::size_t i = 1; i < K; ++i)
-    if (!(v_params[i] > v_params[i - 1])) throw GeometryError("gordon: two u-curves meet the v-curves at the same parameter");
+    if (!(v_params[i] > v_params[i - 1]))
+      throw GeometryError("gordon: two u-curves meet the v-curves at the same parameter");
 
   // consistency of the network: C_k(u_l) = D_l(v_k)
   std::vector<std::vector<Vec3>> Q(K, std::vector<Vec3>(L));
@@ -167,9 +190,10 @@ NurbsSurface gordon(const std::vector<NurbsCurve>& u_in, const std::vector<Nurbs
     for (std::size_t l = 0; l < L; ++l) {
       const Vec3 a = Us[k].evaluate(u_params[l]), b = Vs[l].evaluate(v_params[k]);
       if (distance(a, b) > tolerance)
-        throw GeometryError("gordon: inconsistent network – u-curve " + std::to_string(k) + " at u = " +
-                            std::to_string(u_params[l]) + " misses v-curve " + std::to_string(l) +
-                            " at v = " + std::to_string(v_params[k]) + " (the curves must share "
+        throw GeometryError("gordon: inconsistent network – u-curve " + std::to_string(k) +
+                            " at u = " + std::to_string(u_params[l]) + " misses v-curve " +
+                            std::to_string(l) + " at v = " + std::to_string(v_params[k]) +
+                            " (the curves must share "
                             "their intersection parameters)");
       Q[k][l] = 0.5 * (a + b);
     }
@@ -193,7 +217,8 @@ NurbsSurface coons(const NurbsCurve& c0, const NurbsCurve& c1_in, const NurbsCur
   const auto near_end = [&](const NurbsCurve& c, const Vec3& p) {
     return std::min(distance(start(c), p), distance(end(c), p));
   };
-  if (near_end(d1, start(c0)) + near_end(d0, end(c0)) < near_end(d0, start(c0)) + near_end(d1, end(c0)))
+  if (near_end(d1, start(c0)) + near_end(d0, end(c0)) <
+      near_end(d0, start(c0)) + near_end(d1, end(c0)))
     std::swap(d0, d1);
   // c1 runs like c0 (decided by the opposite corners)
   if (distance(start(c0), start(c1)) + distance(end(c0), end(c1)) >

@@ -27,6 +27,7 @@ void validate_knots(const KnotVector& knots, std::size_t degree, std::size_t n_c
 [[nodiscard]] std::size_t knot_multiplicity(const KnotVector& knots, double u);
 
 /// Distinct knot values and their multiplicities (format used e.g. by gmsh / OCC).
-[[nodiscard]] std::pair<std::vector<double>, std::vector<int>> unique_knots(const KnotVector& knots);
+[[nodiscard]] std::pair<std::vector<double>, std::vector<int>> unique_knots(
+    const KnotVector& knots);
 
 }  // namespace nf

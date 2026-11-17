@@ -52,8 +52,9 @@ NurbsSurface skin(const std::vector<NurbsCurve>& c, std::size_t degree_v,
     for (std::size_t j = 0; j < nv; ++j) {
       const double wj = b.control_points()[j].x;
       if (!(wj > 0.0))
-        throw GeometryError("loft: interpolated weights are not positive (rational sections with "
-                            "very different weights); reparametrise or use non-rational sections");
+        throw GeometryError(
+            "loft: interpolated weights are not positive (rational sections with "
+            "very different weights); reparametrise or use non-rational sections");
       rows[i].push_back(Vec4::from_point(a.control_points()[j] / wj, wj));
     }
   }
@@ -68,7 +69,8 @@ NurbsSurface skin(const std::vector<NurbsCurve>& c, std::size_t degree_v,
 
 }  // namespace
 
-std::vector<double> loft_parameters(const std::vector<NurbsCurve>& sections, Parametrization method) {
+std::vector<double> loft_parameters(const std::vector<NurbsCurve>& sections,
+                                    Parametrization method) {
   return data_parameters(control_columns(compatible(sections)), method);
 }
 

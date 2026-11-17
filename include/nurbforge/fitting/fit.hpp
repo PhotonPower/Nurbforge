@@ -60,25 +60,23 @@ enum class Parametrization {
 /// Least-squares approximation with the smallest number of control points such that every data
 /// point lies within `tolerance` of the curve point at its parameter (an upper bound of the
 /// point-to-curve distance). Falls back to interpolation if necessary.
-[[nodiscard]] NurbsCurve approximate_curve_tol(const std::vector<Vec3>& points,
-                                               std::size_t degree, double tolerance,
-                                               Parametrization method = Parametrization::Centripetal);
+[[nodiscard]] NurbsCurve approximate_curve_tol(
+    const std::vector<Vec3>& points, std::size_t degree, double tolerance,
+    Parametrization method = Parametrization::Centripetal);
 
 /// Global surface interpolation (A9.4) through a grid of points, row-major
 /// points[i * num_v + j] (i along u). Parameters are averaged over rows/columns; degenerate rows
 /// (e.g. a pole, all points equal) are skipped in the averaging.
-[[nodiscard]] NurbsSurface interpolate_surface(const std::vector<Vec3>& points, std::size_t num_u,
-                                               std::size_t num_v, std::size_t degree_u,
-                                               std::size_t degree_v,
-                                               Parametrization method = Parametrization::Centripetal);
+[[nodiscard]] NurbsSurface interpolate_surface(
+    const std::vector<Vec3>& points, std::size_t num_u, std::size_t num_v, std::size_t degree_u,
+    std::size_t degree_v, Parametrization method = Parametrization::Centripetal);
 
 /// Least-squares surface approximation of a point grid with ctrl_u x ctrl_v control points
 /// (curve approximation through all rows, then through the resulting columns; corners are
 /// interpolated).
-[[nodiscard]] NurbsSurface approximate_surface(const std::vector<Vec3>& points, std::size_t num_u,
-                                               std::size_t num_v, std::size_t degree_u,
-                                               std::size_t degree_v, std::size_t ctrl_u,
-                                               std::size_t ctrl_v,
-                                               Parametrization method = Parametrization::Centripetal);
+[[nodiscard]] NurbsSurface approximate_surface(
+    const std::vector<Vec3>& points, std::size_t num_u, std::size_t num_v, std::size_t degree_u,
+    std::size_t degree_v, std::size_t ctrl_u, std::size_t ctrl_v,
+    Parametrization method = Parametrization::Centripetal);
 
 }  // namespace nf

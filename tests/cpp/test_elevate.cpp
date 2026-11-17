@@ -1,7 +1,6 @@
+#include <algorithm>
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/generators/catch_generators.hpp>
-
-#include <algorithm>
 #include <cmath>
 #include <numbers>
 #include <vector>
@@ -32,8 +31,10 @@ double max_deviation(const NurbsSurface& a, const NurbsSurface& b, std::size_t n
   const auto du = a.domain_u(), dv = a.domain_v();
   for (std::size_t i = 0; i < n; ++i)
     for (std::size_t j = 0; j < n; ++j) {
-      const double u = du[0] + (du[1] - du[0]) * static_cast<double>(i) / static_cast<double>(n - 1);
-      const double v = dv[0] + (dv[1] - dv[0]) * static_cast<double>(j) / static_cast<double>(n - 1);
+      const double u =
+          du[0] + (du[1] - du[0]) * static_cast<double>(i) / static_cast<double>(n - 1);
+      const double v =
+          dv[0] + (dv[1] - dv[0]) * static_cast<double>(j) / static_cast<double>(n - 1);
       d = std::max(d, distance(a.evaluate(u, v), b.evaluate(u, v)));
     }
   return d;
@@ -48,7 +49,8 @@ NurbsCurve rational_cubic() {
 }
 
 NurbsCurve unclamped_quadratic() {
-  return {2, {0, 1, 2, 3, 4, 5, 6, 7}, {{0, 0, 0}, {1, 1, 0}, {2, -1, 0}, {3, 1, 1}, {4, 0, 0}}, {}};
+  return {
+      2, {0, 1, 2, 3, 4, 5, 6, 7}, {{0, 0, 0}, {1, 1, 0}, {2, -1, 0}, {3, 1, 1}, {4, 0, 0}}, {}};
 }
 
 }  // namespace
@@ -152,7 +154,8 @@ TEST_CASE("make_compatible with different degrees, knots and clamping", "[elevat
   CHECK(a.degree() == 3);
   CHECK(b.degree() == 3);
   CHECK(a.knots().size() == b.knots().size());
-  for (std::size_t i = 0; i < a.knots().size(); ++i) CHECK(std::abs(a.knots()[i] - b.knots()[i]) < 1e-10);
+  for (std::size_t i = 0; i < a.knots().size(); ++i)
+    CHECK(std::abs(a.knots()[i] - b.knots()[i]) < 1e-10);
   // shapes unchanged up to the linear reparametrisation to [0, 1]
   for (double s = 0.0; s <= 1.0; s += 0.01) {
     CHECK(distance(a.evaluate(s), a0.evaluate(s)) < kExact);

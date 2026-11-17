@@ -18,16 +18,17 @@ enum class SweepFrame {
 
 struct SweepOptions {
   SweepFrame frame{SweepFrame::RotationMinimizing};
-  double twist{0.0};            ///< additional rotation about the tangent at the end (radians),
-                                ///< growing linearly with the trajectory parameter
-  double tolerance{1e-6};       ///< deviation from the ideal swept surface (model units),
-                                ///< estimated at test points between the placed sections
+  double twist{0.0};       ///< additional rotation about the tangent at the end (radians),
+                           ///< growing linearly with the trajectory parameter
+  double tolerance{1e-6};  ///< deviation from the ideal swept surface (model units),
+                           ///< estimated at test points between the placed sections
   std::size_t max_sections{1025};
 };
 
 /// Exact translational sweep S(u, v) = C(u) + T(v) - T(v0): tensor product with
 /// P_ij = P_i + Q_j and w_ij = w_i w_j (works for rational curves). u: profile, v: trajectory.
-[[nodiscard]] NurbsSurface sweep_translational(const NurbsCurve& profile, const NurbsCurve& trajectory);
+[[nodiscard]] NurbsSurface sweep_translational(const NurbsCurve& profile,
+                                               const NurbsCurve& trajectory);
 
 /// Sweeps the profile along the trajectory. The profile is given in world coordinates at the
 /// start of the trajectory; at parameter v it is moved to T(v) and rotated by the frame change

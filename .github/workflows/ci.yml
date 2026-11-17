@@ -135,9 +135,10 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
-      - run: pip install ruff clang-format
+      - run: pip install ruff "clang-format==23.1.5"   # pinned: versions format differently
       - run: ruff check python tests examples docs/manual
-      - name: clang-format (report only)
+      - name: clang-format
         run: |
-          find include src python/bindings tests/cpp examples/cpp -name '*.[ch]pp' \
-            | xargs clang-format --dry-run || true
+          git ls-files 'include/*.hpp' 'src/*.cpp' 'src/*.hpp' 'python/bindings/*.cpp' \
+            'tests/cpp/*.cpp' 'tests/install/*.cpp' 'examples/cpp/*.cpp' 'benchmarks/*.cpp' \
+            | xargs clang-format --dry-run --Werror

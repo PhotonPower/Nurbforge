@@ -1,6 +1,5 @@
-#include <catch2/catch_test_macros.hpp>
-
 #include <algorithm>
+#include <catch2/catch_test_macros.hpp>
 #include <cmath>
 #include <numbers>
 #include <vector>
@@ -18,17 +17,18 @@ namespace {
 bool rel_close(double a, double b, double rel) { return std::abs(a - b) <= rel * std::abs(b); }
 
 NurbsSurface sphere(double R) {
-  return revolve(make_arc({0, 0, 0}, {0, 0, -1}, {1, 0, 0}, R, 0.0, pi), {0, 0, 0}, {0, 0, 1}, 2 * pi);
+  return revolve(make_arc({0, 0, 0}, {0, 0, -1}, {1, 0, 0}, R, 0.0, pi), {0, 0, 0}, {0, 0, 1},
+                 2 * pi);
 }
 
 std::vector<TrimmedSurface> cube_faces(bool skip_top = false) {
   // unit cube, faces with mixed orientations on purpose
   std::vector<TrimmedSurface> f{
-      TrimmedSurface(make_rectangle({0, 0, 0}, {1, 0, 0}, {0, 1, 0})),   // bottom
-      TrimmedSurface(make_rectangle({0, 0, 0}, {1, 0, 0}, {0, 0, 1})),   // front
-      TrimmedSurface(make_rectangle({0, 1, 0}, {0, 0, 1}, {1, 0, 0})),   // back
-      TrimmedSurface(make_rectangle({0, 0, 0}, {0, 1, 0}, {0, 0, 1})),   // left
-      TrimmedSurface(make_rectangle({1, 0, 0}, {0, 0, 1}, {0, 1, 0}))};  // right
+      TrimmedSurface(make_rectangle({0, 0, 0}, {1, 0, 0}, {0, 1, 0})),             // bottom
+      TrimmedSurface(make_rectangle({0, 0, 0}, {1, 0, 0}, {0, 0, 1})),             // front
+      TrimmedSurface(make_rectangle({0, 1, 0}, {0, 0, 1}, {1, 0, 0})),             // back
+      TrimmedSurface(make_rectangle({0, 0, 0}, {0, 1, 0}, {0, 0, 1})),             // left
+      TrimmedSurface(make_rectangle({1, 0, 0}, {0, 0, 1}, {0, 1, 0}))};            // right
   if (!skip_top) f.emplace_back(make_rectangle({0, 0, 1}, {0, 1, 0}, {1, 0, 0}));  // top
   return f;
 }
@@ -86,7 +86,9 @@ TEST_CASE("spherical cap closed by a disk", "[shell][ssi]") {
 TEST_CASE("cylinder with two trimmed lids", "[shell]") {
   const double R = 1.0, H = 2.0;
   const auto side = extrude(make_circle({0, 0, 0}, {0, 0, 1}, R), {0, 0, H});
-  const auto square = [&](double z) { return make_rectangle({-R, -R, z}, {2 * R, 0, 0}, {0, 2 * R, 0}); };
+  const auto square = [&](double z) {
+    return make_rectangle({-R, -R, z}, {2 * R, 0, 0}, {0, 2 * R, 0});
+  };
   const TrimmedSurface bottom(square(0.0), circle_loop(0.5, 0.5, 0.5));
   const TrimmedSurface top(square(H), circle_loop(0.5, 0.5, 0.5));
   const Shell s = Shell::sew({TrimmedSurface(side), bottom, top}).oriented();

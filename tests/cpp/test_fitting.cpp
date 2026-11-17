@@ -1,7 +1,6 @@
+#include <algorithm>
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/generators/catch_generators.hpp>
-
-#include <algorithm>
 #include <cmath>
 #include <numbers>
 #include <vector>
@@ -24,7 +23,8 @@ std::vector<Vec3> wiggly_points(std::size_t n) {
   return Q;
 }
 
-double max_residual(const NurbsCurve& c, const std::vector<Vec3>& Q, const std::vector<double>& ub) {
+double max_residual(const NurbsCurve& c, const std::vector<Vec3>& Q,
+                    const std::vector<double>& ub) {
   double r = 0.0;
   for (std::size_t k = 0; k < Q.size(); ++k) r = std::max(r, distance(c.evaluate(ub[k]), Q[k]));
   return r;
@@ -42,13 +42,15 @@ TEST_CASE("data parameters", "[fitting]") {
   CHECK(std::abs(c[2] - 0.5) < 1e-15);
   const double tot = 1 + std::sqrt(2.0) + std::sqrt(3.0);
   CHECK(std::abs(s[2] - (1 + std::sqrt(2.0)) / tot) < 1e-15);
-  CHECK_THROWS_AS(data_parameters({{0, 0, 0}, {0, 0, 0}, {1, 0, 0}}, Parametrization::ChordLength), GeometryError);
+  CHECK_THROWS_AS(data_parameters({{0, 0, 0}, {0, 0, 0}, {1, 0, 0}}, Parametrization::ChordLength),
+                  GeometryError);
   CHECK_THROWS_AS(data_parameters({{1, 1, 1}}, Parametrization::Uniform), GeometryError);
 }
 
 TEST_CASE("curve interpolation passes through the points", "[fitting]") {
   const std::size_t p = GENERATE(1, 2, 3, 5);
-  const auto method = GENERATE(Parametrization::Uniform, Parametrization::ChordLength, Parametrization::Centripetal);
+  const auto method = GENERATE(Parametrization::Uniform, Parametrization::ChordLength,
+                               Parametrization::Centripetal);
   const auto Q = wiggly_points(12);
   const auto c = interpolate_curve(Q, p, method);
   CHECK(c.degree() == p);
@@ -85,12 +87,14 @@ TEST_CASE("curve interpolation with end derivatives", "[fitting]") {
     const Vec3 ref = h00 * a + h10 * d0 + h01 * b + h11 * d1;
     CHECK(distance(h.evaluate(t), ref) < 1e-12);
   }
-  CHECK_THROWS_AS(interpolate_curve(Q, 1, Parametrization::Uniform, std::pair{d0, d1}), GeometryError);
+  CHECK_THROWS_AS(interpolate_curve(Q, 1, Parametrization::Uniform, std::pair{d0, d1}),
+                  GeometryError);
 }
 
 TEST_CASE("curve interpolation input checks", "[fitting]") {
   CHECK_THROWS_AS(interpolate_curve({{0, 0, 0}, {1, 0, 0}, {2, 1, 0}}, 3), GeometryError);
-  CHECK_THROWS_AS(interpolate_curve({{0, 0, 0}, {1, 0, 0}, {1, 0, 0}, {2, 1, 0}}, 2), GeometryError);
+  CHECK_THROWS_AS(interpolate_curve({{0, 0, 0}, {1, 0, 0}, {1, 0, 0}, {2, 1, 0}}, 2),
+                  GeometryError);
 }
 
 TEST_CASE("least-squares approximation is optimal and keeps the end points", "[fitting]") {

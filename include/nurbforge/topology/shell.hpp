@@ -16,14 +16,14 @@ namespace nf {
 /// Use of an edge by a face boundary loop.
 struct Coedge {
   std::size_t face{0};
-  std::size_t loop{0};      ///< 0: outer loop, k > 0: hole k-1
-  std::size_t index{0};     ///< position of the trim curve in the loop
-  bool reversed{false};     ///< loop direction opposite to the edge curve
+  std::size_t loop{0};   ///< 0: outer loop, k > 0: hole k-1
+  std::size_t index{0};  ///< position of the trim curve in the loop
+  bool reversed{false};  ///< loop direction opposite to the edge curve
 };
 
 struct ShellEdge {
-  NurbsCurve curve;              ///< 3D curve (from the first face that uses it)
-  std::size_t v0{0}, v1{0};      ///< start / end vertex (equal for closed edges)
+  NurbsCurve curve;          ///< 3D curve (from the first face that uses it)
+  std::size_t v0{0}, v1{0};  ///< start / end vertex (equal for closed edges)
   std::vector<Coedge> uses;
 };
 
@@ -44,8 +44,9 @@ struct MassProperties {
 /// Faces sewn along shared boundary curves. Degenerate boundary pieces (poles of revolved
 /// surfaces) are not edges. Each face's boundary loops are mapped to 3D and matched: two
 /// boundary curves form the same edge if each lies on the other within the sewing tolerance
-/// (same or opposite direction; closed curves may start at different points). Curves that
-/// overlap only partially (T-junctions) are not split.
+/// (same or opposite direction; closed curves may start at different points). T-junctions are
+/// resolved first: every boundary curve is split at the end points of other boundary curves
+/// lying on it (e.g. a circle split at different points on the two faces sharing it).
 class Shell {
  public:
   static Shell sew(std::vector<TrimmedSurface> faces, double tolerance = 1e-6);

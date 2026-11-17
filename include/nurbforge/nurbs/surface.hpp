@@ -31,7 +31,9 @@ class NurbsSurface {
   [[nodiscard]] std::size_t num_v() const noexcept { return nv_; }
   [[nodiscard]] const std::vector<Vec3>& control_points() const noexcept { return ctrl_; }
   [[nodiscard]] const std::vector<double>& weights() const noexcept { return weights_; }
-  [[nodiscard]] const Vec3& control_point(std::size_t i, std::size_t j) const { return ctrl_[i * nv_ + j]; }
+  [[nodiscard]] const Vec3& control_point(std::size_t i, std::size_t j) const {
+    return ctrl_[i * nv_ + j];
+  }
   [[nodiscard]] double weight(std::size_t i, std::size_t j) const { return weights_[i * nv_ + j]; }
 
   [[nodiscard]] std::array<double, 2> domain_u() const noexcept { return {ku_[pu_], ku_[nu_]}; }

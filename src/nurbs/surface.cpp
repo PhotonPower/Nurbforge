@@ -15,7 +15,8 @@ namespace {
 
 double binomial(std::size_t n, std::size_t k) {
   double r = 1.0;
-  for (std::size_t i = 1; i <= k; ++i) r = r * static_cast<double>(n - k + i) / static_cast<double>(i);
+  for (std::size_t i = 1; i <= k; ++i)
+    r = r * static_cast<double>(n - k + i) / static_cast<double>(i);
   return r;
 }
 
@@ -31,7 +32,8 @@ detail::Columns columns_u(const NurbsSurface& s) {
   return net;
 }
 
-NurbsSurface from_columns_u(const NurbsSurface& s, std::size_t degree_u, const detail::Columns& net) {
+NurbsSurface from_columns_u(const NurbsSurface& s, std::size_t degree_u,
+                            const detail::Columns& net) {
   const std::size_t nu = net.cols.front().size(), nv = net.cols.size();
   std::vector<Vec3> c(nu * nv);
   std::vector<double> w(nu * nv);
@@ -48,8 +50,14 @@ NurbsSurface from_columns_u(const NurbsSurface& s, std::size_t degree_u, const d
 NurbsSurface::NurbsSurface(std::size_t degree_u, std::size_t degree_v, KnotVector knots_u,
                            KnotVector knots_v, std::size_t num_u, std::size_t num_v,
                            std::vector<Vec3> control_points, std::vector<double> weights)
-    : pu_(degree_u), pv_(degree_v), ku_(std::move(knots_u)), kv_(std::move(knots_v)),
-      nu_(num_u), nv_(num_v), ctrl_(std::move(control_points)), weights_(std::move(weights)) {
+    : pu_(degree_u),
+      pv_(degree_v),
+      ku_(std::move(knots_u)),
+      kv_(std::move(knots_v)),
+      nu_(num_u),
+      nv_(num_v),
+      ctrl_(std::move(control_points)),
+      weights_(std::move(weights)) {
   if (ctrl_.size() != nu_ * nv_) throw GeometryError("control net size must be num_u * num_v");
   if (weights_.empty()) weights_.assign(ctrl_.size(), 1.0);
   if (weights_.size() != ctrl_.size())
@@ -78,8 +86,7 @@ Vec3 NurbsSurface::evaluate(double u, double v) const {
   return sw.project();
 }
 
-std::vector<std::vector<Vec3>> NurbsSurface::derivatives(double u, double v,
-                                                         std::size_t d) const {
+std::vector<std::vector<Vec3>> NurbsSurface::derivatives(double u, double v, std::size_t d) const {
   const std::size_t su = find_span(nu_ - 1, pu_, u, ku_);
   const std::size_t sv = find_span(nv_ - 1, pv_, v, kv_);
   const auto Nu = basis_function_derivatives(su, u, pu_, d, ku_);
@@ -145,8 +152,8 @@ Vec3 NurbsSurface::normal(double u, double v) const {
     limit = sign * cross(Su, D[1][1]);
   }
   if (norm(limit) <= tol::kLength)
-    throw GeometryError("normal is undefined at (" + std::to_string(u) + ", " +
-                        std::to_string(v) + ")");
+    throw GeometryError("normal is undefined at (" + std::to_string(u) + ", " + std::to_string(v) +
+                        ")");
   return normalized(limit);
 }
 
@@ -172,9 +179,11 @@ std::vector<Vec3> NurbsSurface::sample(std::size_t nus, std::size_t nvs) const {
   std::vector<Vec3> pts;
   pts.reserve(nus * nvs);
   for (std::size_t i = 0; i < nus; ++i) {
-    const double u = du[0] + (du[1] - du[0]) * static_cast<double>(i) / static_cast<double>(nus - 1);
+    const double u =
+        du[0] + (du[1] - du[0]) * static_cast<double>(i) / static_cast<double>(nus - 1);
     for (std::size_t j = 0; j < nvs; ++j) {
-      const double v = dv[0] + (dv[1] - dv[0]) * static_cast<double>(j) / static_cast<double>(nvs - 1);
+      const double v =
+          dv[0] + (dv[1] - dv[0]) * static_cast<double>(j) / static_cast<double>(nvs - 1);
       pts.push_back(evaluate(u, v));
     }
   }
@@ -272,7 +281,7 @@ NurbsSurface NurbsSurface::sub_surface(double u0, double u1, double v0, double v
 }
 
 std::pair<NurbsSurface, std::size_t> NurbsSurface::try_remove_knot_u(double u, std::size_t times,
-                                                                      double tolerance) const {
+                                                                     double tolerance) const {
   auto net = columns_u(*this);
   const std::size_t removed = detail::remove_knot(pu_, net, u, times, tolerance);
   if (removed == 0) return {*this, 0};
@@ -280,7 +289,7 @@ std::pair<NurbsSurface, std::size_t> NurbsSurface::try_remove_knot_u(double u, s
 }
 
 std::pair<NurbsSurface, std::size_t> NurbsSurface::try_remove_knot_v(double v, std::size_t times,
-                                                                      double tolerance) const {
+                                                                     double tolerance) const {
   auto [s, removed] = transposed().try_remove_knot_u(v, times, tolerance);
   return {s.transposed(), removed};
 }
@@ -329,8 +338,8 @@ std::vector<NurbsSurface> NurbsSurface::decompose_bezier() const {
           w.push_back(s.weight(i, j));
         }
       patches.emplace_back(pu_, pv_, clamped(pu_, s.ku_[ku], s.ku_[ku + 1]),
-                           clamped(pv_, s.kv_[kv], s.kv_[kv + 1]), pu_ + 1, pv_ + 1,
-                           std::move(c), std::move(w));
+                           clamped(pv_, s.kv_[kv], s.kv_[kv + 1]), pu_ + 1, pv_ + 1, std::move(c),
+                           std::move(w));
     }
   }
   return patches;

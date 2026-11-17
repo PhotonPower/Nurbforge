@@ -11,7 +11,9 @@ using namespace nf;
 TEST_CASE("line evaluation", "[curve]") {
   const auto c = make_line({0, 0, 0}, {2, 4, 6});
   const auto p = c.evaluate(0.5);
-  CHECK(p.x == Approx(1)); CHECK(p.y == Approx(2)); CHECK(p.z == Approx(3));
+  CHECK(p.x == Approx(1));
+  CHECK(p.y == Approx(2));
+  CHECK(p.z == Approx(3));
 }
 
 TEST_CASE("exact circle stays on radius", "[curve]") {
@@ -37,18 +39,21 @@ TEST_CASE("uniformly scaled weights are not rational", "[curve][tolerance]") {
 TEST_CASE("arc end points", "[curve]") {
   const auto a = make_arc({0, 0, 0}, {1, 0, 0}, {0, 1, 0}, 1.0, 0.0, std::numbers::pi / 3);
   const auto e = a.evaluate(a.domain_end());
-  CHECK(e.x == Approx(0.5)); CHECK(e.y == Approx(std::sqrt(3.0) / 2));
+  CHECK(e.x == Approx(0.5));
+  CHECK(e.y == Approx(std::sqrt(3.0) / 2));
 }
 
 TEST_CASE("knot insertion preserves geometry", "[curve]") {
-  const auto c = NurbsCurve::from_points(3, {{0, 0, 0}, {1, 2, 0}, {3, 2, 1}, {4, 0, 0}, {6, 1, 2}});
+  const auto c =
+      NurbsCurve::from_points(3, {{0, 0, 0}, {1, 2, 0}, {3, 2, 1}, {4, 0, 0}, {6, 1, 2}});
   const auto ci = c.insert_knot(0.3, 2);
   CHECK(ci.num_control_points() == c.num_control_points() + 2);
   for (double u = 0; u <= 1.0; u += 0.05) CHECK(distance(c.evaluate(u), ci.evaluate(u)) < 1e-12);
 
   const auto circ = make_circle({0, 0, 0}, {0, 0, 1}, 1.0);
   const auto circ2 = circ.insert_knot(0.1);
-  for (double u = 0; u <= 1.0; u += 0.05) CHECK(distance(circ.evaluate(u), circ2.evaluate(u)) < 1e-12);
+  for (double u = 0; u <= 1.0; u += 0.05)
+    CHECK(distance(circ.evaluate(u), circ2.evaluate(u)) < 1e-12);
 }
 
 TEST_CASE("rational derivative of a circle is tangent", "[curve]") {

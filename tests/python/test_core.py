@@ -490,3 +490,18 @@ def test_split_with_crossing_curves_and_trimmed_faces():
     assert len(pieces) == 4
     for p in pieces:
         assert p.area() == pytest.approx(math.pi * 0.8**2 / 4, rel=1e-6)
+
+
+def test_transform_operator_on_curves_surfaces_and_faces():
+    t = nf.Transform.translation((1, 2, 3))
+    c = nf.make_circle((0, 0, 0), (0, 0, 1), 1.0)
+    moved = t * c
+    assert isinstance(moved, nf.NurbsCurve)
+    assert nf.distance(moved(0.3), t.apply(c(0.3))) < 1e-14
+    s = nf.make_rectangle((0, 0, 0), (2, 0, 0), (0, 2, 0))
+    assert nf.distance((t * s)(0.25, 0.5), t.apply(s(0.25, 0.5))) < 1e-14
+    f = nf.TrimmedSurface(s, nf.circle_loop(0.5, 0.5, 0.4)).with_label("aperture")
+    g = t * f
+    assert g.label == "aperture" and g.area() == pytest.approx(f.area(), rel=1e-12)
+    m = f.transformed(nf.Transform.mirror((0, 0, 0), (0, 0, 1)))
+    assert m.surface.normal(0.5, 0.5).z == pytest.approx(-1.0)

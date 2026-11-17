@@ -115,13 +115,16 @@ class Parser {
         }
         skip();
         expect(';');
-        if (!out.emplace(id, std::move(inst)).second) fail("duplicate entity instance #" + std::to_string(id));
+        if (!out.emplace(id, std::move(inst)).second)
+          fail("duplicate entity instance #" + std::to_string(id));
         continue;
       }
       const std::string kw = keyword();
       skip();
-      if (kw == "ISO-10303-21") started = true;
-      else if (!started) fail("not an ISO 10303-21 file (missing 'ISO-10303-21;')");
+      if (kw == "ISO-10303-21")
+        started = true;
+      else if (!started)
+        fail("not an ISO 10303-21 file (missing 'ISO-10303-21;')");
       if (kw == "DATA") {
         data = true;
         if (peek() == '(') (void)list();
@@ -144,7 +147,9 @@ class Parser {
   std::size_t pos_{0};
 
   [[noreturn]] void fail(const std::string& msg) const {
-    const auto line = 1 + std::count(s_.begin(), s_.begin() + static_cast<std::ptrdiff_t>(std::min(pos_, s_.size())), '\n');
+    const auto line =
+        1 + std::count(s_.begin(),
+                       s_.begin() + static_cast<std::ptrdiff_t>(std::min(pos_, s_.size())), '\n');
     throw GeometryError("read_step: parse error at line " + std::to_string(line) + ": " + msg);
   }
 
@@ -270,8 +275,9 @@ class Parser {
     } else if (std::isdigit(static_cast<unsigned char>(c)) != 0 || c == '+' || c == '-') {
       v.kind = Value::Kind::Number;
       std::size_t start = pos_;
-      while (pos_ < s_.size() && (std::isdigit(static_cast<unsigned char>(s_[pos_])) != 0 || s_[pos_] == '+' ||
-                                  s_[pos_] == '-' || s_[pos_] == '.' || s_[pos_] == 'E' || s_[pos_] == 'e'))
+      while (pos_ < s_.size() &&
+             (std::isdigit(static_cast<unsigned char>(s_[pos_])) != 0 || s_[pos_] == '+' ||
+              s_[pos_] == '-' || s_[pos_] == '.' || s_[pos_] == 'E' || s_[pos_] == 'e'))
         ++pos_;
       if (s_[start] == '+') ++start;
       if (!parse_double(s_.data() + start, s_.data() + pos_, v.num)) fail("invalid number");
@@ -310,7 +316,9 @@ P2 end2(const NurbsCurve& c) {
   return {p.x, p.y};
 }
 
-NurbsCurve line2(const P2& a, const P2& b) { return make_line({a[0], a[1], 0.0}, {b[0], b[1], 0.0}); }
+NurbsCurve line2(const P2& a, const P2& b) {
+  return make_line({a[0], a[1], 0.0}, {b[0], b[1], 0.0});
+}
 
 /// v / |v|, or the fallback for (nearly) zero vectors.
 Vec3 unit(const Vec3& v, const Vec3& fallback) {
@@ -323,7 +331,8 @@ Vec3 unit(const Vec3& v, const Vec3& fallback) {
 /// weight of a hyperbola segment is cosh of half its parameter span (1 for a parabola).
 template <class Point, class Deriv>
 NurbsCurve conic_arc(Point&& point, Deriv&& deriv, double t0, double t1, bool hyperbola) {
-  const std::size_t n = hyperbola ? std::max<std::size_t>(1, static_cast<std::size_t>(std::ceil(t1 - t0))) : 1;
+  const std::size_t n =
+      hyperbola ? std::max<std::size_t>(1, static_cast<std::size_t>(std::ceil(t1 - t0))) : 1;
   std::vector<Vec3> P{point(t0)};
   std::vector<double> W{1.0};
   KnotVector K{0.0, 0.0, 0.0};
@@ -368,7 +377,8 @@ std::vector<double> sample_params(const NurbsCurve& c, double a, double b, std::
   std::vector<double> t;
   for (std::size_t i = 0; i + 1 < brk.size(); ++i)
     for (std::size_t j = 0; j < per_span; ++j)
-      t.push_back(brk[i] + (brk[i + 1] - brk[i]) * static_cast<double>(j) / static_cast<double>(per_span));
+      t.push_back(brk[i] +
+                  (brk[i + 1] - brk[i]) * static_cast<double>(j) / static_cast<double>(per_span));
   t.push_back(b);
   return t;
 }
@@ -396,8 +406,8 @@ bool crosses(const std::vector<std::vector<AngPt>>& curves, double mid) {
 /// Angular range {start, sweep} covering the face: the complement of the largest angular gap
 /// that lies outside the face (no boundary crosses it, the boundary turns away from it on both
 /// sides). Full turn starting at `seam` (or `fallback`) if there is no such gap.
-std::pair<double, double> angular_range(const std::vector<std::vector<AngPt>>& curves, std::optional<double> seam,
-                                        double fallback) {
+std::pair<double, double> angular_range(const std::vector<std::vector<AngPt>>& curves,
+                                        std::optional<double> seam, double fallback) {
   std::vector<AngPt> all;
   for (const auto& c : curves)
     for (const auto& q : c)
@@ -444,11 +454,11 @@ std::pair<double, double> angular_range(const std::vector<std::vector<AngPt>>& c
 struct Curve3 {
   enum class Kind { Line, Conic, Hyperbola, Parabola, Spline };
   Kind kind{Kind::Line};
-  Vec3 p, d;               // line
-  Frame f;                 // conic
-  double a{0.0}, b{0.0};   // conic semi-axes (circle: a = b)
+  Vec3 p, d;              // line
+  Frame f;                // conic
+  double a{0.0}, b{0.0};  // conic semi-axes (circle: a = b)
   std::optional<NurbsCurve> spline;
-  bool reversed{false};    // TRIMMED_CURVE with sense_agreement .F.
+  bool reversed{false};  // TRIMMED_CURVE with sense_agreement .F.
 };
 
 struct Surf3 {
@@ -489,13 +499,15 @@ class FaceMapper {
     const auto pole_v = [&](double v) -> std::optional<Vec3> {
       const Vec3 p = S_.evaluate(0.5 * (u0_ + u1_), v);
       for (int k = 0; k <= 6; ++k)
-        if (distance(S_.evaluate(u0_ + (u1_ - u0_) * k / 6.0, v), p) > 0.01 * tol_) return std::nullopt;
+        if (distance(S_.evaluate(u0_ + (u1_ - u0_) * k / 6.0, v), p) > 0.01 * tol_)
+          return std::nullopt;
       return p;
     };
     const auto pole_u = [&](double u) -> std::optional<Vec3> {
       const Vec3 p = S_.evaluate(u, 0.5 * (v0_ + v1_));
       for (int k = 0; k <= 6; ++k)
-        if (distance(S_.evaluate(u, v0_ + (v1_ - v0_) * k / 6.0), p) > 0.01 * tol_) return std::nullopt;
+        if (distance(S_.evaluate(u, v0_ + (v1_ - v0_) * k / 6.0), p) > 0.01 * tol_)
+          return std::nullopt;
       return p;
     };
     pole_[0] = pole_u(u0_);
@@ -505,17 +517,19 @@ class FaceMapper {
     // planar bilinear patch with affine parametrisation: exact inverse map
     if (S_.degree_u() == 1 && S_.degree_v() == 1 && S_.num_u() == 2 && S_.num_v() == 2) {
       const auto& W = S_.weights();
-      const Vec3 p00 = S_.control_point(0, 0), p10 = S_.control_point(1, 0), p01 = S_.control_point(0, 1),
-                 p11 = S_.control_point(1, 1);
+      const Vec3 p00 = S_.control_point(0, 0), p10 = S_.control_point(1, 0),
+                 p01 = S_.control_point(0, 1), p11 = S_.control_point(1, 1);
       const Vec3 eu = p10 - p00, ev = p01 - p00;
       const double size = std::max(norm(eu), norm(ev));
-      const bool equal_w = std::all_of(W.begin(), W.end(), [&](double w) { return std::abs(w - W[0]) <= 1e-14 * W[0]; });
-      const double g11 = dot(eu, eu), g12 = dot(eu, ev), g22 = dot(ev, ev), det = g11 * g22 - g12 * g12;
+      const bool equal_w = std::all_of(
+          W.begin(), W.end(), [&](double w) { return std::abs(w - W[0]) <= 1e-14 * W[0]; });
+      const double g11 = dot(eu, eu), g12 = dot(eu, ev), g22 = dot(ev, ev),
+                   det = g11 * g22 - g12 * g12;
       if (equal_w && norm(p00 + p11 - p10 - p01) <= 1e-13 * size && det > 1e-24 * g11 * g22) {
         const Vec3 ru = (u1_ - u0_) / det * (g22 * eu - g12 * ev);
         const Vec3 rv = (v1_ - v0_) / det * (g11 * ev - g12 * eu);
-        affine_ = Transform({ru.x, ru.y, ru.z, u0_ - dot(ru, p00), rv.x, rv.y, rv.z, v0_ - dot(rv, p00), 0.0, 0.0,
-                             0.0, 0.0});
+        affine_ = Transform({ru.x, ru.y, ru.z, u0_ - dot(ru, p00), rv.x, rv.y, rv.z,
+                             v0_ - dot(rv, p00), 0.0, 0.0, 0.0, 0.0});
       }
     }
   }
@@ -554,7 +568,8 @@ class FaceMapper {
             break;
         }
       }
-      if (periods > 1) throw GeometryError("face boundary crosses the seam of a closed surface several times");
+      if (periods > 1)
+        throw GeometryError("face boundary crosses the seam of a closed surface several times");
       TrimLoop tl;
       const std::size_t first = periods ? (period_at + 1) % m : 0;
       for (std::size_t k = 0; k < m; ++k) {
@@ -562,8 +577,10 @@ class FaceMapper {
         tl.curves.push_back(pcs[i]);
         if (insert[i]) tl.curves.push_back(*insert[i]);
       }
-      if (periods) open.emplace_back(std::move(tl), period_dir);
-      else closed.push_back(std::move(tl));
+      if (periods)
+        open.emplace_back(std::move(tl), period_dir);
+      else
+        closed.push_back(std::move(tl));
     }
     close_open_loops(open, closed);
     if (closed.empty()) return TrimmedSurface(S_);
@@ -611,9 +628,11 @@ class FaceMapper {
       degenerate = distance(at({e[0] + du * k / 8.0, e[1] + dv * k / 8.0}), pe) <= tol_;
     if (degenerate) return gap <= 1e-9 * scale ? 0 : 1;
     const bool same3d = distance(pe, at(s)) <= tol_;
-    if (uc_ && same3d && std::abs(std::abs(du) - (u1_ - u0_)) <= 1e-6 * (u1_ - u0_) && std::abs(dv) <= 1e-6 * (v1_ - v0_))
+    if (uc_ && same3d && std::abs(std::abs(du) - (u1_ - u0_)) <= 1e-6 * (u1_ - u0_) &&
+        std::abs(dv) <= 1e-6 * (v1_ - v0_))
       return 2;
-    if (vc_ && same3d && std::abs(std::abs(dv) - (v1_ - v0_)) <= 1e-6 * (v1_ - v0_) && std::abs(du) <= 1e-6 * (u1_ - u0_))
+    if (vc_ && same3d && std::abs(std::abs(dv) - (v1_ - v0_)) <= 1e-6 * (v1_ - v0_) &&
+        std::abs(du) <= 1e-6 * (u1_ - u0_))
       return 3;
     throw GeometryError("trim loop is not closed in the parameter space of the surface (gap " +
                         std::to_string(distance(pe, at(s))) + ")");
@@ -621,12 +640,15 @@ class FaceMapper {
 
   /// Loops running once around a closed direction: one is closed through a pole, two are joined
   /// along the seam into one loop.
-  void close_open_loops(std::vector<std::pair<TrimLoop, int>>& open, std::vector<TrimLoop>& closed) const {
+  void close_open_loops(std::vector<std::pair<TrimLoop, int>>& open,
+                        std::vector<TrimLoop>& closed) const {
     if (open.empty()) return;
     if (open.size() > 2 || (open.size() == 2 && open[0].second != open[1].second))
-      throw GeometryError("unsupported face topology on a closed surface (" + std::to_string(open.size()) +
-                          " loops around the seam)");
-    const auto ends = [](const TrimLoop& l) { return std::make_pair(start2(l.curves.front()), end2(l.curves.back())); };
+      throw GeometryError("unsupported face topology on a closed surface (" +
+                          std::to_string(open.size()) + " loops around the seam)");
+    const auto ends = [](const TrimLoop& l) {
+      return std::make_pair(start2(l.curves.front()), end2(l.curves.back()));
+    };
     if (open.size() == 1) {
       const TrimLoop& l = open[0].first;
       const auto [s, e] = ends(l);
@@ -634,7 +656,8 @@ class FaceMapper {
       if (open[0].second == 0) {  // around u: close through the pole on the face side
         const bool plus_v = (e[0] > s[0]) == left_;
         const std::optional<Vec3>& pole = pole_[plus_v ? 3 : 2];
-        if (!pole) throw GeometryError("face boundary on a closed surface does not enclose a region");
+        if (!pole)
+          throw GeometryError("face boundary on a closed surface does not enclose a region");
         const double vp = plus_v ? v1_ : v0_;
         out.curves.push_back(line2(e, {e[0], vp}));
         out.curves.push_back(line2({e[0], vp}, {s[0], vp}));
@@ -642,7 +665,8 @@ class FaceMapper {
       } else {
         const bool minus_u = (e[1] > s[1]) == left_;
         const std::optional<Vec3>& pole = pole_[minus_u ? 0 : 1];
-        if (!pole) throw GeometryError("face boundary on a closed surface does not enclose a region");
+        if (!pole)
+          throw GeometryError("face boundary on a closed surface does not enclose a region");
         const double up = minus_u ? u0_ : u1_;
         out.curves.push_back(line2(e, {up, e[1]}));
         out.curves.push_back(line2({up, e[1]}, {up, s[1]}));
@@ -717,10 +741,12 @@ class FaceMapper {
       }
       const Vec3 q = S_.evaluate(s.u, s.v);
       const double eps = 0.01 * fit_tol_;
-      s.amb_u = uc_ && !s.free_u &&
-                (distance(S_.evaluate(u0_, s.v), q) <= eps || distance(S_.evaluate(u1_, s.v), q) <= eps);
-      s.amb_v = vc_ && !s.free_v &&
-                (distance(S_.evaluate(s.u, v0_), q) <= eps || distance(S_.evaluate(s.u, v1_), q) <= eps);
+      s.amb_u =
+          uc_ && !s.free_u &&
+          (distance(S_.evaluate(u0_, s.v), q) <= eps || distance(S_.evaluate(u1_, s.v), q) <= eps);
+      s.amb_v =
+          vc_ && !s.free_v &&
+          (distance(S_.evaluate(s.u, v0_), q) <= eps || distance(S_.evaluate(s.u, v1_), q) <= eps);
       out.push_back(s);
     }
     resolve(out);
@@ -740,18 +766,22 @@ class FaceMapper {
       }
       return std::nullopt;
     };
-    const auto pick = [](double x, double lo, double hi) { return std::abs(x - lo) < std::abs(x - hi) ? lo : hi; };
+    const auto pick = [](double x, double lo, double hi) {
+      return std::abs(x - lo) < std::abs(x - hi) ? lo : hi;
+    };
     std::vector<std::size_t> rest_u, rest_v;
     for (std::size_t i = 0; i < n; ++i) {
       if (smp[i].amb_u) {
         if (const auto j = nearest(i, [](const Smp& s) { return !s.amb_u && !s.free_u; }))
           smp[i].u = pick(smp[*j].u, u0_, u1_);
-        else rest_u.push_back(i);
+        else
+          rest_u.push_back(i);
       }
       if (smp[i].amb_v) {
         if (const auto j = nearest(i, [](const Smp& s) { return !s.amb_v && !s.free_v; }))
           smp[i].v = pick(smp[*j].v, v0_, v1_);
-        else rest_v.push_back(i);
+        else
+          rest_v.push_back(i);
       }
     }
     if (!rest_u.empty()) {  // moving +v with the face on the left: face at smaller u, seam u1
@@ -766,12 +796,16 @@ class FaceMapper {
     }
     for (std::size_t i = 0; i < n; ++i) {
       if (smp[i].free_u) {
-        if (const auto j = nearest(i, [](const Smp& s) { return !s.free_u; })) smp[i].u = smp[*j].u;
-        else throw GeometryError("degenerate edge at a pole");
+        if (const auto j = nearest(i, [](const Smp& s) { return !s.free_u; }))
+          smp[i].u = smp[*j].u;
+        else
+          throw GeometryError("degenerate edge at a pole");
       }
       if (smp[i].free_v) {
-        if (const auto j = nearest(i, [](const Smp& s) { return !s.free_v; })) smp[i].v = smp[*j].v;
-        else throw GeometryError("degenerate edge at a pole");
+        if (const auto j = nearest(i, [](const Smp& s) { return !s.free_v; }))
+          smp[i].v = smp[*j].v;
+        else
+          throw GeometryError("degenerate edge at a pole");
       }
     }
   }
@@ -791,8 +825,10 @@ class FaceMapper {
         const double g = 0.5 * (std::sqrt(5.0) - 1.0);
         for (int it = 0; it < 80; ++it) {
           const double m1 = hi - g * (hi - lo), m2 = lo + g * (hi - lo);
-          if (distance(c.evaluate(m1), *pole) < distance(c.evaluate(m2), *pole)) hi = m2;
-          else lo = m1;
+          if (distance(c.evaluate(m1), *pole) < distance(c.evaluate(m2), *pole))
+            hi = m2;
+          else
+            lo = m1;
         }
         const double t = 0.5 * (lo + hi);
         if (distance(c.evaluate(t), *pole) <= tol_ && t > a + margin && t < b - margin) return t;
@@ -807,8 +843,10 @@ class FaceMapper {
       double lo = ta, hi = tb;
       for (int it = 0; it < 60 && hi - lo > 1e-13 * (b - a); ++it) {
         const double m = 0.5 * (lo + hi);
-        if (side(m) == side_a) lo = m;
-        else hi = m;
+        if (side(m) == side_a)
+          lo = m;
+        else
+          hi = m;
       }
       const double t = 0.5 * (lo + hi);
       if (t > a + margin && t < b - margin) return t;
@@ -865,13 +903,17 @@ class FaceMapper {
         monotone = (running(smp[k + 1]) - running(smp[k])) * sense > 0.0;
       if (!monotone) continue;
       double f = 0.5 * (lo + hi);
-      if (std::abs(f - f0) <= 1e-9 * range) f = f0;
-      else if (std::abs(f - f1) <= 1e-9 * range) f = f1;
+      if (std::abs(f - f0) <= 1e-9 * range)
+        f = f0;
+      else if (std::abs(f - f1) <= 1e-9 * range)
+        f = f1;
       const auto at_fr = [&](double r) { return dir == 0 ? S_.evaluate(r, f) : S_.evaluate(f, r); };
       bool on = true;
       for (std::size_t k = 0; k + 1 < smp.size() && on; ++k) {
-        const double tm = 0.5 * (smp[k].t + smp[k + 1].t), rm = 0.5 * (running(smp[k]) + running(smp[k + 1]));
-        on = closest_point_local(c, at_fr(rm), tm).distance <= fit_tol_ + 1.01 * std::max(smp[k].d, smp[k + 1].d);
+        const double tm = 0.5 * (smp[k].t + smp[k + 1].t),
+                     rm = 0.5 * (running(smp[k]) + running(smp[k + 1]));
+        on = closest_point_local(c, at_fr(rm), tm).distance <=
+             fit_tol_ + 1.01 * std::max(smp[k].d, smp[k + 1].d);
       }
       if (!on) continue;
       const double ra = running(smp.front()), rb = running(smp.back());
@@ -907,7 +949,8 @@ class FaceMapper {
 
 class Reader {
  public:
-  Reader(InstanceMap inst, const StepReadOptions& opt) : inst_(std::move(inst)), opt_(opt), tol_(opt.tolerance) {
+  Reader(InstanceMap inst, const StepReadOptions& opt)
+      : inst_(std::move(inst)), opt_(opt), tol_(opt.tolerance) {
     if (!(tol_ > 0.0)) throw GeometryError("read_step: tolerance must be positive");
     read_units();
   }
@@ -927,7 +970,8 @@ class Reader {
       }
     }
     const auto name_of = [&](const Record& r) {
-      const bool named = !r.params.empty() && r.params[0].kind == Value::Kind::String && !r.params[0].text.empty();
+      const bool named =
+          !r.params.empty() && r.params[0].kind == Value::Kind::String && !r.params[0].text.empty();
       return named ? r.params[0].text : product;
     };
     std::vector<NamedShell> out;
@@ -960,8 +1004,8 @@ class Reader {
   InstanceMap inst_;
   const StepReadOptions& opt_;
   double tol_;
-  double scale_{1.0};        // file length unit -> target unit
-  double angle_unit_{1.0};   // file plane angle unit -> radians
+  double scale_{1.0};       // file length unit -> target unit
+  double angle_unit_{1.0};  // file plane angle unit -> radians
   std::unordered_map<std::size_t, Vec3> points_;
   std::unordered_map<std::size_t, NurbsCurve> edges_;
 
@@ -974,7 +1018,8 @@ class Reader {
 
   const Instance& inst(std::size_t id) const {
     const auto it = inst_.find(id);
-    if (it == inst_.end()) throw GeometryError("reference to missing entity instance #" + std::to_string(id));
+    if (it == inst_.end())
+      throw GeometryError("reference to missing entity instance #" + std::to_string(id));
     return it->second;
   }
 
@@ -1057,8 +1102,9 @@ class Reader {
       const Value& prefix = si->params[o];
       if (prefix.kind == Value::Kind::Enum) {
         static const std::map<std::string, double> prefixes{
-            {"EXA", 1e18},  {"PETA", 1e15}, {"TERA", 1e12},  {"GIGA", 1e9},   {"MEGA", 1e6},   {"KILO", 1e3},
-            {"HECTO", 1e2}, {"DECA", 1e1},  {"DECI", 1e-1},  {"CENTI", 1e-2}, {"MILLI", 1e-3}, {"MICRO", 1e-6},
+            {"EXA", 1e18},  {"PETA", 1e15},  {"TERA", 1e12},   {"GIGA", 1e9},
+            {"MEGA", 1e6},  {"KILO", 1e3},   {"HECTO", 1e2},   {"DECA", 1e1},
+            {"DECI", 1e-1}, {"CENTI", 1e-2}, {"MILLI", 1e-3},  {"MICRO", 1e-6},
             {"NANO", 1e-9}, {"PICO", 1e-12}, {"FEMTO", 1e-15}, {"ATTO", 1e-18}};
         const auto it = prefixes.find(prefix.text);
         if (it == prefixes.end()) bad(id, "unknown SI prefix ." + prefix.text + ".");
@@ -1097,11 +1143,16 @@ class Reader {
     }
     const double target = [&] {
       switch (opt_.unit) {
-        case StepLengthUnit::Millimetre: return 1e-3;
-        case StepLengthUnit::Centimetre: return 1e-2;
-        case StepLengthUnit::Metre: return 1.0;
-        case StepLengthUnit::Inch: return 0.0254;
-        case StepLengthUnit::Micrometre: return 1e-6;
+        case StepLengthUnit::Millimetre:
+          return 1e-3;
+        case StepLengthUnit::Centimetre:
+          return 1e-2;
+        case StepLengthUnit::Metre:
+          return 1.0;
+        case StepLengthUnit::Inch:
+          return 0.0254;
+        case StepLengthUnit::Micrometre:
+          return 1e-6;
       }
       return 1e-3;
     }();
@@ -1137,9 +1188,11 @@ class Reader {
     const Record& r = simple(id, {"AXIS2_PLACEMENT_3D"});
     Frame f;
     f.o = point(ref(arg(id, r, 1), id));
-    f.z = r.params.size() > 2 && r.params[2].kind == Value::Kind::Ref ? direction(r.params[2].ref) : Vec3{0, 0, 1};
-    Vec3 x = r.params.size() > 3 && r.params[3].kind == Value::Kind::Ref ? direction(r.params[3].ref)
-                                                                        : any_perpendicular(f.z);
+    f.z = r.params.size() > 2 && r.params[2].kind == Value::Kind::Ref ? direction(r.params[2].ref)
+                                                                      : Vec3{0, 0, 1};
+    Vec3 x = r.params.size() > 3 && r.params[3].kind == Value::Kind::Ref
+                 ? direction(r.params[3].ref)
+                 : any_perpendicular(f.z);
     x = x - dot(x, f.z) * f.z;
     if (norm(x) < 1e-9) x = any_perpendicular(f.z);
     f.x = unit(x, any_perpendicular(f.z));
@@ -1159,8 +1212,8 @@ class Reader {
   }
 
   /// Knot vector of a B-spline (explicit knots or implied by the curve / surface subtype).
-  KnotVector knots(std::size_t id, const std::string& kind, std::size_t p, std::size_t n, const Value* mults,
-                   const Value* values) const {
+  KnotVector knots(std::size_t id, const std::string& kind, std::size_t p, std::size_t n,
+                   const Value* mults, const Value* values) const {
     KnotVector k;
     if (kind == "WITH_KNOTS") {
       const auto& m = items(*mults, id);
@@ -1176,7 +1229,8 @@ class Reader {
     } else if (kind == "QUASI_UNIFORM") {
       k = clamped_uniform_knots(p, n);
     } else if (kind == "UNIFORM") {
-      for (std::size_t i = 0; i < n + p + 1; ++i) k.push_back(static_cast<double>(i) - static_cast<double>(p));
+      for (std::size_t i = 0; i < n + p + 1; ++i)
+        k.push_back(static_cast<double>(i) - static_cast<double>(p));
     } else {
       unsupported(id);
     }
@@ -1184,7 +1238,8 @@ class Reader {
     return k;
   }
 
-  /// B-spline subtype of a curve / surface instance (prefix "B_SPLINE_CURVE" or "B_SPLINE_SURFACE").
+  /// B-spline subtype of a curve / surface instance (prefix "B_SPLINE_CURVE" or
+  /// "B_SPLINE_SURFACE").
   static std::string bspline_kind(const Instance& in, const std::string& base) {
     const std::string stem = base.substr(std::string("B_SPLINE_").size());  // CURVE / SURFACE
     for (const auto& r : in) {
@@ -1225,7 +1280,8 @@ class Reader {
     std::vector<double> W;
     if (w)
       for (const auto& x : items(*w, id)) W.push_back(num(x, id));
-    if (!W.empty() && W.size() != P.size()) bad(id, "number of weights differs from control points");
+    if (!W.empty() && W.size() != P.size())
+      bad(id, "number of weights differs from control points");
     return NurbsCurve(p, std::move(K), std::move(P), std::move(W)).clamped();
   }
 
@@ -1268,8 +1324,10 @@ class Reader {
     if (w)
       for (const auto& row : items(*w, id))
         for (const auto& x : items(row, id)) W.push_back(num(x, id));
-    if (!W.empty() && W.size() != P.size()) bad(id, "number of weights differs from control points");
-    return NurbsSurface(pu, pv, std::move(KU), std::move(KV), nu, nv, std::move(P), std::move(W)).clamped();
+    if (!W.empty() && W.size() != P.size())
+      bad(id, "number of weights differs from control points");
+    return NurbsSurface(pu, pv, std::move(KU), std::move(KV), nu, nv, std::move(P), std::move(W))
+        .clamped();
   }
 
   Curve3 curve(std::size_t id, int depth = 0) {
@@ -1301,7 +1359,8 @@ class Reader {
         if (!(c.a > 0.0) || !(c.b > 0.0)) bad(id, "non-positive radius");
         return c;
       }
-      if (r.name == "HYPERBOLA" || r.name == "PARABOLA") {  // C + a cosh t X + b sinh t Y; C + a t^2 X + 2 a t Y
+      if (r.name == "HYPERBOLA" ||
+          r.name == "PARABOLA") {  // C + a cosh t X + b sinh t Y; C + a t^2 X + 2 a t Y
         c.kind = r.name == "HYPERBOLA" ? Curve3::Kind::Hyperbola : Curve3::Kind::Parabola;
         c.f = placement(ref(arg(id, r, 1), id));
         c.a = len(arg(id, r, 2), id);
@@ -1346,7 +1405,8 @@ class Reader {
         s.f = frame();
         s.r1 = len(arg(id, r, 2), id);
         s.r2 = num(arg(id, r, 3), id) * angle_unit_;
-        if (s.r1 < 0.0 || !(std::abs(s.r2) > 1e-12) || std::abs(s.r2) >= 0.5 * kPi) bad(id, "invalid cone");
+        if (s.r1 < 0.0 || !(std::abs(s.r2) > 1e-12) || std::abs(s.r2) >= 0.5 * kPi)
+          bad(id, "invalid cone");
         return s;
       }
       if (r.name == "TOROIDAL_SURFACE") {
@@ -1380,7 +1440,8 @@ class Reader {
   }
 
   /// Edge curve from ps to pe on the curve g (same: edge direction = curve direction).
-  NurbsCurve edge_geometry(std::size_t id, const Curve3& g, const Vec3& ps, const Vec3& pe, bool same) const {
+  NurbsCurve edge_geometry(std::size_t id, const Curve3& g, const Vec3& ps, const Vec3& pe,
+                           bool same) const {
     const bool closed = distance(ps, pe) <= tol_;
     switch (g.kind) {
       case Curve3::Kind::Line:
@@ -1396,7 +1457,8 @@ class Reader {
         if (sweep <= 1e-12) sweep = kTwoPi;
         const NurbsCurve arc = make_arc({0, 0, 0}, {1, 0, 0}, {0, 1, 0}, 1.0, t0, t0 + sweep);
         const Vec3 X = g.a * g.f.x, Y = g.b * g.f.y, Z = g.f.z, O = g.f.o;
-        const NurbsCurve c = arc.transformed(Transform({X.x, Y.x, Z.x, O.x, X.y, Y.y, Z.y, O.y, X.z, Y.z, Z.z, O.z}));
+        const NurbsCurve c = arc.transformed(
+            Transform({X.x, Y.x, Z.x, O.x, X.y, Y.y, Z.y, O.y, X.z, Y.z, Z.z, O.z}));
         return same ? c : c.reversed();
       }
       case Curve3::Kind::Hyperbola:
@@ -1412,23 +1474,27 @@ class Reader {
                      : g.f.o + g.a * t * t * g.f.x + 2.0 * g.a * t * g.f.y;
         };
         const auto deriv = [&](double t) {
-          return hyp ? g.a * std::sinh(t) * g.f.x + g.b * std::cosh(t) * g.f.y : 2.0 * g.a * t * g.f.x + 2.0 * g.a * g.f.y;
+          return hyp ? g.a * std::sinh(t) * g.f.x + g.b * std::cosh(t) * g.f.y
+                     : 2.0 * g.a * t * g.f.x + 2.0 * g.a * g.f.y;
         };
         double t0 = param(ps), t1 = param(pe);
-        const bool rev = t0 > t1;  // edge against the curve direction (or inconsistent sense: follow the vertices)
+        const bool rev =
+            t0 >
+            t1;  // edge against the curve direction (or inconsistent sense: follow the vertices)
         if (rev) std::swap(t0, t1);
         if (!(t1 - t0 > 1e-12)) bad(id, "degenerate edge");
         const NurbsCurve c = conic_arc(at, deriv, t0, t1, hyp);
         return rev ? c.reversed() : c;
       }
-      case Curve3::Kind::Spline: break;
+      case Curve3::Kind::Spline:
+        break;
     }
     if (!g.spline) bad(id, "missing curve geometry");
     return spline_edge(*g.spline, ps, pe, same, closed, id);
   }
 
-  NurbsCurve spline_edge(const NurbsCurve& c, const Vec3& ps, const Vec3& pe, bool same, bool closed_edge,
-                         std::size_t id) const {
+  NurbsCurve spline_edge(const NurbsCurve& c, const Vec3& ps, const Vec3& pe, bool same,
+                         bool closed_edge, std::size_t id) const {
     const double a = c.domain_start(), b = c.domain_end(), eps = 1e-10 * (b - a);
     const bool closed_curve = distance(c.evaluate(a), c.evaluate(b)) <= tol_;
     double ta = closest_point(c, same ? ps : pe).u, tb = closest_point(c, same ? pe : ps).u;
@@ -1509,21 +1575,27 @@ class Reader {
   /// Normal of the elementary surface (S_u x S_v of its standard parametrisation).
   static Vec3 analytic_normal(const Surf3& s, const Vec3& p) {
     switch (s.kind) {
-      case Surf3::Kind::Plane: return s.f.z;
-      case Surf3::Kind::Cylinder: return radial(s.f, p);
-      case Surf3::Kind::Sphere: return unit(p - s.f.o, s.f.z);
-      case Surf3::Kind::Cone: return unit(radial(s.f, p) - std::tan(s.r2) * s.f.z, s.f.z);
+      case Surf3::Kind::Plane:
+        return s.f.z;
+      case Surf3::Kind::Cylinder:
+        return radial(s.f, p);
+      case Surf3::Kind::Sphere:
+        return unit(p - s.f.o, s.f.z);
+      case Surf3::Kind::Cone:
+        return unit(radial(s.f, p) - std::tan(s.r2) * s.f.z, s.f.z);
       case Surf3::Kind::Torus: {
         const Vec3 c = s.f.o + s.r1 * radial(s.f, p);
         return unit(p - c, radial(s.f, p));
       }
-      case Surf3::Kind::Spline: break;
+      case Surf3::Kind::Spline:
+        break;
     }
     return s.f.z;
   }
 
   /// Exact NURBS patch of an elementary surface covering the face boundary.
-  NurbsSurface analytic_patch(std::size_t id, const Surf3& s, const std::vector<Loop3>& loops, bool same_sense) {
+  NurbsSurface analytic_patch(std::size_t id, const Surf3& s, const std::vector<Loop3>& loops,
+                              bool same_sense) {
     struct BS {
       Vec3 p, inward;
       bool ok;
@@ -1665,7 +1737,8 @@ class Reader {
           const Vec3 e = std::cos(t0) * f.x + std::sin(t0) * f.y;
           return revolve(make_arc(f.o + s.r1 * e, e, f.z, s.r2, p0, p0 + psweep), f.o, f.z, sweep);
         }
-        case Surf3::Kind::Spline: break;
+        case Surf3::Kind::Spline:
+          break;
       }
       bad(id, "not an elementary surface");
     };
@@ -1673,7 +1746,8 @@ class Reader {
     // orientation: S_u x S_v along the normal of the elementary surface
     const auto du = out.domain_u(), dv = out.domain_v();
     const double um = 0.5 * (du[0] + du[1]), vm = 0.5 * (dv[0] + dv[1]);
-    if (dot(out.normal(um, vm), analytic_normal(s, out.evaluate(um, vm))) < 0.0) out = out.transposed();
+    if (dot(out.normal(um, vm), analytic_normal(s, out.evaluate(um, vm))) < 0.0)
+      out = out.transposed();
     return out;
   }
 
@@ -1682,15 +1756,18 @@ class Reader {
     const bool same_sense = flag(arg(id, r, 3), id);
     const Surf3 s = surface(ref(arg(id, r, 2), id));
     const auto loops = face_loops(id, r);
-    const NurbsSurface S = s.kind == Surf3::Kind::Spline ? *s.spline : analytic_patch(id, s, loops, same_sense);
+    const NurbsSurface S =
+        s.kind == Surf3::Kind::Spline ? *s.spline : analytic_patch(id, s, loops, same_sense);
     FaceMapper mapper(S, same_sense, tol_, notes);
     TrimmedSurface t = mapper.build(loops);
-    if (!r.params.empty() && r.params[0].kind == Value::Kind::String) t = t.with_label(r.params[0].text);
+    if (!r.params.empty() && r.params[0].kind == Value::Kind::String)
+      t = t.with_label(r.params[0].text);
     return same_sense == shell_reversed ? t.flipped() : t;
   }
 
   void shell_faces(std::size_t id, bool reversed, std::vector<TrimmedSurface>& out) {
-    const Record& r = simple(id, {"CLOSED_SHELL", "OPEN_SHELL", "ORIENTED_CLOSED_SHELL", "ORIENTED_OPEN_SHELL"});
+    const Record& r =
+        simple(id, {"CLOSED_SHELL", "OPEN_SHELL", "ORIENTED_CLOSED_SHELL", "ORIENTED_OPEN_SHELL"});
     if (r.name.rfind("ORIENTED_", 0) == 0) {
       shell_faces(ref(arg(id, r, 2), id), reversed != !flag(arg(id, r, 3), id), out);
       return;
@@ -1704,11 +1781,13 @@ class Reader {
         problem(std::string(e.what()) + " (face #" + std::to_string(fid) + ")");
       }
       if (opt_.warnings)
-        for (const auto& n : notes) opt_.warnings->push_back(n + " (face #" + std::to_string(fid) + ")");
+        for (const auto& n : notes)
+          opt_.warnings->push_back(n + " (face #" + std::to_string(fid) + ")");
     }
   }
 
-  void add_shell(std::vector<NamedShell>& out, std::vector<TrimmedSurface> faces, std::string name) const {
+  void add_shell(std::vector<NamedShell>& out, std::vector<TrimmedSurface> faces,
+                 std::string name) const {
     if (faces.empty()) return;
     Shell sh = Shell::sew(std::move(faces), tol_);
     if (!sh.is_consistently_oriented()) sh = sh.oriented();

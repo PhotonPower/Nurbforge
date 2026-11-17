@@ -1,12 +1,12 @@
 // Python bindings for the Nurbforge kernel (module nurbforge._core).
-#include <optional>
-#include <tuple>
-
 #include <pybind11/functional.h>
 #include <pybind11/numpy.h>
 #include <pybind11/operators.h>
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
+
+#include <optional>
+#include <tuple>
 
 #include "nurbforge/nurbforge.hpp"
 
@@ -20,16 +20,20 @@ py::array_t<double> to_numpy(const std::vector<Vec3>& pts) {
   auto r = arr.mutable_unchecked<2>();
   for (py::ssize_t i = 0; i < static_cast<py::ssize_t>(pts.size()); ++i) {
     const auto& p = pts[static_cast<std::size_t>(i)];
-    r(i, 0) = p.x; r(i, 1) = p.y; r(i, 2) = p.z;
+    r(i, 0) = p.x;
+    r(i, 1) = p.y;
+    r(i, 2) = p.z;
   }
   return arr;
 }
 
-std::vector<Vec3> from_numpy(const py::array_t<double, py::array::c_style | py::array::forcecast>& a) {
+std::vector<Vec3> from_numpy(
+    const py::array_t<double, py::array::c_style | py::array::forcecast>& a) {
   if (a.ndim() != 2 || a.shape(1) != 3) throw py::value_error("expected an array of shape (n, 3)");
   auto r = a.unchecked<2>();
   std::vector<Vec3> out(static_cast<std::size_t>(a.shape(0)));
-  for (py::ssize_t i = 0; i < a.shape(0); ++i) out[static_cast<std::size_t>(i)] = {r(i, 0), r(i, 1), r(i, 2)};
+  for (py::ssize_t i = 0; i < a.shape(0); ++i)
+    out[static_cast<std::size_t>(i)] = {r(i, 0), r(i, 1), r(i, 2)};
   return out;
 }
 
@@ -56,14 +60,17 @@ PYBIND11_MODULE(_core, m) {
       .def(double() * py::self)
       .def(-py::self)
       .def("__iter__", [](const Vec3& v) { return py::iter(py::make_tuple(v.x, v.y, v.z)); })
-      .def("__getitem__", [](const Vec3& v, int i) {
-        if (i < 0 || i > 2) throw py::index_error();
-        return i == 0 ? v.x : (i == 1 ? v.y : v.z);
-      })
+      .def("__getitem__",
+           [](const Vec3& v, int i) {
+             if (i < 0 || i > 2) throw py::index_error();
+             return i == 0 ? v.x : (i == 1 ? v.y : v.z);
+           })
       .def("__len__", [](const Vec3&) { return 3; })
-      .def("__repr__", [](const Vec3& v) {
-        return "Vec3(" + std::to_string(v.x) + ", " + std::to_string(v.y) + ", " + std::to_string(v.z) + ")";
-      })
+      .def("__repr__",
+           [](const Vec3& v) {
+             return "Vec3(" + std::to_string(v.x) + ", " + std::to_string(v.y) + ", " +
+                    std::to_string(v.z) + ")";
+           })
       .def("to_tuple", [](const Vec3& v) { return py::make_tuple(v.x, v.y, v.z); });
   py::implicitly_convertible<py::tuple, Vec3>();
   py::implicitly_convertible<py::list, Vec3>();
@@ -92,8 +99,9 @@ PYBIND11_MODULE(_core, m) {
       .def_readwrite("parametric", &Tolerance::parametric)
       .def_readwrite("angular", &Tolerance::angular)
       .def("__repr__", [](const Tolerance& t) {
-        return "Tolerance(length=" + std::to_string(t.length) + ", parametric=" +
-               std::to_string(t.parametric) + ", angular=" + std::to_string(t.angular) + ")";
+        return "Tolerance(length=" + std::to_string(t.length) +
+               ", parametric=" + std::to_string(t.parametric) +
+               ", angular=" + std::to_string(t.angular) + ")";
       });
 
   // ------------------------------------------------------------------ Transform
@@ -101,7 +109,8 @@ PYBIND11_MODULE(_core, m) {
       .def(py::init<>())
       .def(py::init<const std::array<double, 12>&>(), py::arg("matrix_3x4_row_major"))
       .def_static("translation", &Transform::translation, py::arg("d"))
-      .def_static("rotation", &Transform::rotation, py::arg("origin"), py::arg("axis"), py::arg("angle"))
+      .def_static("rotation", &Transform::rotation, py::arg("origin"), py::arg("axis"),
+                  py::arg("angle"))
       .def_static("scaling", py::overload_cast<const Vec3&, double>(&Transform::scaling),
                   py::arg("center"), py::arg("factor"))
       .def_static("scaling", py::overload_cast<const Vec3&, const Vec3&>(&Transform::scaling),
@@ -121,24 +130,29 @@ PYBIND11_MODULE(_core, m) {
            }),
            py::arg("degree"), py::arg("knots"), py::arg("control_points"),
            py::arg("weights") = std::vector<double>{})
-      .def_static("from_points", [](std::size_t degree,
-                                    const py::array_t<double, py::array::c_style | py::array::forcecast>& pts) {
-             return NurbsCurve::from_points(degree, from_numpy(pts));
-           }, py::arg("degree"), py::arg("control_points"))
+      .def_static(
+          "from_points",
+          [](std::size_t degree,
+             const py::array_t<double, py::array::c_style | py::array::forcecast>& pts) {
+            return NurbsCurve::from_points(degree, from_numpy(pts));
+          },
+          py::arg("degree"), py::arg("control_points"))
       .def_property_readonly("degree", &NurbsCurve::degree)
       .def_property_readonly("knots", &NurbsCurve::knots)
       .def_property_readonly("weights", &NurbsCurve::weights)
-      .def_property_readonly("control_points", [](const NurbsCurve& c) { return to_numpy(c.control_points()); })
+      .def_property_readonly("control_points",
+                             [](const NurbsCurve& c) { return to_numpy(c.control_points()); })
       .def_property_readonly("is_rational", &NurbsCurve::is_rational)
-      .def_property_readonly("domain", [](const NurbsCurve& c) {
-        return py::make_tuple(c.domain_start(), c.domain_end());
-      })
+      .def_property_readonly(
+          "domain",
+          [](const NurbsCurve& c) { return py::make_tuple(c.domain_start(), c.domain_end()); })
       .def("evaluate", &NurbsCurve::evaluate, py::arg("u"))
       .def("__call__", &NurbsCurve::evaluate, py::arg("u"))
       .def("derivatives", &NurbsCurve::derivatives, py::arg("u"), py::arg("order") = 1)
       .def("tangent", &NurbsCurve::tangent, py::arg("u"))
-      .def("sample", [](const NurbsCurve& c, std::size_t n) { return to_numpy(c.sample(n)); },
-           py::arg("n") = 100)
+      .def(
+          "sample", [](const NurbsCurve& c, std::size_t n) { return to_numpy(c.sample(n)); },
+          py::arg("n") = 100)
       .def("insert_knot", &NurbsCurve::insert_knot, py::arg("u"), py::arg("times") = 1)
       .def("refine_knots", &NurbsCurve::refine_knots, py::arg("knots"),
            "Insert all given knots at once (shape-preserving).")
@@ -160,6 +174,7 @@ PYBIND11_MODULE(_core, m) {
            "Bezier segments, each on its original parameter interval.")
       .def("reversed", &NurbsCurve::reversed)
       .def("transformed", &NurbsCurve::transformed, py::arg("transform"))
+      .def("__rmul__", [](const NurbsCurve& c, const Transform& t) { return c.transformed(t); })
       .def("__repr__", [](const NurbsCurve& c) {
         return "<NurbsCurve degree=" + std::to_string(c.degree()) +
                " n_ctrl=" + std::to_string(c.num_control_points()) +
@@ -172,7 +187,8 @@ PYBIND11_MODULE(_core, m) {
                        std::size_t nv,
                        const py::array_t<double, py::array::c_style | py::array::forcecast>& pts,
                        std::vector<double> w) {
-             return NurbsSurface(du, dv, std::move(ku), std::move(kv), nu, nv, from_numpy(pts), std::move(w));
+             return NurbsSurface(du, dv, std::move(ku), std::move(kv), nu, nv, from_numpy(pts),
+                                 std::move(w));
            }),
            py::arg("degree_u"), py::arg("degree_v"), py::arg("knots_u"), py::arg("knots_v"),
            py::arg("num_u"), py::arg("num_v"), py::arg("control_points"),
@@ -185,21 +201,27 @@ PYBIND11_MODULE(_core, m) {
       .def_property_readonly("num_u", &NurbsSurface::num_u)
       .def_property_readonly("num_v", &NurbsSurface::num_v)
       .def_property_readonly("weights", &NurbsSurface::weights)
-      .def_property_readonly("control_points", [](const NurbsSurface& s) { return to_numpy(s.control_points()); })
+      .def_property_readonly("control_points",
+                             [](const NurbsSurface& s) { return to_numpy(s.control_points()); })
       .def_property_readonly("domain_u", &NurbsSurface::domain_u)
       .def_property_readonly("domain_v", &NurbsSurface::domain_v)
       .def("evaluate", &NurbsSurface::evaluate, py::arg("u"), py::arg("v"))
       .def("__call__", &NurbsSurface::evaluate, py::arg("u"), py::arg("v"))
-      .def("derivatives", &NurbsSurface::derivatives, py::arg("u"), py::arg("v"), py::arg("order") = 1,
+      .def("derivatives", &NurbsSurface::derivatives, py::arg("u"), py::arg("v"),
+           py::arg("order") = 1,
            "Partial derivatives D[k][l] = d^(k+l)S/du^k dv^l for k + l <= order.")
       .def("first_derivatives", &NurbsSurface::first_derivatives, py::arg("u"), py::arg("v"))
       .def("normal", &NurbsSurface::normal, py::arg("u"), py::arg("v"))
       .def("iso_curve_u", &NurbsSurface::iso_curve_u, py::arg("u"))
       .def("iso_curve_v", &NurbsSurface::iso_curve_v, py::arg("v"))
-      .def("sample", [](const NurbsSurface& s, std::size_t nu, std::size_t nv) {
-             auto a = to_numpy(s.sample(nu, nv));
-             return a.reshape({static_cast<py::ssize_t>(nu), static_cast<py::ssize_t>(nv), py::ssize_t{3}});
-           }, py::arg("nu") = 20, py::arg("nv") = 20)
+      .def(
+          "sample",
+          [](const NurbsSurface& s, std::size_t nu, std::size_t nv) {
+            auto a = to_numpy(s.sample(nu, nv));
+            return a.reshape(
+                {static_cast<py::ssize_t>(nu), static_cast<py::ssize_t>(nv), py::ssize_t{3}});
+          },
+          py::arg("nu") = 20, py::arg("nv") = 20)
       .def("refine_knots_u", &NurbsSurface::refine_knots_u, py::arg("knots"))
       .def("refine_knots_v", &NurbsSurface::refine_knots_v, py::arg("knots"))
       .def("elevate_degree_u", &NurbsSurface::elevate_degree_u, py::arg("times") = 1)
@@ -209,10 +231,10 @@ PYBIND11_MODULE(_core, m) {
       .def("split_v", &NurbsSurface::split_v, py::arg("v"))
       .def("sub_surface", &NurbsSurface::sub_surface, py::arg("u0"), py::arg("u1"), py::arg("v0"),
            py::arg("v1"))
-      .def("try_remove_knot_u", &NurbsSurface::try_remove_knot_u, py::arg("u"), py::arg("times") = 1,
-           py::arg("tolerance") = tol::kLength)
-      .def("try_remove_knot_v", &NurbsSurface::try_remove_knot_v, py::arg("v"), py::arg("times") = 1,
-           py::arg("tolerance") = tol::kLength)
+      .def("try_remove_knot_u", &NurbsSurface::try_remove_knot_u, py::arg("u"),
+           py::arg("times") = 1, py::arg("tolerance") = tol::kLength)
+      .def("try_remove_knot_v", &NurbsSurface::try_remove_knot_v, py::arg("v"),
+           py::arg("times") = 1, py::arg("tolerance") = tol::kLength)
       .def("remove_knot_u", &NurbsSurface::remove_knot_u, py::arg("u"), py::arg("times") = 1,
            py::arg("tolerance") = tol::kLength)
       .def("remove_knot_v", &NurbsSurface::remove_knot_v, py::arg("v"), py::arg("times") = 1,
@@ -222,10 +244,12 @@ PYBIND11_MODULE(_core, m) {
       .def("decompose_bezier", &NurbsSurface::decompose_bezier,
            "Bezier patches in row-major order (u span outer), original parameter rectangles.")
       .def("transformed", &NurbsSurface::transformed, py::arg("transform"))
+      .def("__rmul__", [](const NurbsSurface& s, const Transform& t) { return s.transformed(t); })
       .def("transposed", &NurbsSurface::transposed)
       .def("__repr__", [](const NurbsSurface& s) {
-        return "<NurbsSurface degree=(" + std::to_string(s.degree_u()) + "," + std::to_string(s.degree_v()) +
-               ") net=" + std::to_string(s.num_u()) + "x" + std::to_string(s.num_v()) + ">";
+        return "<NurbsSurface degree=(" + std::to_string(s.degree_u()) + "," +
+               std::to_string(s.degree_v()) + ") net=" + std::to_string(s.num_u()) + "x" +
+               std::to_string(s.num_v()) + ">";
       });
 
   // ------------------------------------------------------------------ closest point
@@ -234,7 +258,8 @@ PYBIND11_MODULE(_core, m) {
       .def_readonly("point", &CurvePoint::point)
       .def_readonly("distance", &CurvePoint::distance)
       .def("__repr__", [](const CurvePoint& r) {
-        return "CurvePoint(u=" + std::to_string(r.u) + ", distance=" + std::to_string(r.distance) + ")";
+        return "CurvePoint(u=" + std::to_string(r.u) + ", distance=" + std::to_string(r.distance) +
+               ")";
       });
   py::class_<SurfacePoint>(m, "SurfacePoint")
       .def_readonly("u", &SurfacePoint::u)
@@ -245,14 +270,17 @@ PYBIND11_MODULE(_core, m) {
         return "SurfacePoint(u=" + std::to_string(r.u) + ", v=" + std::to_string(r.v) +
                ", distance=" + std::to_string(r.distance) + ")";
       });
-  m.def("closest_point", py::overload_cast<const NurbsCurve&, const Vec3&, const Tolerance&>(&closest_point),
+  m.def("closest_point",
+        py::overload_cast<const NurbsCurve&, const Vec3&, const Tolerance&>(&closest_point),
         py::arg("curve"), py::arg("point"), py::arg("tolerance") = Tolerance{},
         "Global closest point on a curve (point projection / inversion).");
-  m.def("closest_point", py::overload_cast<const NurbsSurface&, const Vec3&, const Tolerance&>(&closest_point),
+  m.def("closest_point",
+        py::overload_cast<const NurbsSurface&, const Vec3&, const Tolerance&>(&closest_point),
         py::arg("surface"), py::arg("point"), py::arg("tolerance") = Tolerance{},
         "Global closest point on a surface.");
   m.def("closest_point_local",
-        py::overload_cast<const NurbsCurve&, const Vec3&, double, const Tolerance&>(&closest_point_local),
+        py::overload_cast<const NurbsCurve&, const Vec3&, double, const Tolerance&>(
+            &closest_point_local),
         py::arg("curve"), py::arg("point"), py::arg("u0"), py::arg("tolerance") = Tolerance{});
   m.def("closest_point_local",
         py::overload_cast<const NurbsSurface&, const Vec3&, double, double, const Tolerance&>(
@@ -267,7 +295,8 @@ PYBIND11_MODULE(_core, m) {
       .def_readonly("point", &CurveCurveIntersection::point)
       .def_readonly("distance", &CurveCurveIntersection::distance)
       .def("__repr__", [](const CurveCurveIntersection& x) {
-        return "CurveCurveIntersection(s=" + std::to_string(x.s) + ", t=" + std::to_string(x.t) + ")";
+        return "CurveCurveIntersection(s=" + std::to_string(x.s) + ", t=" + std::to_string(x.t) +
+               ")";
       });
   py::class_<CurveSurfaceIntersection>(m, "CurveSurfaceIntersection")
       .def_readonly("t", &CurveSurfaceIntersection::t)
@@ -316,10 +345,12 @@ PYBIND11_MODULE(_core, m) {
       .def_readwrite("tolerance", &SurfaceIntersectionOptions::tol)
       .def_readwrite("chord_tolerance", &SurfaceIntersectionOptions::chord_tolerance)
       .def_readwrite("fit_tolerance", &SurfaceIntersectionOptions::fit_tolerance);
-  m.def("intersect",
-        py::overload_cast<const NurbsSurface&, const NurbsSurface&, const SurfaceIntersectionOptions&>(&intersect),
-        py::arg("a"), py::arg("b"), py::arg("options") = SurfaceIntersectionOptions{},
-        "Surface/surface intersection: curves (3D + p-curves on both surfaces) and touching points.");
+  m.def(
+      "intersect",
+      py::overload_cast<const NurbsSurface&, const NurbsSurface&,
+                        const SurfaceIntersectionOptions&>(&intersect),
+      py::arg("a"), py::arg("b"), py::arg("options") = SurfaceIntersectionOptions{},
+      "Surface/surface intersection: curves (3D + p-curves on both surfaces) and touching points.");
 
   py::class_<Plane>(m, "Plane", "Infinite plane through `point` with normal `normal`.")
       .def(py::init([](const Vec3& point, const Vec3& normal) { return Plane{point, normal}; }),
@@ -330,8 +361,8 @@ PYBIND11_MODULE(_core, m) {
   m.def("planar_section", &planar_section, py::arg("surface"), py::arg("plane"),
         py::arg("options") = SurfaceIntersectionOptions{},
         "Section of a surface with a plane (pcurve2 in the plane's in-plane coordinates).");
-  m.def("planar_sections", &planar_sections, py::arg("surface"), py::arg("plane"), py::arg("spacing"),
-        py::arg("count"), py::arg("options") = SurfaceIntersectionOptions{});
+  m.def("planar_sections", &planar_sections, py::arg("surface"), py::arg("plane"),
+        py::arg("spacing"), py::arg("count"), py::arg("options") = SurfaceIntersectionOptions{});
   // shell sections (slicing of B-rep bodies)
   py::class_<SectionOptions>(m, "SectionOptions")
       .def(py::init<>())
@@ -344,7 +375,8 @@ PYBIND11_MODULE(_core, m) {
       .def_readonly("pcurve", &SectionCurve::pcurve, "(u, v, 0) on the source face's surface.")
       .def_readonly("face", &SectionCurve::face)
       .def_readonly("exact", &SectionCurve::exact)
-      .def("normal", &SectionCurve::normal, py::arg("t"), "Outward unit normal of the shell at parameter t.");
+      .def("normal", &SectionCurve::normal, py::arg("t"),
+           "Outward unit normal of the shell at parameter t.");
   py::class_<SectionLoop>(m, "SectionLoop")
       .def_readonly("curves", &SectionLoop::curves)
       .def_readonly("area", &SectionLoop::area, "Signed area in (s, t): > 0 outer loop, < 0 hole.");
@@ -354,27 +386,32 @@ PYBIND11_MODULE(_core, m) {
       .def_readonly("t_axis", &PlanarSection::t_axis)
       .def_readonly("normal", &PlanarSection::normal)
       .def_readonly("loops", &PlanarSection::loops);
-  m.def("section", &section, py::arg("shell"), py::arg("plane"), py::arg("options") = SectionOptions{},
+  m.def("section", &section, py::arg("shell"), py::arg("plane"),
+        py::arg("options") = SectionOptions{},
         "Section of a closed shell with a plane: closed loops oriented with the solid on the left "
         "(outer counter-clockwise, holes clockwise in the plane coordinates).");
   // hatching of section loops (contour and hatch lines of a layer)
-  py::class_<HatchSegment>(m, "HatchSegment", "Hatch segment inside the region bounded by the loops.")
+  py::class_<HatchSegment>(m, "HatchSegment",
+                           "Hatch segment inside the region bounded by the loops.")
       .def_readonly("start", &HatchSegment::start)
       .def_readonly("end", &HatchSegment::end)
       .def_readonly("line", &HatchSegment::line, "Index k of the line n . p = phase + k * spacing.")
-      .def_readonly("region", &HatchSegment::region, "Outer loop of the region containing the segment.")
+      .def_readonly("region", &HatchSegment::region,
+                    "Outer loop of the region containing the segment.")
       .def_readonly("start_loop", &HatchSegment::start_loop)
       .def_readonly("end_loop", &HatchSegment::end_loop)
       .def_property_readonly("length", &HatchSegment::length)
       .def("__repr__", [](const HatchSegment& s) {
-        return "HatchSegment(line=" + std::to_string(s.line) + ", length=" + std::to_string(s.length()) +
-               ", region=" + std::to_string(s.region) + ")";
+        return "HatchSegment(line=" + std::to_string(s.line) +
+               ", length=" + std::to_string(s.length()) + ", region=" + std::to_string(s.region) +
+               ")";
       });
   py::class_<HatchContour>(m, "HatchContour",
                            "Closed contour: boundary of the region shrunk by `distance`.")
       .def_readonly("curves", &HatchContour::curves)
       .def_readonly("loop", &HatchContour::loop, "First of `loops`.")
-      .def_readonly("loops", &HatchContour::loops, "Loops it was offset from (merged contours: several).")
+      .def_readonly("loops", &HatchContour::loops,
+                    "Loops it was offset from (merged contours: several).")
       .def_readonly("index", &HatchContour::index, "Index of the distance in `contours`.")
       .def_readonly("distance", &HatchContour::distance);
   m.def(
@@ -412,21 +449,28 @@ PYBIND11_MODULE(_core, m) {
         }
         return py::make_tuple(h.segments, h.contours);
       },
-      py::arg("loops"), py::arg("direction"), py::arg("spacing"), py::kw_only(), py::arg("phase") = 0.0,
-      py::arg("contours") = std::vector<double>{}, py::arg("min_length") = 0.0,
-      py::arg("tolerance") = 0.0, py::arg("contour_tolerance") = 0.0,
-      "Hatch and contour lines of the region bounded by closed planar loops (region on the left).\n\n"
-      "`loops`: a PlanarSection, its loops, or closed chains of curves in the xy plane (a single closed\n"
+      py::arg("loops"), py::arg("direction"), py::arg("spacing"), py::kw_only(),
+      py::arg("phase") = 0.0, py::arg("contours") = std::vector<double>{},
+      py::arg("min_length") = 0.0, py::arg("tolerance") = 0.0, py::arg("contour_tolerance") = 0.0,
+      "Hatch and contour lines of the region bounded by closed planar loops (region on the "
+      "left).\n\n"
+      "`loops`: a PlanarSection, its loops, or closed chains of curves in the xy plane (a single "
+      "closed\n"
       "curve counts as a loop). Lines n . p = phase + k * spacing along `direction` (2 or 3\n"
-      "components, z ignored), n = (-d.y, d.x). Returns (segments, contours): HatchSegment list sorted\n"
-      "by line and position, and one HatchContour per loop and inward offset distance in `contours`.");
-  m.def("critical_heights", &critical_heights, py::arg("shell"), py::arg("direction"),
-        py::arg("tolerance") = Tolerance{},
-        "Sorted heights along `direction` at which the topology of the planar sections can change.");
-  m.def("is_extrusion_band", &is_extrusion_band, py::arg("shell"), py::arg("direction"), py::arg("h0"),
-        py::arg("h1"), py::arg("tolerance") = Tolerance{},
-        "True if all faces meeting the band h0 < p . direction < h1 are parallel to `direction` there.");
-  m.def("intersect", py::overload_cast<const NurbsCurve&, const Plane&, const Tolerance&>(&intersect),
+      "components, z ignored), n = (-d.y, d.x). Returns (segments, contours): HatchSegment list "
+      "sorted\n"
+      "by line and position, and one HatchContour per loop and inward offset distance in "
+      "`contours`.");
+  m.def(
+      "critical_heights", &critical_heights, py::arg("shell"), py::arg("direction"),
+      py::arg("tolerance") = Tolerance{},
+      "Sorted heights along `direction` at which the topology of the planar sections can change.");
+  m.def("is_extrusion_band", &is_extrusion_band, py::arg("shell"), py::arg("direction"),
+        py::arg("h0"), py::arg("h1"), py::arg("tolerance") = Tolerance{},
+        "True if all faces meeting the band h0 < p . direction < h1 are parallel to `direction` "
+        "there.");
+  m.def("intersect",
+        py::overload_cast<const NurbsCurve&, const Plane&, const Tolerance&>(&intersect),
         py::arg("curve"), py::arg("plane"), py::arg("tolerance") = Tolerance{},
         "Intersection points of a curve with a plane.");
 
@@ -449,15 +493,17 @@ PYBIND11_MODULE(_core, m) {
       .def_readonly("dir1", &SurfaceCurvature::dir1)
       .def_readonly("dir2", &SurfaceCurvature::dir2)
       .def("__repr__", [](const SurfaceCurvature& k) {
-        return "SurfaceCurvature(K=" + std::to_string(k.gaussian) + ", H=" + std::to_string(k.mean) +
-               ", k1=" + std::to_string(k.k1) + ", k2=" + std::to_string(k.k2) + ")";
+        return "SurfaceCurvature(K=" + std::to_string(k.gaussian) +
+               ", H=" + std::to_string(k.mean) + ", k1=" + std::to_string(k.k1) +
+               ", k2=" + std::to_string(k.k2) + ")";
       });
   m.def("surface_curvature", py::overload_cast<const NurbsSurface&, double, double>(&curvature),
         py::arg("surface"), py::arg("u"), py::arg("v"),
         "Gaussian, mean and principal curvatures and directions.");
   m.def("area", py::overload_cast<const NurbsSurface&, double>(&area), py::arg("surface"),
         py::arg("rel_tol") = kIntegrationRelTol);
-  m.def("area", py::overload_cast<const NurbsSurface&, double, double, double, double, double>(&area),
+  m.def("area",
+        py::overload_cast<const NurbsSurface&, double, double, double, double, double>(&area),
         py::arg("surface"), py::arg("u0"), py::arg("u1"), py::arg("v0"), py::arg("v1"),
         py::arg("rel_tol") = kIntegrationRelTol);
 
@@ -468,54 +514,64 @@ PYBIND11_MODULE(_core, m) {
       .value("Centripetal", Parametrization::Centripetal);
   using Arr = py::array_t<double, py::array::c_style | py::array::forcecast>;
   const auto grid = [](const Arr& a) {
-    if (a.ndim() != 3 || a.shape(2) != 3) throw py::value_error("expected a grid of shape (nu, nv, 3)");
+    if (a.ndim() != 3 || a.shape(2) != 3)
+      throw py::value_error("expected a grid of shape (nu, nv, 3)");
     const auto nu = static_cast<std::size_t>(a.shape(0)), nv = static_cast<std::size_t>(a.shape(1));
     auto r = a.unchecked<3>();
     std::vector<Vec3> Q(nu * nv);
     for (py::ssize_t i = 0; i < a.shape(0); ++i)
       for (py::ssize_t j = 0; j < a.shape(1); ++j)
-        Q[static_cast<std::size_t>(i) * nv + static_cast<std::size_t>(j)] = {r(i, j, 0), r(i, j, 1), r(i, j, 2)};
+        Q[static_cast<std::size_t>(i) * nv + static_cast<std::size_t>(j)] = {r(i, j, 0), r(i, j, 1),
+                                                                             r(i, j, 2)};
     return std::tuple{Q, nu, nv};
   };
-  m.def("data_parameters", [](const Arr& pts, Parametrization method) {
+  m.def(
+      "data_parameters",
+      [](const Arr& pts, Parametrization method) {
         return data_parameters(from_numpy(pts), method);
-      }, py::arg("points"), py::arg("method") = Parametrization::Centripetal);
-  m.def("interpolate_curve",
-        [](const Arr& pts, std::size_t degree, Parametrization method,
-           const std::optional<std::pair<Vec3, Vec3>>& end_derivatives) {
-          return interpolate_curve(from_numpy(pts), degree, method, end_derivatives);
-        },
-        py::arg("points"), py::arg("degree") = 3, py::arg("method") = Parametrization::Centripetal,
-        py::arg("end_derivatives") = py::none(),
-        "Global interpolation through points (n, 3); optional (C'(0), C'(1)).");
-  m.def("approximate_curve",
-        [](const Arr& pts, std::size_t degree, std::size_t n_ctrl, Parametrization method) {
-          return approximate_curve(from_numpy(pts), degree, n_ctrl, method);
-        },
-        py::arg("points"), py::arg("degree"), py::arg("n_ctrl"),
-        py::arg("method") = Parametrization::Centripetal);
-  m.def("approximate_curve_tol",
-        [](const Arr& pts, std::size_t degree, double tolerance, Parametrization method) {
-          return approximate_curve_tol(from_numpy(pts), degree, tolerance, method);
-        },
-        py::arg("points"), py::arg("degree"), py::arg("tolerance"),
-        py::arg("method") = Parametrization::Centripetal,
-        "Least squares with the fewest control points meeting the tolerance.");
-  m.def("interpolate_surface",
-        [grid](const Arr& pts, std::size_t du, std::size_t dv, Parametrization method) {
-          auto [Q, nu, nv] = grid(pts);
-          return interpolate_surface(Q, nu, nv, du, dv, method);
-        },
-        py::arg("points"), py::arg("degree_u") = 3, py::arg("degree_v") = 3,
-        py::arg("method") = Parametrization::Centripetal, "Interpolate a point grid (nu, nv, 3).");
-  m.def("approximate_surface",
-        [grid](const Arr& pts, std::size_t du, std::size_t dv, std::size_t cu, std::size_t cv,
-               Parametrization method) {
-          auto [Q, nu, nv] = grid(pts);
-          return approximate_surface(Q, nu, nv, du, dv, cu, cv, method);
-        },
-        py::arg("points"), py::arg("degree_u"), py::arg("degree_v"), py::arg("ctrl_u"),
-        py::arg("ctrl_v"), py::arg("method") = Parametrization::Centripetal);
+      },
+      py::arg("points"), py::arg("method") = Parametrization::Centripetal);
+  m.def(
+      "interpolate_curve",
+      [](const Arr& pts, std::size_t degree, Parametrization method,
+         const std::optional<std::pair<Vec3, Vec3>>& end_derivatives) {
+        return interpolate_curve(from_numpy(pts), degree, method, end_derivatives);
+      },
+      py::arg("points"), py::arg("degree") = 3, py::arg("method") = Parametrization::Centripetal,
+      py::arg("end_derivatives") = py::none(),
+      "Global interpolation through points (n, 3); optional (C'(0), C'(1)).");
+  m.def(
+      "approximate_curve",
+      [](const Arr& pts, std::size_t degree, std::size_t n_ctrl, Parametrization method) {
+        return approximate_curve(from_numpy(pts), degree, n_ctrl, method);
+      },
+      py::arg("points"), py::arg("degree"), py::arg("n_ctrl"),
+      py::arg("method") = Parametrization::Centripetal);
+  m.def(
+      "approximate_curve_tol",
+      [](const Arr& pts, std::size_t degree, double tolerance, Parametrization method) {
+        return approximate_curve_tol(from_numpy(pts), degree, tolerance, method);
+      },
+      py::arg("points"), py::arg("degree"), py::arg("tolerance"),
+      py::arg("method") = Parametrization::Centripetal,
+      "Least squares with the fewest control points meeting the tolerance.");
+  m.def(
+      "interpolate_surface",
+      [grid](const Arr& pts, std::size_t du, std::size_t dv, Parametrization method) {
+        auto [Q, nu, nv] = grid(pts);
+        return interpolate_surface(Q, nu, nv, du, dv, method);
+      },
+      py::arg("points"), py::arg("degree_u") = 3, py::arg("degree_v") = 3,
+      py::arg("method") = Parametrization::Centripetal, "Interpolate a point grid (nu, nv, 3).");
+  m.def(
+      "approximate_surface",
+      [grid](const Arr& pts, std::size_t du, std::size_t dv, std::size_t cu, std::size_t cv,
+             Parametrization method) {
+        auto [Q, nu, nv] = grid(pts);
+        return approximate_surface(Q, nu, nv, du, dv, cu, cv, method);
+      },
+      py::arg("points"), py::arg("degree_u"), py::arg("degree_v"), py::arg("ctrl_u"),
+      py::arg("ctrl_v"), py::arg("method") = Parametrization::Centripetal);
 
   // ------------------------------------------------------------------ joining
   m.def("join", &join, py::arg("a"), py::arg("b"), py::arg("tolerance") = tol::kLength,
@@ -533,17 +589,20 @@ PYBIND11_MODULE(_core, m) {
         "Full circle through three points (starts at p0, runs through p1 and p2).");
   m.def("make_arc_3pt", &make_arc_3pt, py::arg("p0"), py::arg("p1"), py::arg("p2"),
         "Circular arc from p0 through p1 to p2.");
-  m.def("make_polygon", &make_polygon, py::arg("center"), py::arg("normal"), py::arg("radius"), py::arg("n"),
-        py::arg("x_axis") = Vec3{0, 0, 0},
-        "Closed regular polygon with n vertices on the circle of the given radius (first vertex along x_axis).");
-  m.def("make_rectangle_curve", &make_rectangle_curve, py::arg("origin"), py::arg("edge_u"), py::arg("edge_v"),
-        "Closed rectangle outline (degree 1).");
-  m.def("make_helix", &make_helix, py::arg("axis_point"), py::arg("axis"), py::arg("start"), py::arg("pitch"),
-        py::arg("turns"), py::arg("end_radius") = -1.0, py::arg("left_handed") = false,
-        py::arg("tolerance") = 1e-7,
-        "Helix / conical helix / planar spiral starting at `start`, parameter = turns; C2 quintic within "
+  m.def("make_polygon", &make_polygon, py::arg("center"), py::arg("normal"), py::arg("radius"),
+        py::arg("n"), py::arg("x_axis") = Vec3{0, 0, 0},
+        "Closed regular polygon with n vertices on the circle of the given radius (first vertex "
+        "along x_axis).");
+  m.def("make_rectangle_curve", &make_rectangle_curve, py::arg("origin"), py::arg("edge_u"),
+        py::arg("edge_v"), "Closed rectangle outline (degree 1).");
+  m.def("make_helix", &make_helix, py::arg("axis_point"), py::arg("axis"), py::arg("start"),
+        py::arg("pitch"), py::arg("turns"), py::arg("end_radius") = -1.0,
+        py::arg("left_handed") = false, py::arg("tolerance") = 1e-7,
+        "Helix / conical helix / planar spiral starting at `start`, parameter = turns; C2 quintic "
+        "within "
         "`tolerance` of the exact curve. end_radius < 0: cylindrical.");
-  m.def("make_bilinear", &make_bilinear, py::arg("p00"), py::arg("p10"), py::arg("p01"), py::arg("p11"));
+  m.def("make_bilinear", &make_bilinear, py::arg("p00"), py::arg("p10"), py::arg("p01"),
+        py::arg("p11"));
   m.def("make_rectangle", &make_rectangle, py::arg("origin"), py::arg("edge_u"), py::arg("edge_v"));
 
   // ------------------------------------------------------------------ construction
@@ -567,22 +626,29 @@ PYBIND11_MODULE(_core, m) {
         py::arg("curve"), py::arg("end"), py::arg("length"), py::arg("type") = Extension::Natural,
         "Extend a curve at one end by an arc length; original parameters are kept.");
   m.def("extend", py::overload_cast<const NurbsSurface&, SurfaceSide, double, Extension>(&extend),
-        py::arg("surface"), py::arg("side"), py::arg("length"), py::arg("type") = Extension::Natural,
+        py::arg("surface"), py::arg("side"), py::arg("length"),
+        py::arg("type") = Extension::Natural,
         "Extend a surface across one side; original parameters are kept.");
 
   // ------------------------------------------------------------------ loft
   m.def("loft_parameters", &loft_parameters, py::arg("sections"),
         py::arg("method") = Parametrization::Centripetal);
-  m.def("loft", py::overload_cast<const std::vector<NurbsCurve>&, std::size_t, Parametrization>(&loft),
-        py::arg("sections"), py::arg("degree_v") = 3, py::arg("method") = Parametrization::Centripetal,
+  m.def("loft",
+        py::overload_cast<const std::vector<NurbsCurve>&, std::size_t, Parametrization>(&loft),
+        py::arg("sections"), py::arg("degree_v") = 3,
+        py::arg("method") = Parametrization::Centripetal,
         "Skinned surface through section curves (u along the sections, v across them).");
   m.def("loft",
-        py::overload_cast<const std::vector<NurbsCurve>&, std::size_t, const std::vector<double>&>(&loft),
+        py::overload_cast<const std::vector<NurbsCurve>&, std::size_t, const std::vector<double>&>(
+            &loft),
         py::arg("sections"), py::arg("degree_v"), py::arg("v_params"));
-  m.def("make_compatible", [](std::vector<NurbsCurve> curves) {
+  m.def(
+      "make_compatible",
+      [](std::vector<NurbsCurve> curves) {
         make_compatible(curves);
         return curves;
-      }, py::arg("curves"), "Common degree, knot vector and domain [0, 1] for all curves.");
+      },
+      py::arg("curves"), "Common degree, knot vector and domain [0, 1] for all curves.");
 
   // ------------------------------------------------------------------ sweep
   py::enum_<SweepFrame>(m, "SweepFrame")
@@ -633,8 +699,10 @@ PYBIND11_MODULE(_core, m) {
         return "<CurveFillet center=(" + std::to_string(f.center.x) + ", " +
                std::to_string(f.center.y) + ", " + std::to_string(f.center.z) + ")>";
       });
-  m.def("fillet_corners", &fillet_corners, py::arg("curve"), py::arg("radius"), py::arg("tolerance") = 1e-7,
-        "Round every corner of a planar curve (polyline, polygon, ...) with exact arcs; one G1 curve.");
+  m.def("fillet_corners", &fillet_corners, py::arg("curve"), py::arg("radius"),
+        py::arg("tolerance") = 1e-7,
+        "Round every corner of a planar curve (polyline, polygon, ...) with exact arcs; one G1 "
+        "curve.");
   m.def(
       "fillet_curves",
       [](const NurbsCurve& a, const NurbsCurve& b, double radius, const Vec3& plane_normal,
@@ -678,17 +746,21 @@ PYBIND11_MODULE(_core, m) {
   // ------------------------------------------------------------------ Coons / Gordon
   m.def("coons", &coons, py::arg("c0"), py::arg("c1"), py::arg("d0"), py::arg("d1"),
         py::arg("tolerance") = 1e-7,
-        "Coons patch: S(u,0)=c0, S(u,1)=c1, S(0,v)=d0, S(1,v)=d1 (orientations fixed automatically).");
+        "Coons patch: S(u,0)=c0, S(u,1)=c1, S(0,v)=d0, S(1,v)=d1 (orientations fixed "
+        "automatically).");
   m.def("gordon", &gordon, py::arg("u_curves"), py::arg("v_curves"), py::arg("tolerance") = 1e-7,
         "Gordon surface through a consistent curve network.");
 
   // ------------------------------------------------------------------ optical surfaces
-  py::class_<Asphere>(m, "Asphere", "Rotationally symmetric sag: conic + even (r^4, r^6, ...) + odd (r, r^2, ...) terms.")
-      .def(py::init([](double curvature, double conic, std::vector<double> even, std::vector<double> odd) {
+  py::class_<Asphere>(
+      m, "Asphere",
+      "Rotationally symmetric sag: conic + even (r^4, r^6, ...) + odd (r, r^2, ...) terms.")
+      .def(py::init([](double curvature, double conic, std::vector<double> even,
+                       std::vector<double> odd) {
              return Asphere{curvature, conic, std::move(even), std::move(odd)};
            }),
-           py::arg("curvature") = 0.0, py::arg("conic") = 0.0, py::arg("even") = std::vector<double>{},
-           py::arg("odd") = std::vector<double>{})
+           py::arg("curvature") = 0.0, py::arg("conic") = 0.0,
+           py::arg("even") = std::vector<double>{}, py::arg("odd") = std::vector<double>{})
       .def_readwrite("curvature", &Asphere::curvature)
       .def_readwrite("conic", &Asphere::conic)
       .def_readwrite("even", &Asphere::even)
@@ -700,24 +772,29 @@ PYBIND11_MODULE(_core, m) {
       .value("Fringe", ZernikeIndexing::Fringe)
       .value("Noll", ZernikeIndexing::Noll);
   m.def("zernike", &zernike, py::arg("j"), py::arg("indexing"), py::arg("rho"), py::arg("theta"));
-  m.def("zernike_nm", [](std::size_t j, ZernikeIndexing ix) {
+  m.def(
+      "zernike_nm",
+      [](std::size_t j, ZernikeIndexing ix) {
         int n = 0, mm = 0;
         zernike_nm(j, ix, n, mm);
         return py::make_tuple(n, mm);
-      }, py::arg("j"), py::arg("indexing"));
+      },
+      py::arg("j"), py::arg("indexing"));
   py::class_<ZernikeSag>(m, "ZernikeSag")
-      .def(py::init([](Asphere base, double norm_radius, ZernikeIndexing ix, std::vector<double> c) {
-             return ZernikeSag{std::move(base), norm_radius, ix, std::move(c)};
-           }),
-           py::arg("base") = Asphere{}, py::arg("norm_radius") = 1.0,
-           py::arg("indexing") = ZernikeIndexing::Fringe, py::arg("coeffs") = std::vector<double>{})
+      .def(
+          py::init([](Asphere base, double norm_radius, ZernikeIndexing ix, std::vector<double> c) {
+            return ZernikeSag{std::move(base), norm_radius, ix, std::move(c)};
+          }),
+          py::arg("base") = Asphere{}, py::arg("norm_radius") = 1.0,
+          py::arg("indexing") = ZernikeIndexing::Fringe, py::arg("coeffs") = std::vector<double>{})
       .def_readwrite("base", &ZernikeSag::base)
       .def_readwrite("norm_radius", &ZernikeSag::norm_radius)
       .def_readwrite("indexing", &ZernikeSag::indexing)
       .def_readwrite("coeffs", &ZernikeSag::coeffs)
       .def("sag", &ZernikeSag::sag, py::arg("x"), py::arg("y"));
   py::class_<XYPolynomialSag>(m, "XYPolynomialSag")
-      .def(py::init([](Asphere base, double norm_radius, const std::vector<std::tuple<int, int, double>>& terms) {
+      .def(py::init([](Asphere base, double norm_radius,
+                       const std::vector<std::tuple<int, int, double>>& terms) {
              XYPolynomialSag s{std::move(base), norm_radius, {}};
              for (const auto& [i, j, c] : terms) s.terms.push_back({i, j, c});
              return s;
@@ -731,28 +808,32 @@ PYBIND11_MODULE(_core, m) {
   m.def("asphere_surface", &asphere_surface, py::arg("asphere"), py::arg("r_max"),
         py::arg("tolerance") = 1e-7, "Surface of revolution; exact for pure conics.");
   m.def("sag_surface", &sag_surface, py::arg("f"), py::arg("x0"), py::arg("x1"), py::arg("y0"),
-        py::arg("y1"), py::arg("degree") = 3, py::arg("tolerance") = 1e-7, py::arg("max_spans") = 256,
+        py::arg("y1"), py::arg("degree") = 3, py::arg("tolerance") = 1e-7,
+        py::arg("max_spans") = 256,
         "Graph surface z = f(x, y) over a rectangle, fitted to the tolerance.");
   m.def("zernike_surface", &zernike_surface, py::arg("zernike"), py::arg("half_width") = 0.0,
         py::arg("tolerance") = 1e-7);
-  m.def("xy_polynomial_surface", &xy_polynomial_surface, py::arg("poly"), py::arg("half_width") = 0.0,
-        py::arg("tolerance") = 1e-7);
+  m.def("xy_polynomial_surface", &xy_polynomial_surface, py::arg("poly"),
+        py::arg("half_width") = 0.0, py::arg("tolerance") = 1e-7);
 
   // ------------------------------------------------------------------ trimmed surfaces
-  py::class_<TrimLoop>(m, "TrimLoop", "Closed loop of parameter-space curves (x = u, y = v, z = 0).")
+  py::class_<TrimLoop>(m, "TrimLoop",
+                       "Closed loop of parameter-space curves (x = u, y = v, z = 0).")
       .def(py::init([](std::vector<NurbsCurve> curves) { return TrimLoop{std::move(curves)}; }),
            py::arg("curves"))
       .def_readonly("curves", &TrimLoop::curves)
       .def("signed_area", &TrimLoop::signed_area)
       .def("reversed", &TrimLoop::reversed)
       .def("polyline", &TrimLoop::polyline, py::arg("samples_per_span") = 16);
-  m.def("rectangle_loop", &rectangle_loop, py::arg("u0"), py::arg("u1"), py::arg("v0"), py::arg("v1"));
+  m.def("rectangle_loop", &rectangle_loop, py::arg("u0"), py::arg("u1"), py::arg("v0"),
+        py::arg("v1"));
   m.def("circle_loop", &circle_loop, py::arg("cu"), py::arg("cv"), py::arg("r"));
   m.def("polygon_loop", &polygon_loop, py::arg("points"));
   py::class_<TrimmedSurface>(m, "TrimmedSurface")
       .def(py::init<NurbsSurface>(), py::arg("surface"))
-      .def(py::init<NurbsSurface, TrimLoop, std::vector<TrimLoop>, const Tolerance&>(), py::arg("surface"),
-           py::arg("outer"), py::arg("holes") = std::vector<TrimLoop>{}, py::arg("tolerance") = Tolerance{})
+      .def(py::init<NurbsSurface, TrimLoop, std::vector<TrimLoop>, const Tolerance&>(),
+           py::arg("surface"), py::arg("outer"), py::arg("holes") = std::vector<TrimLoop>{},
+           py::arg("tolerance") = Tolerance{})
       .def_property_readonly("surface", &TrimmedSurface::surface)
       .def_property_readonly("outer", &TrimmedSurface::outer)
       .def_property_readonly("holes", &TrimmedSurface::holes)
@@ -761,26 +842,38 @@ PYBIND11_MODULE(_core, m) {
       .def("area", &TrimmedSurface::area, py::arg("rel_tol") = 1e-9)
       .def("boundary_curves", &TrimmedSurface::boundary_curves, py::arg("tolerance") = 1e-7)
       .def("with_hole", &TrimmedSurface::with_hole, py::arg("hole"))
-      .def("flipped", &TrimmedSurface::flipped, "The same face with opposite orientation (normal flipped).")
-      .def_property_readonly("label", &TrimmedSurface::label,
-                             "Face label (boundary condition / physical group); kept by Booleans, transforms, STEP.")
-      .def("with_label", &TrimmedSurface::with_label, py::arg("label"), "The same face with the given label.")
+      .def("flipped", &TrimmedSurface::flipped,
+           "The same face with opposite orientation (normal flipped).")
+      .def("transformed", &TrimmedSurface::transformed, py::arg("transform"),
+           "The face mapped by an affine transform (loops and label kept; reflections keep the "
+           "normal by flipping the face).")
+      .def("__rmul__", [](const TrimmedSurface& f, const Transform& t) { return f.transformed(t); })
+      .def_property_readonly(
+          "label", &TrimmedSurface::label,
+          "Face label (boundary condition / physical group); kept by Booleans, transforms, STEP.")
+      .def("with_label", &TrimmedSurface::with_label, py::arg("label"),
+           "The same face with the given label.")
       .def("__repr__", [](const TrimmedSurface& t) {
         return "<TrimmedSurface holes=" + std::to_string(t.holes().size()) + ">";
       });
-  m.def("split", py::overload_cast<const NurbsSurface&, const NurbsSurface&, const Tolerance&>(&split),
+  m.def("split",
+        py::overload_cast<const NurbsSurface&, const NurbsSurface&, const Tolerance&>(&split),
         py::arg("surface"), py::arg("cutter"), py::arg("tolerance") = Tolerance{},
         "Split a surface along its intersection curves with another surface into trimmed regions.");
-  m.def("split",
-        py::overload_cast<const NurbsSurface&, const std::vector<NurbsCurve>&, const Tolerance&>(&split),
-        py::arg("surface"), py::arg("pcurves"), py::arg("tolerance") = Tolerance{},
-        "Split a surface into trimmed regions along parameter-space curves (u, v, 0). Closed curves "
-        "become holes and new regions; open curves run from boundary to boundary and may cross.");
-  m.def("split",
-        py::overload_cast<const TrimmedSurface&, const std::vector<NurbsCurve>&, const Tolerance&>(&split),
-        py::arg("face"), py::arg("cuts"), py::arg("tolerance") = Tolerance{},
-        "Split a trimmed face along parameter-space curves (general planar arrangement): cuts are "
-        "clipped to the face, may end on the trim loops or on other cuts and may cross each other.");
+  m.def(
+      "split",
+      py::overload_cast<const NurbsSurface&, const std::vector<NurbsCurve>&, const Tolerance&>(
+          &split),
+      py::arg("surface"), py::arg("pcurves"), py::arg("tolerance") = Tolerance{},
+      "Split a surface into trimmed regions along parameter-space curves (u, v, 0). Closed curves "
+      "become holes and new regions; open curves run from boundary to boundary and may cross.");
+  m.def(
+      "split",
+      py::overload_cast<const TrimmedSurface&, const std::vector<NurbsCurve>&, const Tolerance&>(
+          &split),
+      py::arg("face"), py::arg("cuts"), py::arg("tolerance") = Tolerance{},
+      "Split a trimmed face along parameter-space curves (general planar arrangement): cuts are "
+      "clipped to the face, may end on the trim loops or on other cuts and may cross each other.");
   m.def("integrate", &integrate, py::arg("f"), py::arg("a"), py::arg("b"),
         py::arg("rel_tol") = kIntegrationRelTol, py::arg("breaks") = std::vector<double>{},
         py::arg("abs_tol") = 0.0, "Globally adaptive Gauss-Kronrod integral of f over [a, b].");
@@ -796,7 +889,8 @@ PYBIND11_MODULE(_core, m) {
       .def_readonly("v0", &ShellEdge::v0)
       .def_readonly("v1", &ShellEdge::v1)
       .def_readonly("uses", &ShellEdge::uses);
-  py::class_<MassProperties>(m, "MassProperties", "Volume, centroid and inertia of a solid (unit density).")
+  py::class_<MassProperties>(m, "MassProperties",
+                             "Volume, centroid and inertia of a solid (unit density).")
       .def_readonly("volume", &MassProperties::volume)
       .def_readonly("centroid", &MassProperties::centroid)
       .def_property_readonly(
@@ -805,21 +899,23 @@ PYBIND11_MODULE(_core, m) {
             py::array_t<double> a({py::ssize_t{3}, py::ssize_t{3}});
             auto r = a.mutable_unchecked<2>();
             for (py::ssize_t i = 0; i < 3; ++i)
-              for (py::ssize_t j = 0; j < 3; ++j) r(i, j) = mp.inertia[static_cast<std::size_t>(3 * i + j)];
+              for (py::ssize_t j = 0; j < 3; ++j)
+                r(i, j) = mp.inertia[static_cast<std::size_t>(3 * i + j)];
             return a;
           },
           "Inertia tensor about the centroid (3 x 3): diagonal moments, off-diagonal -products.")
       .def_property_readonly("principal_moments",
                              [](const MassProperties& mp) {
-                               return py::make_tuple(mp.principal_moments[0], mp.principal_moments[1],
+                               return py::make_tuple(mp.principal_moments[0],
+                                                     mp.principal_moments[1],
                                                      mp.principal_moments[2]);
                              })
-      .def_property_readonly("principal_axes",
-                             [](const MassProperties& mp) {
-                               return to_numpy({mp.principal_axes[0], mp.principal_axes[1],
-                                                mp.principal_axes[2]});
-                             },
-                             "Unit axes as rows, in the order of principal_moments.")
+      .def_property_readonly(
+          "principal_axes",
+          [](const MassProperties& mp) {
+            return to_numpy({mp.principal_axes[0], mp.principal_axes[1], mp.principal_axes[2]});
+          },
+          "Unit axes as rows, in the order of principal_moments.")
       .def("__repr__", [](const MassProperties& mp) {
         return "MassProperties(volume=" + std::to_string(mp.volume) + ", centroid=(" +
                std::to_string(mp.centroid.x) + ", " + std::to_string(mp.centroid.y) + ", " +
@@ -843,7 +939,8 @@ PYBIND11_MODULE(_core, m) {
            "Volume, centroid and inertia tensor (about the centroid, unit density) of the solid.")
       .def("with_face_labels", &Shell::with_face_labels, py::arg("labels"),
            "The same shell with one label per face (they survive Booleans, transforms and STEP).")
-      .def("faces_labeled", &Shell::faces_labeled, py::arg("label"), "Indices of the faces with this label.")
+      .def("faces_labeled", &Shell::faces_labeled, py::arg("label"),
+           "Indices of the faces with this label.")
       .def_property_readonly("face_labels",
                              [](const Shell& s) {
                                std::vector<std::string> l;
@@ -854,7 +951,8 @@ PYBIND11_MODULE(_core, m) {
            "The shell mapped by an affine transform (mirrors keep the normals outward).")
       .def("__rmul__", [](const Shell& s, const Transform& t) { return s.transformed(t); })
       .def("__repr__", [](const Shell& s) {
-        return "<Shell faces=" + std::to_string(s.faces().size()) + " edges=" + std::to_string(s.edges().size()) +
+        return "<Shell faces=" + std::to_string(s.faces().size()) +
+               " edges=" + std::to_string(s.edges().size()) +
                (s.is_closed() ? " closed>" : " open>");
       });
 
@@ -863,7 +961,8 @@ PYBIND11_MODULE(_core, m) {
       .value("Union", BooleanOp::Union)
       .value("Intersection", BooleanOp::Intersection)
       .value("Difference", BooleanOp::Difference);
-  m.def("point_in_shell", &point_in_shell, py::arg("shell"), py::arg("point"), py::arg("tolerance") = 1e-6,
+  m.def("point_in_shell", &point_in_shell, py::arg("shell"), py::arg("point"),
+        py::arg("tolerance") = 1e-6,
         "True if the point lies inside the closed shell (ray casting).");
   // closed solid primitives
   m.def("make_box", &make_box, py::arg("corner"), py::arg("size"),
@@ -872,7 +971,8 @@ PYBIND11_MODULE(_core, m) {
   m.def("make_cylinder", &make_cylinder, py::arg("base"), py::arg("axis"), py::arg("radius"),
         py::arg("height"), "Cylinder with the base disc centred at `base` along `axis`.");
   m.def("make_cone", &make_cone, py::arg("base"), py::arg("axis"), py::arg("r0"), py::arg("r1"),
-        py::arg("height"), "Frustum: radius r0 at the base, r1 at the top; one radius may be 0 (apex).");
+        py::arg("height"),
+        "Frustum: radius r0 at the base, r1 at the top; one radius may be 0 (apex).");
   m.def("make_torus", &make_torus, py::arg("center"), py::arg("axis"), py::arg("major_radius"),
         py::arg("minor_radius"));
   m.def("boolean", &boolean, py::arg("a"), py::arg("b"), py::arg("op"), py::arg("tolerance") = 1e-6,
@@ -892,26 +992,27 @@ PYBIND11_MODULE(_core, m) {
       if (py::isinstance<Shell>(shells)) return std::vector<Shell>{shells.cast<Shell>()};
       return shells.cast<std::vector<Shell>>();
     };
-    const auto step_options = [step_unit](const std::string& unit, const std::string& name,
-                                          const std::string& author, const std::string& organization,
-                                          const std::string& timestamp, double uncertainty,
-                                          const std::vector<std::string>& names) {
-      StepOptions o;
-      o.unit = step_unit(unit);
-      o.name = name;
-      o.author = author;
-      o.organization = organization;
-      o.timestamp = timestamp;
-      o.uncertainty = uncertainty;
-      o.shell_names = names;
-      return o;
-    };
+    const auto step_options =
+        [step_unit](const std::string& unit, const std::string& name, const std::string& author,
+                    const std::string& organization, const std::string& timestamp,
+                    double uncertainty, const std::vector<std::string>& names) {
+          StepOptions o;
+          o.unit = step_unit(unit);
+          o.name = name;
+          o.author = author;
+          o.organization = organization;
+          o.timestamp = timestamp;
+          o.uncertainty = uncertainty;
+          o.shell_names = names;
+          return o;
+        };
     m.def(
         "write_step",
-        [shell_list, step_options](const py::object& path, const py::object& shells, const std::string& unit,
-                                   const std::string& name, const std::string& author,
-                                   const std::string& organization, const std::string& timestamp,
-                                   double uncertainty, const std::vector<std::string>& names) {
+        [shell_list, step_options](const py::object& path, const py::object& shells,
+                                   const std::string& unit, const std::string& name,
+                                   const std::string& author, const std::string& organization,
+                                   const std::string& timestamp, double uncertainty,
+                                   const std::vector<std::string>& names) {
           const auto os = py::module_::import("os");
           write_step(os.attr("fspath")(path).cast<std::string>(), shell_list(shells),
                      step_options(unit, name, author, organization, timestamp, uncertainty, names));
@@ -919,29 +1020,33 @@ PYBIND11_MODULE(_core, m) {
         py::arg("path"), py::arg("shells"), py::arg("unit") = "mm", py::arg("name") = "nurbforge",
         py::arg("author") = "", py::arg("organization") = "", py::arg("timestamp") = "",
         py::arg("uncertainty") = 1e-6, py::arg("names") = std::vector<std::string>{},
-        "Write a Shell or a list of Shells to a STEP file (AP214, native writer). Closed shells become "
-        "solids, open shells surface models. `unit` ('mm', 'cm', 'm', 'inch', 'um') declares what one model "
-        "unit means; coordinates are written unchanged. `names`: one name per shell (solid names, read back "
+        "Write a Shell or a list of Shells to a STEP file (AP214, native writer). Closed shells "
+        "become "
+        "solids, open shells surface models. `unit` ('mm', 'cm', 'm', 'inch', 'um') declares what "
+        "one model "
+        "unit means; coordinates are written unchanged. `names`: one name per shell (solid names, "
+        "read back "
         "by read_step_named).");
     m.def(
         "to_step",
-        [shell_list, step_options](const py::object& shells, const std::string& unit, const std::string& name,
-                                   const std::string& author, const std::string& organization,
-                                   const std::string& timestamp, double uncertainty,
-                                   const std::vector<std::string>& names) {
-          return to_step(shell_list(shells),
-                         step_options(unit, name, author, organization, timestamp, uncertainty, names));
+        [shell_list, step_options](const py::object& shells, const std::string& unit,
+                                   const std::string& name, const std::string& author,
+                                   const std::string& organization, const std::string& timestamp,
+                                   double uncertainty, const std::vector<std::string>& names) {
+          return to_step(shell_list(shells), step_options(unit, name, author, organization,
+                                                          timestamp, uncertainty, names));
         },
-        py::arg("shells"), py::arg("unit") = "mm", py::arg("name") = "nurbforge", py::arg("author") = "",
-        py::arg("organization") = "", py::arg("timestamp") = "", py::arg("uncertainty") = 1e-6,
-        py::arg("names") = std::vector<std::string>{},
+        py::arg("shells"), py::arg("unit") = "mm", py::arg("name") = "nurbforge",
+        py::arg("author") = "", py::arg("organization") = "", py::arg("timestamp") = "",
+        py::arg("uncertainty") = 1e-6, py::arg("names") = std::vector<std::string>{},
         "The STEP file contents (see write_step) as a string.");
   }
 
   // ------------------------------------------------------------------ STEP import
   {
     // runs the reader with the given options; skipped items are reported as Python warnings
-    const auto read = [step_unit](auto&& reader, const std::string& unit, double tolerance, bool skip_unsupported) {
+    const auto read = [step_unit](auto&& reader, const std::string& unit, double tolerance,
+                                  bool skip_unsupported) {
       StepReadOptions o;
       o.unit = step_unit(unit);
       o.tolerance = tolerance;
@@ -955,31 +1060,40 @@ PYBIND11_MODULE(_core, m) {
       }
       if (!warnings.empty()) {
         const auto warn = py::module_::import("warnings").attr("warn");
-        for (const auto& w : warnings) warn(w, py::module_::import("builtins").attr("UserWarning"), 2);
+        for (const auto& w : warnings)
+          warn(w, py::module_::import("builtins").attr("UserWarning"), 2);
       }
       return shells;
     };
     m.def(
         "read_step",
-        [read](const py::object& path, const std::string& unit, double tolerance, bool skip_unsupported) {
+        [read](const py::object& path, const std::string& unit, double tolerance,
+               bool skip_unsupported) {
           const std::string p = py::module_::import("os").attr("fspath")(path).cast<std::string>();
-          return read([&](const StepReadOptions& o) { return read_step(p, o); }, unit, tolerance, skip_unsupported);
+          return read([&](const StepReadOptions& o) { return read_step(p, o); }, unit, tolerance,
+                      skip_unsupported);
         },
         py::arg("path"), py::kw_only(), py::arg("unit") = "mm", py::arg("tolerance") = 1e-6,
         py::arg("skip_unsupported") = false,
-        "Read the B-rep solids and surface models of a STEP file (native reader) as a list of Shells, "
-        "converted to `unit` ('mm', 'cm', 'm', 'inch'). Analytic surfaces (plane, cylinder, cone, sphere, "
-        "torus) become exact NURBS patches; trim loops are rebuilt in parameter space. `tolerance` is the "
-        "sewing tolerance. Unsupported entities raise GeometryError unless `skip_unsupported` (the faces "
+        "Read the B-rep solids and surface models of a STEP file (native reader) as a list of "
+        "Shells, "
+        "converted to `unit` ('mm', 'cm', 'm', 'inch', 'um'). Analytic surfaces (plane, cylinder, "
+        "cone, sphere, "
+        "torus) become exact NURBS patches; trim loops are rebuilt in parameter space. `tolerance` "
+        "is the "
+        "sewing tolerance. Unsupported entities raise GeometryError unless `skip_unsupported` (the "
+        "faces "
         "are then skipped with a warning).");
     m.def(
         "from_step",
-        [read](const std::string& text, const std::string& unit, double tolerance, bool skip_unsupported) {
+        [read](const std::string& text, const std::string& unit, double tolerance,
+               bool skip_unsupported) {
           return read([&](const StepReadOptions& o) { return from_step(text, o); }, unit, tolerance,
                       skip_unsupported);
         },
         py::arg("text"), py::kw_only(), py::arg("unit") = "mm", py::arg("tolerance") = 1e-6,
-        py::arg("skip_unsupported") = false, "Read shells from STEP file contents (see read_step).");
+        py::arg("skip_unsupported") = false,
+        "Read shells from STEP file contents (see read_step).");
     const auto named = [](const std::vector<NamedShell>& v) {
       py::list out;
       for (const auto& n : v) out.append(py::make_tuple(n.name, n.shell));
@@ -987,20 +1101,23 @@ PYBIND11_MODULE(_core, m) {
     };
     m.def(
         "read_step_named",
-        [read, named](const py::object& path, const std::string& unit, double tolerance, bool skip_unsupported) {
+        [read, named](const py::object& path, const std::string& unit, double tolerance,
+                      bool skip_unsupported) {
           const std::string p = py::module_::import("os").attr("fspath")(path).cast<std::string>();
-          return named(read([&](const StepReadOptions& o) { return read_step_named(p, o); }, unit, tolerance,
-                            skip_unsupported));
+          return named(read([&](const StepReadOptions& o) { return read_step_named(p, o); }, unit,
+                            tolerance, skip_unsupported));
         },
         py::arg("path"), py::kw_only(), py::arg("unit") = "mm", py::arg("tolerance") = 1e-6,
         py::arg("skip_unsupported") = false,
-        "As read_step, as a list of (name, Shell): the solid name (write_step(..., names=...)), else the "
+        "As read_step, as a list of (name, Shell): the solid name (write_step(..., names=...)), "
+        "else the "
         "product name.");
     m.def(
         "from_step_named",
-        [read, named](const std::string& text, const std::string& unit, double tolerance, bool skip_unsupported) {
-          return named(read([&](const StepReadOptions& o) { return from_step_named(text, o); }, unit, tolerance,
-                            skip_unsupported));
+        [read, named](const std::string& text, const std::string& unit, double tolerance,
+                      bool skip_unsupported) {
+          return named(read([&](const StepReadOptions& o) { return from_step_named(text, o); },
+                            unit, tolerance, skip_unsupported));
         },
         py::arg("text"), py::kw_only(), py::arg("unit") = "mm", py::arg("tolerance") = 1e-6,
         py::arg("skip_unsupported") = false, "As from_step, as a list of (name, Shell).");

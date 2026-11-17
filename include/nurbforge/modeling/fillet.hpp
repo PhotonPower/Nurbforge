@@ -38,11 +38,11 @@ struct CurveFillet {
   /// Exact rational arc of radius r (make_arc) from point_a to point_b, oriented so that
   /// trimmed_a, arc, trimmed_b form a G1 chain (join(join(trimmed_a, arc), trimmed_b)).
   NurbsCurve arc;
-  Vec3 center;         ///< centre of the arc
-  double param_a{0.0}; ///< parameter of the tangent point on a
-  double param_b{0.0}; ///< parameter of the tangent point on b
-  Vec3 point_a;        ///< a(param_a) = arc start
-  Vec3 point_b;        ///< b(param_b) = arc end
+  Vec3 center;          ///< centre of the arc
+  double param_a{0.0};  ///< parameter of the tangent point on a
+  double param_b{0.0};  ///< parameter of the tangent point on b
+  Vec3 point_a;         ///< a(param_a) = arc start
+  Vec3 point_b;         ///< b(param_b) = arc end
   /// The kept part of a (the side of param_a away from the corner), oriented to end at point_a;
   /// reversed with respect to a if the kept part lies after param_a. Empty if options.trim is
   /// false.

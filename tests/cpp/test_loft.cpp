@@ -1,6 +1,5 @@
-#include <catch2/catch_test_macros.hpp>
-
 #include <algorithm>
+#include <catch2/catch_test_macros.hpp>
 #include <cmath>
 #include <numbers>
 #include <vector>
@@ -19,7 +18,8 @@ namespace {
 
 std::vector<NurbsCurve> circles(const std::vector<double>& z, const std::vector<double>& r) {
   std::vector<NurbsCurve> s;
-  for (std::size_t k = 0; k < z.size(); ++k) s.push_back(make_circle({0, 0, z[k]}, {0, 0, 1}, r[k]));
+  for (std::size_t k = 0; k < z.size(); ++k)
+    s.push_back(make_circle({0, 0, z[k]}, {0, 0, 1}, r[k]));
   return s;
 }
 
@@ -30,7 +30,8 @@ void check_sections(const NurbsSurface& s, const std::vector<NurbsCurve>& sectio
   std::vector<NurbsCurve> c = sections;
   make_compatible(c);
   for (std::size_t k = 0; k < c.size(); ++k)
-    for (double u = 0.0; u <= 1.0; u += 0.05) CHECK(distance(s.evaluate(u, v[k]), c[k].evaluate(u)) < 1e-11);
+    for (double u = 0.0; u <= 1.0; u += 0.05)
+      CHECK(distance(s.evaluate(u, v[k]), c[k].evaluate(u)) < 1e-11);
 }
 
 }  // namespace
@@ -60,7 +61,8 @@ TEST_CASE("loft through linearly growing circles is an exact cone", "[loft]") {
 TEST_CASE("loft through sections of different degree and knots", "[loft]") {
   const auto a = NurbsCurve::from_points(2, {{0, 0, 0}, {1, 1, 0}, {2, 0, 0}, {3, 1, 0}});
   const auto b = make_line({0, 0, 1}, {3, 0, 1});
-  const auto c = NurbsCurve::from_points(3, {{0, 0, 2}, {1, -1, 2}, {1.5, 2, 2}, {2, -1, 2}, {3, 0, 2}});
+  const auto c =
+      NurbsCurve::from_points(3, {{0, 0, 2}, {1, -1, 2}, {1.5, 2, 2}, {2, -1, 2}, {3, 0, 2}});
   const std::vector<NurbsCurve> sec{a, b, c};
   const auto s = loft(sec, 2);
   CHECK(s.degree_u() == 3);
@@ -86,7 +88,8 @@ TEST_CASE("linear loft through two sections equals the ruled surface", "[loft]")
   const auto l = loft({line, arc}, 1);
   const auto r = ruled(line, arc);
   for (double u = 0.0; u <= 1.0; u += 0.1)
-    for (double v = 0.0; v <= 1.0; v += 0.1) CHECK(distance(l.evaluate(u, v), r.evaluate(u, v)) < 1e-12);
+    for (double v = 0.0; v <= 1.0; v += 0.1)
+      CHECK(distance(l.evaluate(u, v), r.evaluate(u, v)) < 1e-12);
 }
 
 TEST_CASE("loft of a twisted stack of rotated profiles", "[loft]") {
@@ -107,6 +110,7 @@ TEST_CASE("loft input checks", "[loft]") {
   const auto c = make_circle({0, 0, 0}, {0, 0, 1}, 1.0);
   CHECK_THROWS_AS(loft({c}), GeometryError);
   CHECK_THROWS_AS(loft({c, c}), GeometryError);  // coincident sections
-  CHECK_THROWS_AS(loft({c, c.transformed(Transform::translation({0, 0, 1}))}, 3, std::vector<double>{0, 0}),
-                  GeometryError);
+  CHECK_THROWS_AS(
+      loft({c, c.transformed(Transform::translation({0, 0, 1}))}, 3, std::vector<double>{0, 0}),
+      GeometryError);
 }

@@ -46,8 +46,8 @@ double to_cartesian(double d4, const std::vector<std::vector<Vec4>>& cols) {
 
 // A5.8 for one polygon (knots are not modified). r: last index of u, s: multiplicity.
 // Returns the number of removals t and overwrites Pw with the first n+1-t new points.
-std::size_t remove_knot_polygon(idx p, const KnotVector& U, std::vector<Vec4>& Pw, double u,
-                                idx r, idx s, idx num, double TOL) {
+std::size_t remove_knot_polygon(idx p, const KnotVector& U, std::vector<Vec4>& Pw, double u, idx r,
+                                idx s, idx num, double TOL) {
   const idx n = static_cast<idx>(Pw.size()) - 1;
   const idx ord = p + 1;
   const idx fout = (2 * r - s - p) / 2;
@@ -64,15 +64,18 @@ std::size_t remove_knot_polygon(idx p, const KnotVector& U, std::vector<Vec4>& P
       const double alfj = (u - U[z(j - t)]) / (U[z(j + ord)] - U[z(j - t)]);
       temp[z(ii)] = (1.0 / alfi) * lin(1.0, Pw[z(i)], -(1.0 - alfi), temp[z(ii - 1)]);
       temp[z(jj)] = (1.0 / (1.0 - alfj)) * lin(1.0, Pw[z(j)], -alfj, temp[z(jj + 1)]);
-      ++i; ++ii;
-      --j; --jj;
+      ++i;
+      ++ii;
+      --j;
+      --jj;
     }
     bool removable = false;
     if (j - i < t) {
       removable = dist4(temp[z(ii - 1)], temp[z(jj + 1)]) <= TOL;
     } else {
       const double alfi = (u - U[z(i)]) / (U[z(i + ord + t)] - U[z(i)]);
-      removable = dist4(Pw[z(i)], lin(alfi, temp[z(ii + t + 1)], 1.0 - alfi, temp[z(ii - 1)])) <= TOL;
+      removable =
+          dist4(Pw[z(i)], lin(alfi, temp[z(ii + t + 1)], 1.0 - alfi, temp[z(ii - 1)])) <= TOL;
     }
     if (!removable) break;
     i = first;
@@ -89,7 +92,10 @@ std::size_t remove_knot_polygon(idx p, const KnotVector& U, std::vector<Vec4>& P
   if (t == 0) return 0;
   idx j = fout, i = fout;
   for (idx k = 1; k < t; ++k) {
-    if (k % 2 == 1) ++i; else --j;
+    if (k % 2 == 1)
+      ++i;
+    else
+      --j;
   }
   for (idx k = i + 1; k <= n; ++k) Pw[z(j++)] = Pw[z(k)];
   Pw.resize(Pw.size() - z(t));
@@ -104,7 +110,7 @@ std::vector<Vec4> reduce_bezier(const std::vector<Vec4>& Q) {
   std::vector<Vec4> P(z(q + 1));
   P[0] = Q[0];
   P[z(q)] = Q[z(p)];
-  const idx r = q / 2;  // pivot
+  const idx r = q / 2;         // pivot
   for (idx i = 1; i < r; ++i)  // from the left: Q_i = a_i P_{i-1} + (1-a_i) P_i
     P[z(i)] = (1.0 / (1.0 - alpha(i))) * lin(1.0, Q[z(i)], -alpha(i), P[z(i - 1)]);
   for (idx i = q - 1; i > r; --i)  // from the right: Q_{i+1} = a P_i + (1-a) P_{i+1}
@@ -134,7 +140,8 @@ double polygon_distance(std::size_t p, const KnotVector& Ua, const std::vector<V
   const auto b = refine_knot_vector(p, Ub, Pb, missing(Ua, Ub));
   if (a.points.size() != b.points.size()) return std::numeric_limits<double>::infinity();
   double d = 0.0;
-  for (std::size_t i = 0; i < a.points.size(); ++i) d = std::max(d, dist4(a.points[i], b.points[i]));
+  for (std::size_t i = 0; i < a.points.size(); ++i)
+    d = std::max(d, dist4(a.points[i], b.points[i]));
   return d;
 }
 
@@ -187,7 +194,8 @@ Columns reduce_degree(std::size_t p, const Columns& net_in, double tolerance) {
     std::vector<Vec4> pts;
     if (c0.knots.empty()) {
       c0.knots.assign(q + 1, rf.knots[spans.front()]);
-      for (std::size_t k = 1; k < spans.size(); ++k) c0.knots.insert(c0.knots.end(), q, rf.knots[spans[k]]);
+      for (std::size_t k = 1; k < spans.size(); ++k)
+        c0.knots.insert(c0.knots.end(), q, rf.knots[spans[k]]);
       c0.knots.insert(c0.knots.end(), q + 1, rf.knots[spans.back() + 1]);
     }
     for (std::size_t k : spans) {

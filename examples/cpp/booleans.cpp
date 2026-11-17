@@ -15,7 +15,8 @@ constexpr double pi = std::numbers::pi;
 
 // Sphere from a revolved semicircle: a single face, closed by its seam edge and two poles.
 Shell sphere_shell(const Vec3& c, double r) {
-  return Shell::sew({TrimmedSurface(revolve(make_arc(c, {0, 0, -1}, {1, 0, 0}, r, 0.0, pi), c, {0, 0, 1}, 2 * pi))});
+  return Shell::sew({TrimmedSurface(
+      revolve(make_arc(c, {0, 0, -1}, {1, 0, 0}, r, 0.0, pi), c, {0, 0, 1}, 2 * pi))});
 }
 
 // Cube [-h, h]^3 from six rectangles; oriented() makes all normals point outwards.
@@ -34,7 +35,8 @@ Shell box_shell(double h) {
 Shell cylinder_shell(double r, double z0, double z1) {
   const auto side = extrude(make_circle({0, 0, z0}, {0, 0, 1}, r), {0, 0, z1 - z0});
   const auto lid = [&](double z) {
-    return TrimmedSurface(make_rectangle({-r, -r, z}, {2 * r, 0, 0}, {0, 2 * r, 0}), circle_loop(0.5, 0.5, 0.5));
+    return TrimmedSurface(make_rectangle({-r, -r, z}, {2 * r, 0, 0}, {0, 2 * r, 0}),
+                          circle_loop(0.5, 0.5, 0.5));
   };
   return Shell::sew({TrimmedSurface(side), lid(z0), lid(z1)}).oriented();
 }
@@ -61,8 +63,10 @@ int main() {
   report("spheres: difference", boolean(a, b, BooleanOp::Difference), ball - lens);
 
   const double r = 0.3;
-  const Shell drilled = boolean(box_shell(1.0), cylinder_shell(r, -2.0, 2.0), BooleanOp::Difference);
+  const Shell drilled =
+      boolean(box_shell(1.0), cylinder_shell(r, -2.0, 2.0), BooleanOp::Difference);
   report("drilled cube", drilled, 8.0 - 2.0 * pi * r * r);
-  std::cout << std::boolalpha << "origin inside the drilled cube: " << point_in_shell(drilled, {0, 0, 0})
+  std::cout << std::boolalpha
+            << "origin inside the drilled cube: " << point_in_shell(drilled, {0, 0, 0})
             << ", (0.5, 0.5, 0) inside: " << point_in_shell(drilled, {0.5, 0.5, 0}) << '\n';
 }

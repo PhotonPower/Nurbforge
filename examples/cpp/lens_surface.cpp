@@ -7,8 +7,8 @@
 
 int main() {
   using namespace nf;
-  const double R = 50.0;               // radius of curvature [mm]
-  const double half_aperture = 12.5;   // [mm]
+  const double R = 50.0;              // radius of curvature [mm]
+  const double half_aperture = 12.5;  // [mm]
   const double alpha = std::asin(half_aperture / R);
 
   // Meridional arc in the x-z plane, starting on the optical axis (z).
@@ -19,6 +19,7 @@ int main() {
   std::cout << "control net: " << cap.num_u() << " x " << cap.num_v() << '\n';
   for (double v : {0.0, 0.5, 1.0}) {
     const auto p = cap.evaluate(0.125, v);
-    std::cout << "S(0.125, " << v << ") = " << p << "  |p - c| = " << distance(p, {0, 0, -R}) << '\n';
+    std::cout << "S(0.125, " << v << ") = " << p << "  |p - c| = " << distance(p, {0, 0, -R})
+              << '\n';
   }
 }

@@ -24,8 +24,8 @@ struct Box3 {
     hi = {std::max(hi.x, p.x), std::max(hi.y, p.y), std::max(hi.z, p.z)};
   }
   [[nodiscard]] bool overlaps(const Box3& o, double eps) const {
-    return lo.x <= o.hi.x + eps && o.lo.x <= hi.x + eps && lo.y <= o.hi.y + eps && o.lo.y <= hi.y + eps &&
-           lo.z <= o.hi.z + eps && o.lo.z <= hi.z + eps;
+    return lo.x <= o.hi.x + eps && o.lo.x <= hi.x + eps && lo.y <= o.hi.y + eps &&
+           o.lo.y <= hi.y + eps && lo.z <= o.hi.z + eps && o.lo.z <= hi.z + eps;
   }
 };
 
@@ -76,7 +76,8 @@ std::vector<std::array<double, 2>> interior_points(const TrimmedSurface& f) {
     const std::array<double, 2> c{mx + 0.5 * s_hit * nx, my + 0.5 * s_hit * ny};
     found.emplace_back(s_hit, c);
   }
-  std::stable_sort(found.begin(), found.end(), [](const auto& x, const auto& y) { return x.first > y.first; });
+  std::stable_sort(found.begin(), found.end(),
+                   [](const auto& x, const auto& y) { return x.first > y.first; });
   std::vector<std::array<double, 2>> out;
   for (const auto& [w, c] : found) out.push_back(c);
   return out;
@@ -103,8 +104,10 @@ double distance_to_loops(const TrimmedSurface& f, double u, double v) {
 // runs within the fit accuracy of the boundary over a short stretch and the in/out test flips
 // arbitrarily there: short runs that stay within the tolerance of either face's boundary are
 // taken as touching – inside runs are dropped, gaps between inside runs are closed.
-std::vector<std::pair<double, double>> shared_intervals(const IntersectionCurve& c, const TrimmedSurface& fa,
-                                                        const TrimmedSurface& fb, double tolerance) {
+std::vector<std::pair<double, double>> shared_intervals(const IntersectionCurve& c,
+                                                        const TrimmedSurface& fa,
+                                                        const TrimmedSurface& fb,
+                                                        double tolerance) {
   // A point on the seam of a closed surface counts as inside if the face covers either side of
   // the seam there. An intersection curve along a seam (a plane through the poles of a sphere)
   // has its p-curve on the domain boundary u = u0 or u1, where it wobbles by rounding
@@ -152,15 +155,18 @@ std::vector<std::pair<double, double>> shared_intervals(const IntersectionCurve&
     const bool cur = inside(t);
     if (cur != prev) {
       const double e = edge(tp, t, prev);
-      if (prev) out.emplace_back(start, e);
-      else start = e;
+      if (prev)
+        out.emplace_back(start, e);
+      else
+        start = e;
       prev = cur;
     }
     tp = t;
   }
   if (prev) out.emplace_back(start, t1);
   const double tiny = 1e-9 * (t1 - t0);
-  out.erase(std::remove_if(out.begin(), out.end(), [&](const auto& iv) { return iv.second - iv.first <= tiny; }),
+  out.erase(std::remove_if(out.begin(), out.end(),
+                           [&](const auto& iv) { return iv.second - iv.first <= tiny; }),
             out.end());
   // touching runs (short, and within the tolerance of a face boundary at their samples)
   std::vector<NurbsCurve> bounds;
@@ -181,8 +187,10 @@ std::vector<std::pair<double, double>> shared_intervals(const IntersectionCurve&
   const bool closed = distance(c.curve.evaluate(t0), c.curve.evaluate(t1)) <= tolerance;
   std::vector<std::pair<double, double>> merged;
   for (const auto& iv : out) {
-    if (!merged.empty() && touching(merged.back().second, iv.first)) merged.back().second = iv.second;
-    else merged.push_back(iv);
+    if (!merged.empty() && touching(merged.back().second, iv.first))
+      merged.back().second = iv.second;
+    else
+      merged.push_back(iv);
   }
   // on a closed curve the gap may run across the curve's start (checked in its two halves)
   if (closed && !merged.empty()) {
@@ -209,8 +217,9 @@ std::vector<std::pair<double, double>> shared_intervals(const IntersectionCurve&
 // prune_cuts and the overlapping cuts left the other face unsplit. Curves are taken by
 // decreasing shared length; a curve whose samples all lie within the tolerance of a curve
 // already taken is dropped.
-std::vector<std::pair<const IntersectionCurve*, std::vector<std::pair<double, double>>>> distinct_curves(
-    const SurfaceIntersection& res, const TrimmedSurface& fa, const TrimmedSurface& fb, double tolerance) {
+std::vector<std::pair<const IntersectionCurve*, std::vector<std::pair<double, double>>>>
+distinct_curves(const SurfaceIntersection& res, const TrimmedSurface& fa, const TrimmedSurface& fb,
+                double tolerance) {
   using Entry = std::pair<const IntersectionCurve*, std::vector<std::pair<double, double>>>;
   std::vector<std::pair<double, Entry>> all;
   for (const auto& c : res.curves) {
@@ -229,7 +238,8 @@ std::vector<std::pair<const IntersectionCurve*, std::vector<std::pair<double, do
     for (const auto& kept : out) {
       duplicate = true;
       for (int k = 0; k <= 8 && duplicate; ++k) {
-        const Vec3 p = cur.evaluate(cur.domain_start() + (cur.domain_end() - cur.domain_start()) * k / 8.0);
+        const Vec3 p =
+            cur.evaluate(cur.domain_start() + (cur.domain_end() - cur.domain_start()) * k / 8.0);
         duplicate = closest_point(kept.first->curve, p).distance <= tolerance;
       }
       if (duplicate) break;
@@ -255,9 +265,11 @@ Relation relation(const NurbsSurface& a, const NurbsSurface& b, double tol) {
     const double eu = 1e-7 * (qu[1] - qu[0]), ev = 1e-7 * (qv[1] - qv[0]);
     for (int i = 0; i <= 8; ++i)
       for (int j = 0; j <= 8; ++j) {
-        const Vec3 P = p.evaluate(pu[0] + (pu[1] - pu[0]) * i / 8.0, pv[0] + (pv[1] - pv[0]) * j / 8.0);
+        const Vec3 P =
+            p.evaluate(pu[0] + (pu[1] - pu[0]) * i / 8.0, pv[0] + (pv[1] - pv[0]) * j / 8.0);
         const SurfacePoint f = closest_point(q, P);
-        if (f.u <= qu[0] + eu || f.u >= qu[1] - eu || f.v <= qv[0] + ev || f.v >= qv[1] - ev) continue;
+        if (f.u <= qu[0] + eu || f.u >= qu[1] - eu || f.v <= qv[0] + ev || f.v >= qv[1] - ev)
+          continue;
         if (f.distance > tol) return Relation::General;
         ++interior;
       }
@@ -274,7 +286,8 @@ Relation relation(const NurbsSurface& a, const NurbsSurface& b, double tol) {
 // joints of a rational circle) and the pieces are joined: a single cubic across them converges
 // only like h^2 and ran into the sample limit (2049 control points for a trim circle, which made
 // every later intersection with that cut slow).
-std::vector<NurbsCurve> projected_loops(const TrimmedSurface& from, const NurbsSurface& onto, double tol) {
+std::vector<NurbsCurve> projected_loops(const TrimmedSurface& from, const NurbsSurface& onto,
+                                        double tol) {
   const auto ou = onto.domain_u(), ov = onto.domain_v();
   const double psize = std::max(ou[1] - ou[0], ov[1] - ov[0]);
   std::vector<NurbsCurve> out;
@@ -290,11 +303,13 @@ std::vector<NurbsCurve> projected_loops(const TrimmedSurface& from, const NurbsS
     const auto on = [&](double t) {
       const SurfacePoint f = closest_point(onto, X(t));
       if (f.distance > tol) return false;
-      const bool clamped = f.u <= ou[0] + eu || f.u >= ou[1] - eu || f.v <= ov[0] + ev || f.v >= ov[1] - ev;
+      const bool clamped =
+          f.u <= ou[0] + eu || f.u >= ou[1] - eu || f.v <= ov[0] + ev || f.v >= ov[1] - ev;
       return !clamped || f.distance <= 1e-3 * tol;
     };
     const double t0 = pc.domain_start(), t1 = pc.domain_end();
-    const std::size_t spans = std::max<std::size_t>(1, pc.knots().size() - 2 * (pc.degree() + 1) + 1);
+    const std::size_t spans =
+        std::max<std::size_t>(1, pc.knots().size() - 2 * (pc.degree() + 1) + 1);
     const int n = static_cast<int>(std::min<std::size_t>(512, 32 * spans));
     std::vector<std::pair<double, double>> runs;
     bool prev = on(t0);
@@ -312,7 +327,8 @@ std::vector<NurbsCurve> projected_loops(const TrimmedSurface& from, const NurbsS
         std::vector<double> ts(N);
         std::vector<Vec3> P(N);
         for (std::size_t k = 0; k < N; ++k) {
-          ts[k] = k + 1 == N ? b : a + (b - a) * static_cast<double>(k) / static_cast<double>(N - 1);
+          ts[k] =
+              k + 1 == N ? b : a + (b - a) * static_cast<double>(k) / static_cast<double>(N - 1);
           const SurfacePoint f = closest_point(onto, X(ts[k]));
           P[k] = {f.u, f.v, 0.0};
         }
@@ -331,8 +347,10 @@ std::vector<NurbsCurve> projected_loops(const TrimmedSurface& from, const NurbsS
       const bool cur = on(t);
       if (cur != prev) {
         const double e = edge(tp, t, prev);
-        if (prev) runs.emplace_back(start, e);
-        else start = e;
+        if (prev)
+          runs.emplace_back(start, e);
+        else
+          start = e;
         prev = cur;
       }
       tp = t;
@@ -425,7 +443,8 @@ enum class Where { Out, In, OnSame, OnOpposite };
 // lens between the surfaces is at most about extent * angle / 4 thick (extent of the curves,
 // largest angle between the normals on them); such an overlap is treated as a contact – cutting
 // it would leave slivers that cannot be classified.
-bool thin_overlap(const SurfaceIntersection& res, const NurbsSurface& a, const NurbsSurface& b, double tolerance) {
+bool thin_overlap(const SurfaceIntersection& res, const NurbsSurface& a, const NurbsSurface& b,
+                  double tolerance) {
   if (res.curves.empty()) return false;
   Box3 box;
   double angle = 0.0;
@@ -449,9 +468,10 @@ bool thin_overlap(const SurfaceIntersection& res, const NurbsSurface& a, const N
 bool point_in_shell(const Shell& shell, const Vec3& p, double tolerance) {
   const Box3 b = shell_box(shell);
   const double L = 10.0 * (distance(b.lo, b.hi) + distance(p, 0.5 * (b.lo + b.hi)) + 1.0);
-  const Vec3 dirs[] = {normalized(Vec3{0.5377, 0.8013, 0.2622}), normalized(Vec3{-0.3112, 0.4419, -0.8414}),
-                       normalized(Vec3{0.7071, -0.6018, 0.3712}), normalized(Vec3{-0.8123, -0.2311, 0.5354}),
-                       normalized(Vec3{0.1234, -0.9512, -0.2832})};
+  const Vec3 dirs[] = {
+      normalized(Vec3{0.5377, 0.8013, 0.2622}), normalized(Vec3{-0.3112, 0.4419, -0.8414}),
+      normalized(Vec3{0.7071, -0.6018, 0.3712}), normalized(Vec3{-0.8123, -0.2311, 0.5354}),
+      normalized(Vec3{0.1234, -0.9512, -0.2832})};
   int votes_in = 0, votes = 0;
   for (const auto& d : dirs) {
     const NurbsCurve ray = make_line(p, p + L * d);
@@ -487,13 +507,16 @@ bool point_in_shell(const Shell& shell, const Vec3& p, double tolerance) {
 }
 
 Shell boolean(const Shell& a_in, const Shell& b_in, BooleanOp op, double tolerance) {
-  if (!a_in.is_closed() || !b_in.is_closed()) throw GeometryError("boolean: both shells must be closed");
+  if (!a_in.is_closed() || !b_in.is_closed())
+    throw GeometryError("boolean: both shells must be closed");
   const Shell A = a_in.oriented(), B = b_in.oriented();
   const auto& FA = A.faces();
   const auto& FB = B.faces();
   std::vector<std::vector<NurbsCurve>> cuts_a(FA.size()), cuts_b(FB.size());
-  std::vector<std::vector<std::size_t>> partners_a(FA.size()), partners_b(FB.size());  // coincident faces
-  std::vector<std::vector<std::size_t>> touching_a(FA.size()), touching_b(FB.size());  // tangential contact
+  std::vector<std::vector<std::size_t>> partners_a(FA.size()),
+      partners_b(FB.size());  // coincident faces
+  std::vector<std::vector<std::size_t>> touching_a(FA.size()),
+      touching_b(FB.size());  // tangential contact
   SurfaceIntersectionOptions opt;
   opt.tol.length = 1e-3 * tolerance;
   for (std::size_t i = 0; i < FA.size(); ++i)
@@ -503,8 +526,10 @@ Shell boolean(const Shell& a_in, const Shell& b_in, BooleanOp op, double toleran
       if (rel == Relation::Disjoint) continue;
       if (rel == Relation::Coincident) {
         // each face is cut along the other's boundary; the common part is classified "on"
-        for (auto& c : projected_loops(FB[j], FA[i].surface(), tolerance)) cuts_a[i].push_back(std::move(c));
-        for (auto& c : projected_loops(FA[i], FB[j].surface(), tolerance)) cuts_b[j].push_back(std::move(c));
+        for (auto& c : projected_loops(FB[j], FA[i].surface(), tolerance))
+          cuts_a[i].push_back(std::move(c));
+        for (auto& c : projected_loops(FA[i], FB[j].surface(), tolerance))
+          cuts_b[j].push_back(std::move(c));
         partners_a[i].push_back(j);
         partners_b[j].push_back(i);
         continue;
@@ -528,8 +553,8 @@ Shell boolean(const Shell& a_in, const Shell& b_in, BooleanOp op, double toleran
   // its widest interior point on the contact – ray casting is undecided there, so the first
   // candidate clear of the touching faces is used.
   const auto where = [&](const TrimmedSurface& piece, const std::vector<std::size_t>& partners,
-                         const std::vector<std::size_t>& touching, const std::vector<TrimmedSurface>& other_faces,
-                         const Shell& other) {
+                         const std::vector<std::size_t>& touching,
+                         const std::vector<TrimmedSurface>& other_faces, const Shell& other) {
     const auto candidates = interior_points(piece);
     const double clear = 100.0 * tolerance;
     Vec3 best;
@@ -558,16 +583,18 @@ Shell boolean(const Shell& a_in, const Shell& b_in, BooleanOp op, double toleran
         best = P;
       }
     }
-    if (best_gap < 0.0) throw GeometryError("boolean: cannot find an interior point of a face piece");
+    if (best_gap < 0.0)
+      throw GeometryError("boolean: cannot find an interior point of a face piece");
     return point_in_shell(other, best, tolerance) ? Where::In : Where::Out;
   };
   std::vector<TrimmedSurface> result;
   for (std::size_t i = 0; i < FA.size(); ++i)
     for (const auto& p : split(FA[i], prune_cuts(FA[i], std::move(cuts_a[i])))) {
       const Where w = where(p, partners_a[i], touching_a[i], FB, B);
-      const bool keep = op == BooleanOp::Union          ? (w == Where::Out || w == Where::OnSame)
-                        : op == BooleanOp::Intersection ? (w == Where::In || w == Where::OnSame)
-                                                        : (w == Where::Out || w == Where::OnOpposite);
+      const bool keep = op == BooleanOp::Union ? (w == Where::Out || w == Where::OnSame)
+                        : op == BooleanOp::Intersection
+                            ? (w == Where::In || w == Where::OnSame)
+                            : (w == Where::Out || w == Where::OnOpposite);
       if (keep) result.push_back(p);
     }
   // B pieces on A are never taken: a common face with the same orientation is already taken from

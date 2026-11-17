@@ -1,6 +1,5 @@
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/generators/catch_generators.hpp>
-
 #include <cmath>
 #include <cstdint>
 #include <numbers>
@@ -28,7 +27,8 @@ double revolution_error(const NurbsSurface& s, const Asphere& a) {
   const auto du = s.domain_u(), dv = s.domain_v();
   for (int i = 0; i <= 24; ++i)
     for (int j = 0; j <= 400; ++j) {
-      const Vec3 p = s.evaluate(du[0] + (du[1] - du[0]) * i / 24.0, dv[0] + (dv[1] - dv[0]) * j / 400.0);
+      const Vec3 p =
+          s.evaluate(du[0] + (du[1] - du[0]) * i / 24.0, dv[0] + (dv[1] - dv[0]) * j / 400.0);
       e = std::max(e, std::abs(p.z - a.sag(std::hypot(p.x, p.y))));
     }
   return e;
@@ -59,7 +59,8 @@ TEST_CASE("conic surfaces are exact", "[optics]") {
     const auto du = s.domain_u(), dv = s.domain_v();
     for (int i = 0; i <= 12; ++i)
       for (int j = 0; j <= 40; ++j) {
-        const Vec3 p = s.evaluate(du[0] + (du[1] - du[0]) * i / 12.0, dv[0] + (dv[1] - dv[0]) * j / 40.0);
+        const Vec3 p =
+            s.evaluate(du[0] + (du[1] - du[0]) * i / 12.0, dv[0] + (dv[1] - dv[0]) * j / 40.0);
         const double r2 = p.x * p.x + p.y * p.y;
         // implicit conic: c r^2 - 2 z + (1 + k) c z^2 = 0
         CHECK(std::abs(c * r2 - 2.0 * p.z + (1.0 + k) * c * p.z * p.z) < 1e-13);
@@ -102,14 +103,18 @@ TEST_CASE("Zernike polynomials: known forms and indexing", "[optics]") {
   CHECK(std::abs(zernike(1, ZernikeIndexing::Fringe, rho, th) - 1.0) < 1e-15);
   CHECK(std::abs(zernike(2, ZernikeIndexing::Fringe, rho, th) - rho * std::cos(th)) < 1e-15);
   CHECK(std::abs(zernike(4, ZernikeIndexing::Fringe, rho, th) - (2 * r2 - 1)) < 1e-14);
-  CHECK(std::abs(zernike(7, ZernikeIndexing::Fringe, rho, th) - (3 * r2 * rho - 2 * rho) * std::cos(th)) < 1e-14);
-  CHECK(std::abs(zernike(9, ZernikeIndexing::Fringe, rho, th) - (6 * r2 * r2 - 6 * r2 + 1)) < 1e-14);
+  CHECK(std::abs(zernike(7, ZernikeIndexing::Fringe, rho, th) -
+                 (3 * r2 * rho - 2 * rho) * std::cos(th)) < 1e-14);
+  CHECK(std::abs(zernike(9, ZernikeIndexing::Fringe, rho, th) - (6 * r2 * r2 - 6 * r2 + 1)) <
+        1e-14);
   CHECK(std::abs(zernike(6, ZernikeIndexing::Fringe, rho, th) - r2 * std::sin(2 * th)) < 1e-14);
   // Noll (normalised)
   CHECK(std::abs(zernike(2, ZernikeIndexing::Noll, rho, th) - 2 * rho * std::cos(th)) < 1e-14);
   CHECK(std::abs(zernike(3, ZernikeIndexing::Noll, rho, th) - 2 * rho * std::sin(th)) < 1e-14);
-  CHECK(std::abs(zernike(4, ZernikeIndexing::Noll, rho, th) - std::sqrt(3.0) * (2 * r2 - 1)) < 1e-14);
-  CHECK(std::abs(zernike(11, ZernikeIndexing::Noll, rho, th) - std::sqrt(5.0) * (6 * r2 * r2 - 6 * r2 + 1)) < 1e-13);
+  CHECK(std::abs(zernike(4, ZernikeIndexing::Noll, rho, th) - std::sqrt(3.0) * (2 * r2 - 1)) <
+        1e-14);
+  CHECK(std::abs(zernike(11, ZernikeIndexing::Noll, rho, th) -
+                 std::sqrt(5.0) * (6 * r2 * r2 - 6 * r2 + 1)) < 1e-13);
   int n = 0, m = 0;
   zernike_nm(9, ZernikeIndexing::Noll, n, m);
   CHECK((n == 3 && m == -3));
@@ -126,7 +131,8 @@ TEST_CASE("Noll Zernike polynomials are orthonormal on the unit disk", "[optics]
       for (int a = 0; a < nr; ++a)
         for (int b = 0; b < nt; ++b) {
           const double rho = (a + 0.5) / nr, th = 2 * pi * (b + 0.5) / nt;
-          s += zernike(i, ZernikeIndexing::Noll, rho, th) * zernike(j, ZernikeIndexing::Noll, rho, th) * rho;
+          s += zernike(i, ZernikeIndexing::Noll, rho, th) *
+               zernike(j, ZernikeIndexing::Noll, rho, th) * rho;
         }
       s *= (1.0 / nr) * (2 * pi / nt) / pi;
       CHECK(std::abs(s - (i == j ? 1.0 : 0.0)) < 2e-3);
@@ -157,7 +163,8 @@ TEST_CASE("XY polynomial surfaces", "[optics]") {
   const auto s = xy_polynomial_surface(cubic);
   CHECK(s.num_u() == 5);  // the initial two spans suffice
   for (double x = -5; x <= 5; x += 0.5)
-    for (double y = -5; y <= 5; y += 0.5) CHECK(std::abs(s.evaluate(x, y).z - cubic.sag(x, y)) < 1e-13);
+    for (double y = -5; y <= 5; y += 0.5)
+      CHECK(std::abs(s.evaluate(x, y).z - cubic.sag(x, y)) < 1e-13);
 
   XYPolynomialSag high = cubic;
   high.base = {1.0 / 100.0, 0.0, {}, {}};
@@ -174,6 +181,7 @@ TEST_CASE("XY polynomial surfaces", "[optics]") {
 TEST_CASE("sag_surface rejects undefined sag", "[optics]") {
   const Asphere sphere{1.0 / 10.0, 0.0, {}, {}};
   // the corners of the square (r = 9 * sqrt 2) lie outside the sphere
-  CHECK_THROWS_AS(sag_surface([&](double x, double y) { return sphere.sag(std::hypot(x, y)); }, -9, 9, -9, 9),
-                  GeometryError);
+  CHECK_THROWS_AS(
+      sag_surface([&](double x, double y) { return sphere.sag(std::hypot(x, y)); }, -9, 9, -9, 9),
+      GeometryError);
 }

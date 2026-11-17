@@ -1,6 +1,5 @@
-#include <catch2/catch_test_macros.hpp>
-
 #include <algorithm>
+#include <catch2/catch_test_macros.hpp>
 #include <cmath>
 #include <numbers>
 #include <vector>
@@ -23,7 +22,8 @@ void for_grid(const NurbsSurface& s, int n, F f) {
 }
 
 NurbsCurve space_curve() {
-  return NurbsCurve::from_points(3, {{0, 0, 0}, {2, 0, 1}, {3, 2, 2}, {2, 4, 2}, {0, 5, 3}, {-1, 4, 5}});
+  return NurbsCurve::from_points(
+      3, {{0, 0, 0}, {2, 0, 1}, {3, 2, 2}, {2, 4, 2}, {0, 5, 3}, {-1, 4, 5}});
 }
 
 }  // namespace
@@ -68,7 +68,8 @@ TEST_CASE("circle swept along a circular arc is a torus within the tolerance", "
 }
 
 TEST_CASE("rotation-minimising frame keeps a planar wall upright", "[sweep]") {
-  const auto path = NurbsCurve::from_points(3, {{0, 0, 0}, {3, 0, 0}, {3, 3, 0}, {0, 4, 0}, {-2, 1, 0}});
+  const auto path =
+      NurbsCurve::from_points(3, {{0, 0, 0}, {3, 0, 0}, {3, 3, 0}, {0, 4, 0}, {-2, 1, 0}});
   const auto profile = make_line({0, 0, 0}, {0, 0, 1});  // normal to the plane of the path
   const auto s = sweep(profile, path);
   for_grid(s, 30, [&](double u, double v) {
@@ -87,8 +88,8 @@ TEST_CASE("rotation-minimising frame has no spurious twist on a space curve", "[
   const auto s = sweep(make_line({0, 0, 0}, n0), path, opt);  // S(u, v) = T(v) + u r(v)
   for (double v = 0.05; v < 1.0; v += 0.1) {
     const auto D = s.derivatives(0.0, v, 2);
-    const Vec3 r = D[1][0];            // transported vector, |r| = 1
-    const Vec3 dr = D[1][1];           // its derivative along the path
+    const Vec3 r = D[1][0];   // transported vector, |r| = 1
+    const Vec3 dr = D[1][1];  // its derivative along the path
     const Vec3 t = normalized(path.derivatives(v, 1)[1]);
     CHECK(std::abs(norm(r) - 1.0) < 1e-6);
     CHECK(std::abs(dot(r, t)) < 1e-6);

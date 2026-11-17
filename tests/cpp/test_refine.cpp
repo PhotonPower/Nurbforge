@@ -1,5 +1,5 @@
-#include <catch2/catch_test_macros.hpp>
 #include <algorithm>
+#include <catch2/catch_test_macros.hpp>
 #include <cmath>
 #include <numbers>
 #include <vector>
@@ -32,8 +32,10 @@ double max_deviation(const NurbsSurface& a, const NurbsSurface& b, std::size_t n
   const auto du = a.domain_u(), dv = a.domain_v();
   for (std::size_t i = 0; i < n; ++i)
     for (std::size_t j = 0; j < n; ++j) {
-      const double u = du[0] + (du[1] - du[0]) * static_cast<double>(i) / static_cast<double>(n - 1);
-      const double v = dv[0] + (dv[1] - dv[0]) * static_cast<double>(j) / static_cast<double>(n - 1);
+      const double u =
+          du[0] + (du[1] - du[0]) * static_cast<double>(i) / static_cast<double>(n - 1);
+      const double v =
+          dv[0] + (dv[1] - dv[0]) * static_cast<double>(j) / static_cast<double>(n - 1);
       d = std::max(d, distance(a.evaluate(u, v), b.evaluate(u, v)));
     }
   return d;
@@ -49,10 +51,8 @@ NurbsCurve rational_cubic() {
 
 // Unclamped uniform quadratic: domain [2, 5] of knots 0..8.
 NurbsCurve unclamped_quadratic() {
-  return {2,
-          {0, 1, 2, 3, 4, 5, 6, 7},
-          {{0, 0, 0}, {1, 1, 0}, {2, -1, 0}, {3, 1, 1}, {4, 0, 0}},
-          {}};
+  return {
+      2, {0, 1, 2, 3, 4, 5, 6, 7}, {{0, 0, 0}, {1, 1, 0}, {2, -1, 0}, {3, 1, 1}, {4, 0, 0}}, {}};
 }
 
 }  // namespace
@@ -94,7 +94,8 @@ TEST_CASE("knot refinement of an exact circle", "[refine]") {
   const auto c = make_circle({1, 2, 3}, {0, 0, 1}, 2.0);
   const auto r = c.refine_knots({0.1, 0.33, 0.6, 0.6, 0.95});
   CHECK(max_deviation(c, r) < kExact);
-  for (double u = 0.0; u <= 1.0; u += 0.01) CHECK(std::abs(distance(r.evaluate(u), {1, 2, 3}) - 2.0) < kExact);
+  for (double u = 0.0; u <= 1.0; u += 0.01)
+    CHECK(std::abs(distance(r.evaluate(u), {1, 2, 3}) - 2.0) < kExact);
 }
 
 TEST_CASE("knot refinement rejects invalid input", "[refine]") {

@@ -88,7 +88,8 @@ class LinearSystem {
       if (std::abs(piv) <= 1e-12 * amax) {  // needs pivoting: dense fallback
         std::vector<double> A(n * n, 0.0);
         for (std::size_t i = 0; i < n; ++i)
-          for (std::size_t q = 0; q < rows[i].v.size(); ++q) A[i * n + rows[i].first + q] = rows[i].v[q];
+          for (std::size_t q = 0; q < rows[i].v.size(); ++q)
+            A[i * n + rows[i].first + q] = rows[i].v[q];
         dense_.emplace(std::move(A), n);
         band_.clear();
         return;
@@ -114,7 +115,9 @@ class LinearSystem {
 
  private:
   double& at(std::size_t i, std::size_t j) { return band_[i * w_ + (j + kl_ - i)]; }
-  [[nodiscard]] double at(std::size_t i, std::size_t j) const { return band_[i * w_ + (j + kl_ - i)]; }
+  [[nodiscard]] double at(std::size_t i, std::size_t j) const {
+    return band_[i * w_ + (j + kl_ - i)];
+  }
   std::size_t n_, kl_{0}, ku_{0}, w_{1};
   std::vector<double> band_;
   std::optional<DenseLU> dense_;
@@ -230,7 +233,8 @@ class LeastSquares {
   std::optional<LinearSystem> lu_;
 };
 
-LinearSystem interpolation_matrix(std::size_t p, const KnotVector& U, const std::vector<double>& ub) {
+LinearSystem interpolation_matrix(std::size_t p, const KnotVector& U,
+                                  const std::vector<double>& ub) {
   const std::size_t n = ub.size();
   std::vector<Row> rows;
   rows.reserve(n);
@@ -262,7 +266,8 @@ void check_grid(const std::vector<Vec3>& Q, std::size_t nu, std::size_t nv, std:
                 std::size_t pv) {
   if (Q.size() != nu * nv) throw GeometryError("fitting: grid size must be num_u * num_v");
   if (pu < 1 || pv < 1) throw GeometryError("fitting: degrees must be >= 1");
-  if (nu < pu + 1 || nv < pv + 1) throw GeometryError("fitting: need at least degree+1 points per direction");
+  if (nu < pu + 1 || nv < pv + 1)
+    throw GeometryError("fitting: need at least degree+1 points per direction");
 }
 
 std::vector<std::vector<Vec3>> columns(const std::vector<Vec3>& Q, std::size_t nu, std::size_t nv) {
@@ -369,7 +374,8 @@ NurbsCurve approximate_curve(const std::vector<Vec3>& Q, std::size_t p, const Kn
   if (params.size() != Q.size()) throw GeometryError("approximate_curve: one parameter per point");
   const std::size_t n_ctrl = U.size() - p - 1;
   validate_knots(U, p, n_ctrl);
-  if (n_ctrl > Q.size()) throw GeometryError("approximate_curve: more control points than data points");
+  if (n_ctrl > Q.size())
+    throw GeometryError("approximate_curve: more control points than data points");
   const LeastSquares ls(p, U, params, n_ctrl);
   return {p, U, ls.fit(Q)};
 }

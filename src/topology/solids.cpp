@@ -30,7 +30,8 @@ Transform frame(const Vec3& origin, const Vec3& axis) {
 
 /// Planar disc of radius r at height z (local frame): square trimmed by an exact circle.
 TrimmedSurface disc(double r, double z, const char* label) {
-  return TrimmedSurface(make_rectangle({-r, -r, z}, {2 * r, 0, 0}, {0, 2 * r, 0}), circle_loop(0.5, 0.5, 0.5))
+  return TrimmedSurface(make_rectangle({-r, -r, z}, {2 * r, 0, 0}, {0, 2 * r, 0}),
+                        circle_loop(0.5, 0.5, 0.5))
       .with_label(label);
 }
 
@@ -39,7 +40,8 @@ Shell assemble(std::vector<TrimmedSurface> local, const Transform& t) {
   std::vector<TrimmedSurface> faces;
   faces.reserve(local.size());
   for (const auto& f : local)
-    faces.push_back(TrimmedSurface(f.surface().transformed(t), f.outer(), f.holes()).with_label(f.label()));
+    faces.push_back(
+        TrimmedSurface(f.surface().transformed(t), f.outer(), f.holes()).with_label(f.label()));
   return Shell::sew(std::move(faces)).oriented();
 }
 
@@ -67,7 +69,8 @@ Shell make_box(const Vec3& corner, const Vec3& size) {
 Shell make_sphere(const Vec3& center, double radius) {
   require_positive(radius, "sphere radius");
   const auto meridian = make_arc(center, {0, 0, -1}, {1, 0, 0}, radius, 0.0, kPi);
-  return Shell::sew({TrimmedSurface(revolve(meridian, center, {0, 0, 1}, 2 * kPi)).with_label("surface")})
+  return Shell::sew(
+             {TrimmedSurface(revolve(meridian, center, {0, 0, 1}, 2 * kPi)).with_label("surface")})
       .oriented();
 }
 

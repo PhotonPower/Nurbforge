@@ -39,7 +39,10 @@ no Docker needed): `pipx run cibuildwheel --only cp312-win_amd64`, on a Mac `pip
 
 ## Code style
 
-- C++20, formatted with `clang-format` (config in repo); `clang-tidy` config provided.
+- C++20, formatted with `clang-format` 23.1.5 (config in repo; `pip install clang-format==23.1.5`,
+  then `git ls-files '*.cpp' '*.hpp' | xargs clang-format -i`). CI rejects unformatted code.
+  `clang-tidy` config provided. After the one-time reformatting, run
+  `git config blame.ignoreRevsFile .git-blame-ignore-revs` for a useful `git blame`.
 - Namespace `nf`; types `PascalCase`, functions/variables `snake_case`, members end in `_`.
 - Geometry objects are immutable values; operations return new objects.
 - Reference *The NURBS Book* algorithm numbers in comments where applicable.

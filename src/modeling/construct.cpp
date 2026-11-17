@@ -76,8 +76,14 @@ NurbsSurface revolve(const NurbsCurve& profile, const Vec3& S, const Vec3& axis_
       T0 = T2;
     }
   }
-  return {2, profile.degree(), detail::arc_knots(narcs), profile.knots(), nu, nv,
-          std::move(P), std::move(W)};
+  return {2,
+          profile.degree(),
+          detail::arc_knots(narcs),
+          profile.knots(),
+          nu,
+          nv,
+          std::move(P),
+          std::move(W)};
 }
 
 NurbsCurve reparametrize(const NurbsCurve& c, double a, double b) {
@@ -122,7 +128,8 @@ void make_compatible(std::vector<NurbsCurve>& curves) {
   for (auto& c : curves) {
     std::vector<double> X;
     for (std::size_t k = 0; k < vals.size(); ++k)
-      for (auto have = knot_multiplicity(c.knots(), vals[k]); have < mults[k]; ++have) X.push_back(vals[k]);
+      for (auto have = knot_multiplicity(c.knots(), vals[k]); have < mults[k]; ++have)
+        X.push_back(vals[k]);
     c = c.refine_knots(X);
   }
   // identical knot values (refinement snaps to existing knots, tiny differences may remain)

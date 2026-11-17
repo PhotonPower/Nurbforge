@@ -29,8 +29,8 @@ NurbsSurface reparametrize_v(const NurbsSurface& s, double a, double b) {
   // s is clamped: make the end knots exact so rounding cannot break monotonicity
   for (std::size_t i = 0; i <= s.degree_v(); ++i) kv[i] = a;
   for (std::size_t i = s.num_v(); i < kv.size(); ++i) kv[i] = b;
-  return {s.degree_u(), s.degree_v(), s.knots_u(), std::move(kv), s.num_u(), s.num_v(),
-          s.control_points(), s.weights()};
+  return {s.degree_u(), s.degree_v(), s.knots_u(),        std::move(kv),
+          s.num_u(),    s.num_v(),    s.control_points(), s.weights()};
 }
 
 std::string gap_message(double gap, double tolerance) {
@@ -95,7 +95,8 @@ NurbsSurface join_u(const NurbsSurface& a_in, const NurbsSurface& b_in, double t
   for (std::size_t i = 0; i < nua; ++i)
     for (std::size_t j = 0; j < nv; ++j) {
       const bool seam = i == nua - 1;
-      P.push_back(seam ? 0.5 * (a.control_point(i, j) + b.control_point(0, j)) : a.control_point(i, j));
+      P.push_back(seam ? 0.5 * (a.control_point(i, j) + b.control_point(0, j))
+                       : a.control_point(i, j));
       W.push_back(a.weight(i, j));
     }
   for (std::size_t i = 1; i < nub; ++i)
@@ -109,8 +110,8 @@ NurbsSurface join_u(const NurbsSurface& a_in, const NurbsSurface& b_in, double t
   KnotVector U(a.knots_u().begin(), a.knots_u().end() - 1);
   for (std::size_t i = pu + 1; i < b.knots_u().size(); ++i) U.push_back(b.knots_u()[i] + shift);
 
-  const NurbsSurface s{pu, a.degree_v(), std::move(U), a.knots_v(), nua + nub - 1, nv,
-                       std::move(P), std::move(W)};
+  const NurbsSurface s{pu, a.degree_v(), std::move(U), a.knots_v(), nua + nub - 1,
+                       nv, std::move(P), std::move(W)};
   return s.try_remove_knot_u(seam, pu).first;
 }
 

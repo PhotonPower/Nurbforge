@@ -1,5 +1,4 @@
 #include <catch2/catch_test_macros.hpp>
-
 #include <cmath>
 #include <numbers>
 #include <vector>
@@ -44,7 +43,8 @@ std::vector<double> roots(F f, double a, double b, int n = 20000) {
 NurbsSurface graph_patch() {
   std::vector<Vec3> P;
   for (int i = 0; i < 6; ++i)
-    for (int j = 0; j < 5; ++j) P.push_back({double(i), double(j), std::sin(1.7 * i) * std::cos(1.3 * j)});
+    for (int j = 0; j < 5; ++j)
+      P.push_back({double(i), double(j), std::sin(1.7 * i) * std::cos(1.3 * j)});
   return {3, 3, clamped_uniform_knots(3, 6), clamped_uniform_knots(3, 5), 6, 5, P};
 }
 
@@ -55,9 +55,12 @@ TEST_CASE("line / line intersections", "[intersect]") {
   REQUIRE(r.size() == 1);
   CHECK(distance(r[0].point, {1, 1, 0}) < 1e-14);
   CHECK(std::abs(r[0].s - 0.5) < 1e-14);
-  CHECK(intersect(make_line({0, 0, 0}, {1, 0, 0}), make_line({0, 1, 1}, {1, 1, -1})).empty());  // skew
-  CHECK(intersect(make_line({0, 0, 0}, {1, 0, 0}), make_line({0, 1, 0}, {1, 1, 0})).empty());   // parallel
-  const auto e = intersect(make_line({0, 0, 0}, {1, 0, 0}), make_line({1, 0, 0}, {1, 1, 0}));  // shared end
+  CHECK(intersect(make_line({0, 0, 0}, {1, 0, 0}), make_line({0, 1, 1}, {1, 1, -1}))
+            .empty());  // skew
+  CHECK(intersect(make_line({0, 0, 0}, {1, 0, 0}), make_line({0, 1, 0}, {1, 1, 0}))
+            .empty());  // parallel
+  const auto e =
+      intersect(make_line({0, 0, 0}, {1, 0, 0}), make_line({1, 0, 0}, {1, 1, 0}));  // shared end
   REQUIRE(e.size() == 1);
   CHECK(e[0].s == 1.0);
   CHECK(e[0].t == 0.0);
@@ -147,7 +150,8 @@ TEST_CASE("curves crossing surfaces several times", "[intersect][surface]") {
   // space curve oscillating through the wavy patch: compare with sign changes of z_c - z_s
   const auto s = graph_patch();
   std::vector<Vec3> P;
-  for (int k = 0; k <= 12; ++k) P.push_back({0.2 + 0.38 * k, 0.5 + 0.25 * k, (k % 2 == 0 ? 1.5 : -1.5)});
+  for (int k = 0; k <= 12; ++k)
+    P.push_back({0.2 + 0.38 * k, 0.5 + 0.25 * k, (k % 2 == 0 ? 1.5 : -1.5)});
   const auto c = NurbsCurve::from_points(3, P);
   const auto hits = intersect(c, s);
   // reference: the patch is a graph with x(u) and y(v) monotone, so project each curve point
@@ -172,8 +176,8 @@ TEST_CASE("curves crossing surfaces several times", "[intersect][surface]") {
 TEST_CASE("curve/surface: a line running just off a tilted plane", "[intersect]") {
   // the boxes of the tilted plane's pieces overlap the line everywhere: the signed distance is
   // scanned instead of subdividing down to the size limit
-  const auto plane = make_rectangle({0, -1, 0}, {0, 2, 0}, {0, 0, 2}).transformed(
-      Transform::rotation({0, 0, 0}, {0, 0, 1}, 0.7));
+  const auto plane = make_rectangle({0, -1, 0}, {0, 2, 0}, {0, 0, 2})
+                         .transformed(Transform::rotation({0, 0, 0}, {0, 0, 1}, 0.7));
   const Vec3 n = plane.normal(0.5, 0.5);
   const Vec3 p0 = plane.evaluate(0.5, 0.05), p1 = plane.evaluate(0.5, 0.95);
   // parallel at 3e-8 (no intersection), and crossing the plane at a tiny angle

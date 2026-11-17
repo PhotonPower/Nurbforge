@@ -1,6 +1,5 @@
-#include <catch2/catch_test_macros.hpp>
-
 #include <algorithm>
+#include <catch2/catch_test_macros.hpp>
 #include <cmath>
 #include <numbers>
 #include <vector>
@@ -8,6 +7,7 @@
 #include "nurbforge/analysis/properties.hpp"
 #include "nurbforge/core/error.hpp"
 #include "nurbforge/geometry/primitives.hpp"
+#include "nurbforge/geometry/transform.hpp"
 #include "nurbforge/modeling/construct.hpp"
 #include "nurbforge/topology/trimmed_surface.hpp"
 
@@ -19,7 +19,8 @@ namespace {
 NurbsSurface plate() { return make_rectangle({0, 0, 0}, {4, 0, 0}, {0, 2, 0}); }  // x = 4u, y = 2v
 
 NurbsSurface sphere(double R) {
-  return revolve(make_arc({0, 0, 0}, {0, 0, -1}, {1, 0, 0}, R, 0.0, pi), {0, 0, 0}, {0, 0, 1}, 2 * pi);
+  return revolve(make_arc({0, 0, 0}, {0, 0, -1}, {1, 0, 0}, R, 0.0, pi), {0, 0, 0}, {0, 0, 1},
+                 2 * pi);
 }
 
 bool rel_close(double a, double b, double rel) { return std::abs(a - b) <= rel * std::abs(b); }
@@ -51,7 +52,8 @@ TEST_CASE("circular aperture, hole and nested loops on a plate", "[trim]") {
   const auto b = disk.boundary_curves(1e-8);
   REQUIRE(b.size() == 1);
   for (const auto& c : b[0])
-    for (const auto& p : c.sample(100)) CHECK(std::abs((p.x - 2) * (p.x - 2) + 4 * (p.y - 1) * (p.y - 1) - 1) < 1e-7);
+    for (const auto& p : c.sample(100))
+      CHECK(std::abs((p.x - 2) * (p.x - 2) + 4 * (p.y - 1) * (p.y - 1) - 1) < 1e-7);
 }
 
 TEST_CASE("boundary curves are exact on planes and along iso lines", "[trim]") {
@@ -101,14 +103,17 @@ TEST_CASE("loop validation and orientation", "[trim]") {
   CHECK(h.holes()[0].signed_area() < 0.0);
   TrimLoop open{{make_line({0.1, 0.1, 0}, {0.9, 0.1, 0}), make_line({0.9, 0.1, 0}, {0.9, 0.9, 0})}};
   CHECK_THROWS_AS(TrimmedSurface(s, open), GeometryError);
-  CHECK_THROWS_AS(TrimmedSurface(s, circle_loop(0.9, 0.5, 0.25)), GeometryError);  // leaves the domain
-  CHECK(rel_close(TrimmedSurface(s, polygon_loop({{0.1, 0.1}, {0.6, 0.1}, {0.1, 0.6}})).area(), 0.5 * 2.0 * 1.0, 1e-5));
+  CHECK_THROWS_AS(TrimmedSurface(s, circle_loop(0.9, 0.5, 0.25)),
+                  GeometryError);  // leaves the domain
+  CHECK(rel_close(TrimmedSurface(s, polygon_loop({{0.1, 0.1}, {0.6, 0.1}, {0.1, 0.6}})).area(),
+                  0.5 * 2.0 * 1.0, 1e-5));
 }
 
 TEST_CASE("split along chords and nested closed curves", "[trim]") {
   const auto s = make_rectangle({0, 0, 0}, {1, 0, 0}, {0, 1, 0});  // x = u, y = v
   // two non-crossing chords: x = 0.3 and x = 0.7 -> three strips
-  const std::vector<NurbsCurve> chords{make_line({0.3, 0, 0}, {0.3, 1, 0}), make_line({0.7, 1, 0}, {0.7, 0, 0})};
+  const std::vector<NurbsCurve> chords{make_line({0.3, 0, 0}, {0.3, 1, 0}),
+                                       make_line({0.7, 1, 0}, {0.7, 0, 0})};
   auto parts = split(s, chords);
   REQUIRE(parts.size() == 3);
   std::vector<double> areas;
@@ -119,7 +124,8 @@ TEST_CASE("split along chords and nested closed curves", "[trim]") {
   CHECK(rel_close(areas[2], 0.4, 1e-8));
 
   // two concentric circles: outside, annulus, disk
-  const std::vector<NurbsCurve> rings{make_circle({0.5, 0.5, 0}, {0, 0, 1}, 0.4), make_circle({0.5, 0.5, 0}, {0, 0, 1}, 0.2)};
+  const std::vector<NurbsCurve> rings{make_circle({0.5, 0.5, 0}, {0, 0, 1}, 0.4),
+                                      make_circle({0.5, 0.5, 0}, {0, 0, 1}, 0.2)};
   parts = split(s, rings);
   REQUIRE(parts.size() == 3);
   areas.clear();
@@ -128,7 +134,8 @@ TEST_CASE("split along chords and nested closed curves", "[trim]") {
   CHECK(rel_close(areas[0], pi * 0.04, 1e-5));
   CHECK(rel_close(areas[1], pi * (0.16 - 0.04), 1e-5));
   CHECK(rel_close(areas[2], 1.0 - pi * 0.16, 1e-5));
-  CHECK_THROWS_AS(split(s, std::vector<NurbsCurve>{make_line({0.2, 0.2, 0}, {0.5, 0.5, 0})}), GeometryError);
+  CHECK_THROWS_AS(split(s, std::vector<NurbsCurve>{make_line({0.2, 0.2, 0}, {0.5, 0.5, 0})}),
+                  GeometryError);
 }
 
 TEST_CASE("split along crossing curves uses the planar arrangement", "[trim][arrangement]") {
@@ -150,8 +157,8 @@ TEST_CASE("split along crossing curves uses the planar arrangement", "[trim][arr
   CHECK(rel_close(a[2], 0.28, 1e-8));
   CHECK(rel_close(a[3], 0.42, 1e-8));
   // both diagonals (ending in the corners) -> four triangles of area 1/4
-  parts = split(s, std::vector<NurbsCurve>{make_line({0, 0, 0}, {1, 1, 0}),
-                                           make_line({0, 1, 0}, {1, 0, 0})});
+  parts = split(
+      s, std::vector<NurbsCurve>{make_line({0, 0, 0}, {1, 1, 0}), make_line({0, 1, 0}, {1, 0, 0})});
   REQUIRE(parts.size() == 4);
   for (const double x : sorted_areas(parts)) CHECK(rel_close(x, 0.25, 1e-8));
   // a chord through a circle -> outside left/right of the chord and two half disks
@@ -202,7 +209,8 @@ TEST_CASE("general split of trimmed faces (planar arrangement)", "[trim][arrange
     return a;
   };
   // crossing chords -> four quarters
-  auto a = areas(split(TrimmedSurface(sq), {make_line({0.5, -0.2, 0}, {0.5, 1.2, 0}), make_line({-0.2, 0.5, 0}, {1.2, 0.5, 0})}));
+  auto a = areas(split(TrimmedSurface(sq), {make_line({0.5, -0.2, 0}, {0.5, 1.2, 0}),
+                                            make_line({-0.2, 0.5, 0}, {1.2, 0.5, 0})}));
   REQUIRE(a.size() == 4);
   for (double x : a) CHECK(std::abs(x - 0.25) < 1e-9);
 
@@ -227,7 +235,8 @@ TEST_CASE("general split of trimmed faces (planar arrangement)", "[trim][arrange
   CHECK(rel_close(a[1], 1 - pi * 0.0625, 1e-6));
 
   // T-junction: a vertical cut from the top ends on a horizontal cut -> three regions
-  a = areas(split(TrimmedSurface(sq), {make_line({0, 0.4, 0}, {1, 0.4, 0}), make_line({0.3, 1, 0}, {0.3, 0.4, 0})}));
+  a = areas(split(TrimmedSurface(sq),
+                  {make_line({0, 0.4, 0}, {1, 0.4, 0}), make_line({0.3, 1, 0}, {0.3, 0.4, 0})}));
   REQUIRE(a.size() == 3);
   CHECK(std::abs(a[0] - 0.18) < 1e-9);
   CHECK(std::abs(a[1] - 0.4) < 1e-9);
@@ -243,7 +252,8 @@ TEST_CASE("split along a closed cut around an existing hole", "[trim][arrangemen
   const auto holed = TrimmedSurface(sq).with_hole(circle_loop(0.5, 0.5, 0.2));
   auto parts = split(holed, {make_circle({0.5, 0.5, 0}, {0, 0, 1}, 0.3)});
   REQUIRE(parts.size() == 2);
-  std::sort(parts.begin(), parts.end(), [](const auto& x, const auto& y) { return x.area(1e-9) < y.area(1e-9); });
+  std::sort(parts.begin(), parts.end(),
+            [](const auto& x, const auto& y) { return x.area(1e-9) < y.area(1e-9); });
   CHECK(rel_close(parts[0].area(1e-9), pi * (0.09 - 0.04), 1e-6));  // annulus 0.2 ... 0.3
   CHECK(parts[0].holes().size() == 1);
   CHECK(rel_close(parts[1].area(1e-9), 1.0 - pi * 0.09, 1e-6));  // square minus the disk 0.3
@@ -287,4 +297,23 @@ TEST_CASE("split keeps slivers far thinner than the domain", "[trim]") {
     CHECK(std::abs(std::min(a0, a1) - seg) < 1e-3 * seg);
     CHECK(std::abs(a0 + a1 - 1.0) < 1e-9);
   }
+}
+
+TEST_CASE("transformed trimmed faces keep loops, label and the normal's image", "[trim]") {
+  const auto s = make_rectangle({0, 0, 0}, {2, 0, 0}, {0, 2, 0});
+  const TrimmedSurface f = TrimmedSurface(s, circle_loop(0.5, 0.5, 0.4)).with_label("aperture");
+  const Transform move =
+      Transform::translation({1, 2, 3}) * Transform::rotation({0, 0, 0}, {1, 0, 0}, pi / 2);
+  const TrimmedSurface g = f.transformed(move);
+  CHECK(g.label() == "aperture");
+  CHECK(rel_close(g.area(), f.area(), 1e-12));
+  CHECK(g.contains(0.5, 0.5));
+  const Vec3 n = g.surface().normal(0.5, 0.5);  // +z rotated about x by 90 degrees: -y
+  CHECK(std::abs(n.y + 1.0) <= 1e-12);
+  // a reflection in the plane z = 0 maps the +z normal to -z; the face is flipped to keep that
+  const TrimmedSurface m = f.transformed(Transform::mirror({0, 0, 0}, {0, 0, 1}));
+  CHECK(m.label() == "aperture");
+  CHECK(rel_close(m.area(), f.area(), 1e-12));
+  CHECK(std::abs(m.surface().normal(0.5, 0.5).z + 1.0) <= 1e-12);
+  CHECK_THROWS_AS(f.transformed(Transform::scaling({0, 0, 0}, Vec3{1, 1, 0})), GeometryError);
 }

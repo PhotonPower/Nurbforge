@@ -118,7 +118,10 @@ struct CurveSearch {
       for (int i = 0; i <= 4; ++i) {
         const double u = a + (b - a) * i / 4.0;
         const double d = dist2(curve.evaluate(u), P);
-        if (d < d0) { d0 = d; u0 = u; }
+        if (d < d0) {
+          d0 = d;
+          u0 = u;
+        }
       }
       // Newton on the segment, not on the whole curve: at a C0 knot (a kink) the curve's
       // derivative is one-sided and belongs to the next span, which would push the iteration
@@ -128,7 +131,8 @@ struct CurveSearch {
     }
     const double mid = 0.5 * (seg.domain_start() + seg.domain_end());
     const auto [l, r] = seg.split(mid);
-    const bool left_first = box_distance(l.control_points(), P) <= box_distance(r.control_points(), P);
+    const bool left_first =
+        box_distance(l.control_points(), P) <= box_distance(r.control_points(), P);
     process(left_first ? l : r, depth + 1);
     process(left_first ? r : l, depth + 1);
   }
@@ -229,7 +233,9 @@ struct SurfaceSearch {
     const bool v_ok = vr[1] - vr[0] > 1e-9 * (sv[1] - sv[0]);
     if (depth >= kMaxDepthSurface || flat(p) || box_diagonal(Q) <= tol.length || (!u_ok && !v_ok)) {
       // Newton from the three best of 5x5 samples
-      struct Start { double d, u, v; };
+      struct Start {
+        double d, u, v;
+      };
       std::vector<Start> starts;
       for (int i = 0; i <= 4; ++i)
         for (int j = 0; j <= 4; ++j) {
@@ -252,7 +258,8 @@ struct SurfaceSearch {
     for (std::size_t i = 0; i < p.num_u(); ++i)
       ext_v = std::max(ext_v, distance(p.control_point(i, 0), p.control_point(i, p.num_v() - 1)));
     const bool along_u = v_ok ? (u_ok && ext_u >= ext_v) : true;
-    const auto [a, b] = along_u ? p.split_u(0.5 * (ur[0] + ur[1])) : p.split_v(0.5 * (vr[0] + vr[1]));
+    const auto [a, b] =
+        along_u ? p.split_u(0.5 * (ur[0] + ur[1])) : p.split_v(0.5 * (vr[0] + vr[1]));
     const bool a_first = box_distance(a.control_points(), P) <= box_distance(b.control_points(), P);
     process(a_first ? a : b, depth + 1);
     process(a_first ? b : a, depth + 1);
@@ -269,7 +276,8 @@ CurvePoint closest_point(const NurbsCurve& c, const Vec3& P, const Tolerance& to
   return search.best;
 }
 
-CurvePoint closest_point_local(const NurbsCurve& c, const Vec3& P, double u0, const Tolerance& tol) {
+CurvePoint closest_point_local(const NurbsCurve& c, const Vec3& P, double u0,
+                               const Tolerance& tol) {
   const double a = c.domain_start(), b = c.domain_end();
   return newton_curve(c, P, std::clamp(u0, a, b), a, b, tol);
 }
@@ -292,7 +300,8 @@ SurfacePoint closest_point(const NurbsSurface& s, const Vec3& P, const Tolerance
 SurfacePoint closest_point_local(const NurbsSurface& s, const Vec3& P, double u0, double v0,
                                  const Tolerance& tol) {
   const auto ur = s.domain_u(), vr = s.domain_v();
-  return newton_surface(s, P, std::clamp(u0, ur[0], ur[1]), std::clamp(v0, vr[0], vr[1]), ur, vr, tol);
+  return newton_surface(s, P, std::clamp(u0, ur[0], ur[1]), std::clamp(v0, vr[0], vr[1]), ur, vr,
+                        tol);
 }
 
 }  // namespace nf

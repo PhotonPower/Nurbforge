@@ -108,6 +108,7 @@ from ._core import (  # noqa: F401
     make_rectangle_curve,
     make_sphere,
     make_torus,
+    merge_faces,
     norm,
     offset_curve,
     offset_surface,

@@ -375,3 +375,11 @@ def test_solid_operation_tools():
     assert "closed shell" in call_tool(ws, "remove_holes", {"name": "x", "solid": "b",
                                                              "max_size": 0.1})
     assert "closed shell" in call_tool(ws, "cap", {"name": "c", "shell": "b"})  # closed: unchanged
+
+
+def test_merge_faces_tool():
+    ws = Workspace()
+    call_tool(ws, "solid", {"name": "a", "kind": "box", "point": [0, 0, 0], "size": [2, 2, 1]})
+    call_tool(ws, "solid", {"name": "b", "kind": "box", "point": [1, 1, 0], "size": [2, 2, 1]})
+    call_tool(ws, "boolean", {"name": "u", "a": "a", "b": "b", "op": "union"})
+    assert "closed shell, 10 faces" in call_tool(ws, "merge_faces", {"name": "m", "solid": "u"})

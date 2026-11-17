@@ -522,6 +522,21 @@ then attached to the rest only along free edges; they are removed repeatedly unt
 is closed again. Features that are not holes (bosses, slots that cut an outer edge) are not
 recognised; \code{GeometryError} is raised if the result does not close.
 
+Booleans leave faces split into pieces: the union of two overlapping boxes has three coplanar
+top faces. \apiref{merge_faces} joins adjacent faces that carry the same label and lie on the
+same surface -- pieces of one split face, or planar faces in one plane with the same normal --
+into one face:
+
+\begin{lstlisting}
+merged = nf.merge_faces(shell, tolerance=1e-6)
+\end{lstlisting}
+
+The merged face is the common surface (or a rectangle in the common plane) trimmed by the union
+of the pieces: boundary pieces shared by two faces cancel, the rest forms the new loops, and
+holes are kept. The trim curves stay exact, since only affine maps between planar
+parametrisations are involved. Faces with different labels are never merged, so physical
+groups survive; groups whose boundary does not form valid loops are left as they are.
+
 \apiref{hollow} turns a smooth closed solid into a thin-walled one:
 
 \begin{lstlisting}
@@ -540,6 +555,7 @@ hollow them with a Boolean difference of the solid and a smaller copy instead.
 \begin{lstlisting}[style=text]
 part: 10 faces, volume 20.63456859
 defeatured: 7 faces, volume 20.85840735 (24 - pi = 20.85840735)
+union of two boxes: 14 faces -> merged 10, top face area 7.00000000, volume 7.00000000
 hollow sphere: 2 shells, volume 1.13516215 (4/3 pi (1 - 0.9^3) = 1.13516215)
 cup: closed=True, labels ['bottom', 'bottom_offset', 'wall'], volume 0.56758107 (2/3 pi (1 - 0.9^3) = 0.56758107)
 \end{lstlisting}

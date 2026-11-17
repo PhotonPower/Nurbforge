@@ -566,3 +566,11 @@ def test_remove_holes_and_hollow():
     ball = nf.hollow(nf.make_sphere((0, 0, 0), 1.0), 0.1)
     assert ball.volume() == pytest.approx(4 / 3 * math.pi * (1 - 0.9**3), rel=1e-7)
     assert len(ball.components()) == 2
+
+
+def test_merge_faces_after_union():
+    u = nf.boolean(nf.make_box((0, 0, 0), (2, 2, 1)), nf.make_box((1, 1, 0), (2, 2, 1)),
+                   nf.BooleanOp.Union)
+    m = nf.merge_faces(u)
+    assert len(u.faces) == 14 and len(m.faces) == 10
+    assert m.is_closed and m.volume() == pytest.approx(7.0, rel=1e-10)

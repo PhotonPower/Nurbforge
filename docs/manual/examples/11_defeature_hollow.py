@@ -13,6 +13,14 @@ print(f"part: {len(part.faces)} faces, volume {part.volume():.8f}")
 print(f"defeatured: {len(clean.faces)} faces, volume {clean.volume():.8f} "
       f"(24 - pi = {24 - math.pi:.8f})")
 
+# coplanar pieces left by a union are merged into single faces
+u = nf.boolean(nf.make_box((0, 0, 0), (2, 2, 1)), nf.make_box((1, 1, 0), (2, 2, 1)),
+               nf.BooleanOp.Union)
+m = nf.merge_faces(u)
+top = m.faces[m.faces_labeled("top")[0]]
+print(f"union of two boxes: {len(u.faces)} faces -> merged {len(m.faces)}, "
+      f"top face area {top.area():.8f}, volume {m.volume():.8f}")
+
 # a sphere hollowed to a wall of 0.1: an inner void
 ball = nf.hollow(nf.make_sphere((0, 0, 0), 1.0), 0.1)
 print(f"hollow sphere: {len(ball.components())} shells, volume {ball.volume():.8f} "

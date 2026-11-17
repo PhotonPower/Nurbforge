@@ -190,3 +190,39 @@ TEST_CASE("hollow: smooth solids become shells with a wall", "[solid_ops][hollow
   CHECK_THROWS_AS(hollow(two, 0.1, {"nothing"}), GeometryError);
   CHECK_THROWS_AS(hollow(make_box({0, 0, 0}, {1, 1, 1}), 0.1), GeometryError);  // creased
 }
+
+TEST_CASE("merge_faces: coplanar and same-surface pieces become one face", "[solid_ops][merge]") {
+  SECTION("union of two overlapping boxes: 14 faces -> 10") {
+    const Shell u =
+        boolean(make_box({0, 0, 0}, {2, 2, 1}), make_box({1, 1, 0}, {2, 2, 1}), BooleanOp::Union);
+    REQUIRE(u.faces().size() == 14);
+    const Shell m = merge_faces(u);
+    check_solid(m, 7.0);
+    CHECK(m.faces().size() == 10);
+    REQUIRE(m.faces_labeled("top").size() == 1);
+    CHECK(rel_close(m.faces()[m.faces_labeled("top")[0]].area(), 7.0, 1e-12));
+  }
+  SECTION("two boxes side by side: the touching faces vanish, the rest merges into 6") {
+    const Shell u =
+        boolean(make_box({0, 0, 0}, {1, 1, 1}), make_box({1, 0, 0}, {1, 1, 1}), BooleanOp::Union);
+    const Shell m = merge_faces(u);
+    check_solid(m, 2.0);
+    CHECK(m.faces().size() == 6);
+  }
+  SECTION("a plate with a bore keeps its hole; nothing to merge leaves the shell as it is") {
+    const Shell part = boolean(make_box({-2, -1, 0}, {4, 2, 1}),
+                               make_cylinder({0, 0, -1}, {0, 0, 1}, 0.4, 3), BooleanOp::Difference);
+    const Shell m = merge_faces(part);
+    CHECK(m.faces().size() == part.faces().size());
+    check_solid(m, 8.0 - pi * 0.16);
+  }
+  SECTION("faces with different labels are not merged") {
+    const Shell a = make_box({0, 0, 0}, {1, 1, 1});
+    const Shell b =
+        make_box({1, 0, 0}, {1, 1, 1})
+            .with_face_labels({"bottom2", "top2", "front2", "back2", "left2", "right2"});
+    const Shell m = merge_faces(boolean(a, b, BooleanOp::Union));
+    check_solid(m, 2.0);
+    CHECK(m.faces().size() == 10);
+  }
+}

@@ -297,6 +297,15 @@ bool TrimmedSurface::contains(double u, double v) const {
   return true;
 }
 
+TrimmedSurface TrimmedSurface::transformed(const Transform& t) const {
+  const auto& M = t.matrix();
+  const double det = M[0] * (M[5] * M[10] - M[6] * M[9]) - M[1] * (M[4] * M[10] - M[6] * M[8]) +
+                     M[2] * (M[4] * M[9] - M[5] * M[8]);
+  if (det == 0.0) throw GeometryError("trimmed surface: transformed by a singular map");
+  TrimmedSurface g = TrimmedSurface(surface_.transformed(t), outer_, holes_).with_label(label_);
+  return det < 0.0 ? g.flipped() : g;
+}
+
 TrimmedSurface TrimmedSurface::flipped() const {
   const auto du = surface_.domain_u();
   const double a = du[0], b = du[1];

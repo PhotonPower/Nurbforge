@@ -160,6 +160,7 @@ PYBIND11_MODULE(_core, m) {
            "Bezier segments, each on its original parameter interval.")
       .def("reversed", &NurbsCurve::reversed)
       .def("transformed", &NurbsCurve::transformed, py::arg("transform"))
+      .def("__rmul__", [](const NurbsCurve& c, const Transform& t) { return c.transformed(t); })
       .def("__repr__", [](const NurbsCurve& c) {
         return "<NurbsCurve degree=" + std::to_string(c.degree()) +
                " n_ctrl=" + std::to_string(c.num_control_points()) +
@@ -222,6 +223,7 @@ PYBIND11_MODULE(_core, m) {
       .def("decompose_bezier", &NurbsSurface::decompose_bezier,
            "Bezier patches in row-major order (u span outer), original parameter rectangles.")
       .def("transformed", &NurbsSurface::transformed, py::arg("transform"))
+      .def("__rmul__", [](const NurbsSurface& s, const Transform& t) { return s.transformed(t); })
       .def("transposed", &NurbsSurface::transposed)
       .def("__repr__", [](const NurbsSurface& s) {
         return "<NurbsSurface degree=(" + std::to_string(s.degree_u()) + "," + std::to_string(s.degree_v()) +
@@ -762,6 +764,10 @@ PYBIND11_MODULE(_core, m) {
       .def("boundary_curves", &TrimmedSurface::boundary_curves, py::arg("tolerance") = 1e-7)
       .def("with_hole", &TrimmedSurface::with_hole, py::arg("hole"))
       .def("flipped", &TrimmedSurface::flipped, "The same face with opposite orientation (normal flipped).")
+      .def("transformed", &TrimmedSurface::transformed, py::arg("transform"),
+           "The face mapped by an affine transform (loops and label kept; reflections keep the "
+           "normal by flipping the face).")
+      .def("__rmul__", [](const TrimmedSurface& f, const Transform& t) { return f.transformed(t); })
       .def_property_readonly("label", &TrimmedSurface::label,
                              "Face label (boundary condition / physical group); kept by Booleans, transforms, STEP.")
       .def("with_label", &TrimmedSurface::with_label, py::arg("label"), "The same face with the given label.")
@@ -968,7 +974,7 @@ PYBIND11_MODULE(_core, m) {
         py::arg("path"), py::kw_only(), py::arg("unit") = "mm", py::arg("tolerance") = 1e-6,
         py::arg("skip_unsupported") = false,
         "Read the B-rep solids and surface models of a STEP file (native reader) as a list of Shells, "
-        "converted to `unit` ('mm', 'cm', 'm', 'inch'). Analytic surfaces (plane, cylinder, cone, sphere, "
+        "converted to `unit` ('mm', 'cm', 'm', 'inch', 'um'). Analytic surfaces (plane, cylinder, cone, sphere, "
         "torus) become exact NURBS patches; trim loops are rebuilt in parameter space. `tolerance` is the "
         "sewing tolerance. Unsupported entities raise GeometryError unless `skip_unsupported` (the faces "
         "are then skipped with a warning).");

@@ -46,12 +46,11 @@ Constructor & Map \\
 
 \subsection{Transforming geometry}
 
-\code{NurbsCurve}, \code{NurbsSurface} and \code{Shell} have a method
-\code{transformed(transform)}; for shells the operator form \code{transform * shell} is available
-as well. A \code{TrimmedSurface} has no \code{transformed} method: transform its carrier surface
-and trim it again with the same loops,
-\code{nf.TrimmedSurface(face.surface.transformed(t), face.outer, face.holes)}, or sew it into a
-shell and transform the shell. NURBS are \emph{affinely invariant}: the image of the curve is the curve of the
+\code{NurbsCurve}, \code{NurbsSurface}, \code{TrimmedSurface} and \code{Shell} have a method
+\code{transformed(transform)}, and the operator form \code{transform * obj} does the same for
+all four. A transformed \code{TrimmedSurface} keeps its loops and its label; like a shell it is
+flipped under a reflection, so its normal is the image of the original normal. (Up to version
+0.9.0 only shells supported the operator, and trimmed faces had no \code{transformed}.) NURBS are \emph{affinely invariant}: the image of the curve is the curve of the
 transformed control points with unchanged weights and knots. Transforms are therefore exact --
 the image of a circle under a rigid motion is the same exact circle, and under a non-uniform
 scaling it becomes an exact ellipse.

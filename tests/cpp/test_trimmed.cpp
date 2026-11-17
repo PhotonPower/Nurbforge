@@ -8,6 +8,7 @@
 #include "nurbforge/analysis/properties.hpp"
 #include "nurbforge/core/error.hpp"
 #include "nurbforge/geometry/primitives.hpp"
+#include "nurbforge/geometry/transform.hpp"
 #include "nurbforge/modeling/construct.hpp"
 #include "nurbforge/topology/trimmed_surface.hpp"
 
@@ -287,4 +288,22 @@ TEST_CASE("split keeps slivers far thinner than the domain", "[trim]") {
     CHECK(std::abs(std::min(a0, a1) - seg) < 1e-3 * seg);
     CHECK(std::abs(a0 + a1 - 1.0) < 1e-9);
   }
+}
+
+TEST_CASE("transformed trimmed faces keep loops, label and the normal's image", "[trim]") {
+  const auto s = make_rectangle({0, 0, 0}, {2, 0, 0}, {0, 2, 0});
+  const TrimmedSurface f = TrimmedSurface(s, circle_loop(0.5, 0.5, 0.4)).with_label("aperture");
+  const Transform move = Transform::translation({1, 2, 3}) * Transform::rotation({0, 0, 0}, {1, 0, 0}, pi / 2);
+  const TrimmedSurface g = f.transformed(move);
+  CHECK(g.label() == "aperture");
+  CHECK(rel_close(g.area(), f.area(), 1e-12));
+  CHECK(g.contains(0.5, 0.5));
+  const Vec3 n = g.surface().normal(0.5, 0.5);  // +z rotated about x by 90 degrees: -y
+  CHECK(std::abs(n.y + 1.0) <= 1e-12);
+  // a reflection in the plane z = 0 maps the +z normal to -z; the face is flipped to keep that
+  const TrimmedSurface m = f.transformed(Transform::mirror({0, 0, 0}, {0, 0, 1}));
+  CHECK(m.label() == "aperture");
+  CHECK(rel_close(m.area(), f.area(), 1e-12));
+  CHECK(std::abs(m.surface().normal(0.5, 0.5).z + 1.0) <= 1e-12);
+  CHECK_THROWS_AS(f.transformed(Transform::scaling({0, 0, 0}, Vec3{1, 1, 0})), GeometryError);
 }

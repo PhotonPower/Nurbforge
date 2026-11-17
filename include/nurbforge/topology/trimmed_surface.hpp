@@ -69,6 +69,11 @@ class TrimmedSurface {
   /// loops are mirrored accordingly. The normal S_u x S_v flips.
   [[nodiscard]] TrimmedSurface flipped() const;
 
+  /// The face mapped by an affine transform: the surface is transformed, the loops (parameter
+  /// space) and the label are kept. For a reflection (negative determinant) the face is also
+  /// flipped, so that its normal is the image of the original normal – as in Shell::transformed.
+  [[nodiscard]] TrimmedSurface transformed(const Transform& t) const;
+
   /// Free-form label of the face, e.g. a boundary-condition or physical-group name ("" if none).
   /// Kept by flipped(), with_hole(), split(), Booleans (every piece of a split face keeps the
   /// label of the face it came from), Shell::oriented() / transformed(), and written to / read

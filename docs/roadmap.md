@@ -67,12 +67,12 @@
 - Defeaturing: remove small through and blind holes ✅, merge faces on the same surface ✅
 - LLM tools for all solid operations ✅
 
-## 0.11 – Parallel parameter studies
+## 0.11 – Parallel parameter studies ✅
 - Expensive operations release the GIL in Python (Booleans, solid operations, intersections, sections, offsets, sweeps, fits, mass properties) ✅
 - All geometry types picklable (processes, deepcopy) ✅
 - Concurrent constructive operations checked under ThreadSanitizer ✅
 
-## 0.12 – 2D profiles (#16)
+## 0.12 – 2D profiles (#16) ✅
 - Booleans of planar regions (exact curves, holes, touching regions), exact region area ✅
 - Blend curves between curve ends (G1 cubic, G2 quintic) ✅
 - Projection of curves onto surfaces (normal or directional, 3D curve + p-curve) ✅

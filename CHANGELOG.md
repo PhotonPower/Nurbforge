@@ -5,6 +5,11 @@ versioning: [SemVer](https://semver.org).
 
 ## [Unreleased]
 ### Added
+- Local mesh sizes: `GmshSession.refine(labels_or_tags, size, distance=0)` – exact size on the
+  faces (by face label or gmsh surface tag) and, with `distance`, linear growth to the global size
+  into the volume; `mesh(curvature=n)` for n elements per 2π of curvature.
+- `GmshSession.add_shell` (remembers face labels) and `GmshSession.face_tags()`: current gmsh
+  surface tags per face label, robust against renumbering by duplicate removal.
 - Wheels for CPython 3.14 (all platforms).
 
 ### Changed

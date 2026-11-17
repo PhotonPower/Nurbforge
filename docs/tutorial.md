@@ -302,7 +302,7 @@ except (ImportError, OSError) as exc:  # gmsh missing or its runtime libraries u
     print(f"STEP export skipped: {exc}")
 ```
 
-For full control (element order, size fields, physical groups) use `GmshSession`, see
+For full control (element order, local mesh sizes, physical groups) use `GmshSession`, see
 [Meshing with gmsh](meshing.md).
 
 ## 9. Geometry from natural language

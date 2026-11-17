@@ -15,7 +15,7 @@ with GmshSession(verbose=False) as g:
     g.write("lens.msh")                # .msh, .vtk, .stl, .step, .brep, ...
 ```
 
-Inside the session the full gmsh API (`g.gmsh`) is available, e.g. for physical groups or size fields.
+Inside the session the full gmsh API (`g.gmsh`) is available for anything not wrapped here.
 
 Trimmed surfaces are transferred exactly as well - the trim loops become B-spline wires in the
 parameter space of the surface:
@@ -61,10 +61,39 @@ from nurbforge.mesh import GmshSession, add_shell
 pipe = nf.make_cylinder((0, 0, 0), (0, 0, 1), 1.0, 5.0).with_face_labels(["wall", "inlet", "outlet"])
 part = nf.boolean(pipe, nf.make_box((-2, -0.2, 2), (4, 0.4, 1)), nf.BooleanOp.Difference)
 with GmshSession() as g:
-    add_shell(part, physical_groups=True)     # wall, inlet, outlet, bottom/top/... of the slot, volume
+    g.add_shell(part, physical_groups=True)   # wall, inlet, outlet, bottom/top/... of the slot, volume
     g.mesh(dim=3, size=0.3)
     g.write("pipe.msh")
 ```
+
+`g.face_tags()` returns the current gmsh surface tags of every label, e.g. for gmsh calls of your
+own. (The module function `add_shell` works too, but only the session method remembers the
+labels for `face_tags` and `refine`.)
+
+## Local mesh sizes
+
+`refine` sets a mesh size on faces, given by label (shells added with `g.add_shell`) or gmsh
+surface tag. With `distance` the size grows linearly from the local size on the faces to the
+global size at that distance – also into the volume, so the elements near an inlet or a
+contact face stay small without refining the whole part. `curvature` makes elements smaller on
+strongly curved faces (number of elements per 2π):
+
+```python
+pipe = nf.make_cylinder((0, 0, 0), (0, 0, 1), 1.0, 5.0).with_face_labels(["wall", "inlet", "outlet"])
+with GmshSession() as g:
+    g.add_shell(pipe, physical_groups=True)
+    g.refine("inlet", 0.05, distance=1.0)        # 0.05 on the inlet, 0.3 from 1.0 away
+    g.refine("outlet", 0.1)                      # only the outlet face itself
+    g.mesh(dim=3, size=0.3, curvature=24)        # global size, 24 elements per 2π of curvature
+    g.write("pipe.msh")
+```
+
+Several refinements combine by taking the smallest size. The faces get their size exactly
+(gmsh `Constant` field); the growth uses a `Distance` + `Threshold` field, and the background
+field is the minimum of all. Faces adjacent to a refined face also become finer near the shared
+edges, because gmsh grades the mesh away from the fine boundary. Labels are resolved to gmsh
+surfaces when meshing, so `refine` may be called before or after further `add_shell` calls and
+duplicate removal (which renumbers surfaces).
 
 ## Implementation notes
 

@@ -21,6 +21,7 @@ import tempfile
 from collections.abc import Iterable
 
 from .._core import NurbsCurve, NurbsSurface, Shell, TrimmedSurface, unique_knots, write_step
+from .surface_mesh import SurfaceMesh, build_surface_mesh
 
 
 def _gmsh():
@@ -247,6 +248,16 @@ class GmshSession:
         field.setAsBackgroundMesh(m)
         self._fields.append(m)
 
+    def surface_mesh(self, orient: bool = True) -> SurfaceMesh:
+        """The triangle surface mesh of the model as a :class:`SurfaceMesh`, for boundary element
+        solvers. Raises :class:`MeshTopologyError` unless the mesh is watertight (every edge shared
+        by exactly two triangles) and orientable. With ``orient`` the triangles are made
+        consistent across surfaces and their normals point out of the solid (into the void for a
+        cavity); the gmsh mesh is reversed accordingly, so :meth:`write` exports the same
+        orientation. Call after ``mesh(dim=2)``; the triangle groups follow the face labels."""
+        labels = self.face_tags() if self._faces else {}
+        return build_surface_mesh(self.gmsh, labels, orient=orient)
+
     def write(self, path: str) -> None:
         """Write mesh/geometry; format from extension (.msh, .vtk, .stl, .step, .brep ...)."""
         self.gmsh.write(path)
@@ -333,6 +344,25 @@ def export_step(objects, path: str, solid: bool = True) -> None:
                 g.add_surface(o)
         g.gmsh.model.occ.synchronize()
         g.write(path)
+
+
+def bem_mesh(shell: Shell, size: float | None = None, order: int = 1,
+             curvature: int | None = None, refine: dict | None = None,
+             path: str | None = None) -> SurfaceMesh:
+    """One-shot helper for boundary element solvers: mesh the closed ``shell`` with triangles and
+    return a watertight, outward-oriented :class:`SurfaceMesh` (see
+    :meth:`GmshSession.surface_mesh`). ``refine`` maps face labels or surface tags to local
+    sizes; ``path`` additionally writes the mesh (.msh, .stl, .vtk, ...) with physical groups
+    per face label."""
+    with GmshSession() as g:
+        g.add_shell(shell, solid=False, physical_groups=path is not None)
+        for where, local in (refine or {}).items():
+            g.refine(where, local)
+        g.mesh(dim=2, size=size, order=order, curvature=curvature)
+        mesh = g.surface_mesh()
+        if path is not None:
+            g.write(path)
+    return mesh
 
 
 def mesh_surfaces(surfaces: Iterable[NurbsSurface | TrimmedSurface], path: str,

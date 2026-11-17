@@ -5,6 +5,11 @@ versioning: [SemVer](https://semver.org).
 
 ## [Unreleased]
 ### Added
+- BEM-ready surface meshes: `nurbforge.mesh.bem_mesh(shell, size, order, curvature, refine, path)`
+  and `GmshSession.surface_mesh()` return a `SurfaceMesh` (numpy nodes, linear or quadratic
+  triangles, groups per face label, normals, areas, volume) that is checked to be watertight
+  and oriented outward – into the void for cavities. The orientation is also applied to the
+  gmsh model, so written `.msh`/`.stl` files carry it; violations raise `MeshTopologyError`.
 - Local mesh sizes: `GmshSession.refine(labels_or_tags, size, distance=0)` – exact size on the
   faces (by face label or gmsh surface tag) and, with `distance`, linear growth to the global size
   into the volume; `mesh(curvature=n)` for n elements per 2π of curvature.

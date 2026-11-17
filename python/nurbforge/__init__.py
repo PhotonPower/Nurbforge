@@ -149,6 +149,7 @@ from ._core import (  # noqa: F401
     zernike_nm,
     zernike_surface,
 )
+from ._reference import reference  # noqa: F401
 from .patterns import apply_pattern  # noqa: F401
 
 __all__ = [name for name in dir() if not name.startswith("_")]

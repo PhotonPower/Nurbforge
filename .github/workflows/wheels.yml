@@ -93,10 +93,13 @@ jobs:
         run: |
           python -m pip install ".[mesh]"
           python docs/manual/build.py
+          cp python/nurbforge/REFERENCE.md docs/manual/build/nurbforge-reference.md
       - uses: actions/upload-artifact@v7
         with:
           name: manual
-          path: docs/manual/build/nurbforge-manual.pdf
+          path: |
+            docs/manual/build/nurbforge-manual.pdf
+            docs/manual/build/nurbforge-reference.md
           if-no-files-found: error
 
   release:
@@ -132,7 +135,8 @@ jobs:
                     "x86_64), Windows (win_amd64) and macOS 14+ (arm64, x86_64), CPython "
                     "3.10-3.14, and the sdist are also attached below.\n\n### Documentation\n"
                     "`nurbforge-manual.pdf`: the user manual with the complete command reference "
-                    "of this version.\n")
+                    "of this version.\n`nurbforge-reference.md`: the compact API reference for "
+                    "language models and coding agents (also `python -m nurbforge`).\n")
           open("notes.md", "w", encoding="utf-8").write(notes)
           PY
       - name: Create or update the release
@@ -162,7 +166,7 @@ jobs:
         with:
           path: dist
           merge-multiple: true
-      - name: Keep only wheels and sdist (the manual PDF goes to the GitHub release only)
+      - name: Keep only wheels and sdist (manual and agent reference go to the GitHub release only)
         run: |
           find dist -type f ! -name '*.whl' ! -name '*.tar.gz' -delete
           ls -l dist

@@ -99,6 +99,10 @@ references – is published at **<https://photonpower.github.io/Nurbforge/>**.
 - **User manual (PDF)** – the complete guide with a full command reference in the appendix;
   attached to every [GitHub release](https://github.com/PhotonPower/Nurbforge/releases) as
   `nurbforge-manual.pdf`, sources in [docs/manual](docs/manual/) (`python docs/manual/build.py`)
+- **Reference for coding agents** – the whole API in one compact Markdown file for LLMs and
+  agents, shipped with the wheel: `python -m nurbforge` prints it, `nurbforge.reference()`
+  returns it ([python/nurbforge/REFERENCE.md](python/nurbforge/REFERENCE.md), also attached to
+  every release; [llms.txt](llms.txt))
 - [Tutorial](docs/tutorial.md) – the main workflow, step by step with runnable examples
 - [Architecture](docs/architecture.md) – layers, modules, data flow
 - [NURBS fundamentals & conventions](docs/math/nurbs.md)

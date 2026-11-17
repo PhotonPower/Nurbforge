@@ -118,6 +118,22 @@ interpreter. This typically happens after an editable install with one Python ve
 another, or when the current directory is the repository root and the source tree shadows the
 installed package. Reinstall, or run from another directory.
 
+\section{Reference for coding agents}\label{sec:install-agent-reference}
+
+The package contains a compact API reference written for language models and coding agents: a
+single Markdown file (about 80\,kB, 20\,000 tokens) with the conventions (units, parameter
+domains, orientation, labels, errors), a worked example and every public function, class,
+property and LLM tool with signature and a one-paragraph description. An agent that can only
+install the wheel, without access to this manual or the repository, finds its way with it:
+
+\begin{lstlisting}[style=text]
+python -m nurbforge > nurbforge-reference.md     # or: nurbforge.reference() in Python
+\end{lstlisting}
+
+The file (\code{REFERENCE.md} inside the package) is generated from the API like
+\cref{app:reference} and is attached to every GitHub release as
+\code{nurbforge-reference.md}.
+
 \section{Building from source}\label{sec:install-source}
 
 A source build is needed to work on \NF{} itself, to use the C++ library directly, or on platforms

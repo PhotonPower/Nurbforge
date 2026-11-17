@@ -272,15 +272,14 @@ $2\delta$;
 \item a loop gives \emph{no} contour where the region is thinner than $2\delta$ everywhere.
 \end{itemize}
 
-\begin{warning}[Kinked input curves]
-Contours are offsets of the loop \emph{curves}; each curve must be smooth. A closed polyline
-or a \code{make_rectangle_curve} outline is a single degree-1 curve with corners at interior
-knots, and offsetting it fails with
-\code{GeometryError: hatch: contour at distance 0.1 does not close near (3.9, 0.1)}.
-Split such curves into their smooth pieces first, e.g. with
-\code{curve.decompose_bezier()}, which returns the straight segments of a polyline. Section
-loops do not have this problem: their pieces end at the face boundaries.
-\end{warning}
+\begin{note}[Kinked input curves]
+A loop may consist of curves with corners at interior knots, such as a closed polyline or a
+\code{make_rectangle_curve} outline (one degree-1 curve). The contours are built from the smooth
+pieces between the corners, with arcs at reflex corners, exactly as for a loop made of separate
+segments. (Up to version 0.9.0 the offsets of such curves did not close because of an error in
+\code{closest_point} at kinks; there the curves had to be split with
+\code{curve.decompose_bezier()} first.)
+\end{note}
 
 \subsection{Example: hatching a hand-made region}
 

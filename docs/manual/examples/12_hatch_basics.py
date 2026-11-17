@@ -5,9 +5,9 @@ import nurbforge as nf
 
 # region: 4 x 2 rectangle with a circular hole, as closed curve chains in the xy plane
 # a closed polyline has kinks: split it into its straight pieces (needed for contours)
-outer = nf.make_rectangle_curve((0, 0, 0), (4, 0, 0), (0, 2, 0)).decompose_bezier()  # CCW
+outer = nf.make_rectangle_curve((0, 0, 0), (4, 0, 0), (0, 2, 0))  # CCW, one kinked curve
 hole = nf.make_circle((1.0, 1.0, 0), (0, 0, -1), 0.5)            # normal -z: clockwise
-loops = [outer, [hole]]
+loops = [[outer], [hole]]
 
 segments, contours = nf.hatch(loops, (1, 0), 0.25)  # lines along x, 0.25 apart
 print(f"{len(segments)} segments, total length {sum(s.length for s in segments):.6f}")
@@ -40,5 +40,5 @@ dumbbell = nf.make_polyline([(0, 0, 0), (2, 0, 0), (2, 0.8, 0), (3, 0.8, 0), (3,
                              (5, 2, 0), (3, 2, 0), (3, 1.2, 0), (2, 1.2, 0), (2, 2, 0), (0, 2, 0),
                              (0, 0, 0)])
 for d in (0.1, 0.3):
-    _, cs = nf.hatch([dumbbell.decompose_bezier()], (1, 0), 0.5, contours=[d])
+    _, cs = nf.hatch([[dumbbell]], (1, 0), 0.5, contours=[d])
     print(f"dumbbell, neck width 0.4, d = {d}: {len(cs)} contour(s)")

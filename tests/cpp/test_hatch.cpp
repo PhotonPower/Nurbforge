@@ -306,6 +306,24 @@ TEST_CASE("hatch: contours", "[hatch]") {
   }
 }
 
+TEST_CASE("hatch: contours of loops made of single kinked curves", "[hatch]") {
+  // a rectangle outline and a closed polyline are one degree-1 curve each, with kinks
+  const auto rect = make_rectangle_curve({0, 0, 0}, {4, 0, 0}, {0, 3, 0});
+  const auto res = hatch({{rect}}, {1, 0, 0}, 0.5, {.contours = {0.2, 0.5}});
+  REQUIRE(res.contours.size() == 2);
+  for (const auto& hc : res.contours) {
+    double len = 0;
+    for (const auto& c : hc.curves) len += arc_length(c);
+    CHECK(len == Approx(2 * (4 - 2 * hc.distance) + 2 * (3 - 2 * hc.distance)).epsilon(1e-9));
+  }
+  const auto poly = make_polyline({{0, 0, 0}, {4, 0, 0}, {4, 3, 0}, {0, 3, 0}, {0, 0, 0}});
+  const auto res2 = hatch({{poly}}, {0, 1, 0}, 0.5, {.contours = {0.2}});
+  REQUIRE(res2.contours.size() == 1);
+  double len = 0;
+  for (const auto& c : res2.contours[0].curves) len += arc_length(c);
+  CHECK(len == Approx(12.4).epsilon(1e-9));
+}
+
 TEST_CASE("hatch: contours split, merge and lose cusps", "[hatch]") {
   SECTION("two holes 0.4 apart merge at 0.3") {
     const std::vector<Loop> loops{circle(0, 0, 5), circle(-1.2, 0, 1, false),

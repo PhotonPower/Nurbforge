@@ -4,6 +4,7 @@
 
 #include <functional>
 #include <string>
+#include <vector>
 
 #include "nurbforge/modeling/sweep.hpp"
 #include "nurbforge/topology/shell.hpp"
@@ -42,5 +43,22 @@ namespace nf {
 /// constant).
 [[nodiscard]] Shell make_pipe(const NurbsCurve& path, double start_radius, double end_radius = -1.0,
                               double tolerance = 1e-6);
+
+/// Defeaturing: removes holes smaller than `max_size` from a closed shell. Every hole loop of a
+/// face whose 3D extent (bounding-box diagonal) is below `max_size` is dropped – the face is
+/// filled there – and the faces that formed the feature (the bore wall of a through hole; wall
+/// and bottom of a blind hole) are removed: after dropping the loops they are attached to the
+/// rest only along free edges, and they are deleted repeatedly until the shell is closed again.
+/// Throws GeometryError if the result is not closed (e.g. a feature that is not a hole).
+[[nodiscard]] Shell remove_holes(const Shell& shell, double max_size, double tolerance = 1e-6);
+
+/// Hollows a smooth closed shell: every face is offset by `thickness` against its outward
+/// normal, and the offset shell becomes an inner void (Shell with two components). With
+/// `open_labels` the faces carrying these labels are removed and the rest is thickened inwards
+/// instead (thicken), giving a cup-like part open at those faces. Like thicken, the faces must
+/// join smoothly, so that their offsets meet (GeometryError otherwise).
+[[nodiscard]] Shell hollow(const Shell& shell, double thickness,
+                           const std::vector<std::string>& open_labels = {},
+                           double tolerance = 1e-6);
 
 }  // namespace nf

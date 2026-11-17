@@ -8,6 +8,7 @@
 #include <vector>
 
 #include "nurbforge/core/error.hpp"
+#include "nurbforge/geometry/primitives.hpp"
 
 namespace nf {
 
@@ -278,10 +279,18 @@ SurfaceCurvature curvature_from(const std::vector<std::vector<Vec3>>& D) {
   const Vec3 d = (std::abs(p) + std::abs(q) >= std::abs(q) + std::abs(t)) ? (-q) * Su + p * Sv
                                                                           : t * Su + (-q) * Sv;
   const double scale = std::abs(r.k1) + std::abs(r.k2) + 1e-300;
-  // umbilic (every direction is principal) or numerically degenerate: use S_u
+  // umbilic (every direction is principal) or numerically degenerate: use S_u (or S_v next to
+  // a pole, where S_u is tiny). Directions are scaled by their own length rather than with
+  // normalized(), whose absolute threshold rejected the tiny but valid vectors near a pole of a
+  // nearly umbilic surface (a sphere), where d, S_u and the coefficients are all small.
+  const auto unit = [](const Vec3& a) {
+    const double l = norm(a);
+    return l > 0.0 && std::isfinite(l) ? a * (1.0 / l) : Vec3{};
+  };
   const bool umbilic = disc <= 1e-8 * scale || norm(d) <= 1e-12 * (E + G) * scale;
-  r.dir1 = umbilic ? normalized(Su) : normalized(d);
-  r.dir2 = normalized(cross(n, r.dir1));
+  r.dir1 = umbilic ? Vec3{} : unit(d);
+  if (norm(r.dir1) == 0.0) r.dir1 = unit(E >= 1e-12 * G ? Su : Sv);
+  r.dir2 = unit(cross(n, r.dir1));
   return r;
 }
 
@@ -312,7 +321,10 @@ SurfaceCurvature curvature(const NurbsSurface& s, double u, double v) {
   r.k1 = r.mean + disc;
   r.k2 = r.mean - disc;
   r.normal = s.normal(u, v);  // limit normal; same orientation as c1.normal
-  const Vec3 d1 = c1.dir1 - dot(c1.dir1, r.normal) * r.normal;
+  // at an umbilic pole (sphere) the principal directions are arbitrary and dir1 of the nearby
+  // point may be (nearly) parallel to the limit normal: any tangent direction will do then
+  Vec3 d1 = c1.dir1 - dot(c1.dir1, r.normal) * r.normal;
+  if (norm(d1) < 1e-6) d1 = any_perpendicular(r.normal);
   r.dir1 = normalized(d1);
   r.dir2 = normalized(cross(r.normal, r.dir1));
   return r;

@@ -506,6 +506,47 @@ The end faces are exact discs (their area is $\pi r^2$ to all digits shown); the
 with the exact values to about $5\times10^{-8}$ relative, the deviation allowed by the default
 wall tolerance.
 
+\section{Defeaturing and hollowing}\label{sec:defeature}
+
+Small holes force fine meshes without affecting the quantity of interest much -- simulation
+models are therefore often \emph{defeatured}. \apiref{remove_holes} fills every hole whose loop
+is smaller than \code{max_size} across (bounding-box diagonal of its edges):
+
+\begin{lstlisting}
+clean = nf.remove_holes(shell, max_size, tolerance=1e-6)
+\end{lstlisting}
+
+The hole loops are dropped from their faces (the faces are filled there), and the faces that
+formed the feature -- the wall of a through hole, the wall and bottom of a blind hole -- are
+then attached to the rest only along free edges; they are removed repeatedly until the shell
+is closed again. Features that are not holes (bosses, slots that cut an outer edge) are not
+recognised; \code{GeometryError} is raised if the result does not close.
+
+\apiref{hollow} turns a smooth closed solid into a thin-walled one:
+
+\begin{lstlisting}
+part = nf.hollow(shell, thickness, open_labels=[], tolerance=1e-6)
+\end{lstlisting}
+
+Without \code{open_labels} every face is offset inwards by \code{thickness} and the offset shell
+becomes an inner void (the result has two components, \cref{sec:voids}). With
+\code{open_labels} the faces carrying these labels are removed and the rest is thickened
+inwards (\cref{sec:thicken}): a cup open at those faces. As for \code{thicken}, the faces must
+join smoothly so that their offsets meet; creased solids (a box) raise \code{GeometryError} --
+hollow them with a Boolean difference of the solid and a smaller copy instead.
+
+\example{11_defeature_hollow.py}
+
+\begin{lstlisting}[style=text]
+part: 10 faces, volume 20.63456859
+defeatured: 7 faces, volume 20.85840735 (24 - pi = 20.85840735)
+hollow sphere: 2 shells, volume 1.13516215 (4/3 pi (1 - 0.9^3) = 1.13516215)
+cup: closed=True, labels ['bottom', 'bottom_offset', 'wall'], volume 0.56758107 (2/3 pi (1 - 0.9^3) = 0.56758107)
+\end{lstlisting}
+
+The two small holes (diameters 0.4 and 0.5) are filled, the bore of diameter 2 stays: the
+defeatured part has exactly the volume of the plate minus the bore.
+
 \section{Face labels}\label{sec:face-labels}
 
 Labels give faces stable names across operations -- for boundary conditions, physical groups

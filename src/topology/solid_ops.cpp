@@ -272,4 +272,80 @@ Shell make_pipe(const NurbsCurve& path, double start_radius, double end_radius, 
       path, [=](double t) { return start_radius + (r1 - start_radius) * t; }, tolerance);
 }
 
+Shell remove_holes(const Shell& shell, double max_size, double tolerance) {
+  if (!shell.is_closed()) throw GeometryError("remove_holes: the shell must be closed");
+  const auto extent = [&](const std::vector<NurbsCurve>& loop) {
+    Vec3 lo{1e300, 1e300, 1e300}, hi{-1e300, -1e300, -1e300};
+    for (const auto& c : loop)
+      for (const auto& p : c.control_points()) {
+        lo = {std::min(lo.x, p.x), std::min(lo.y, p.y), std::min(lo.z, p.z)};
+        hi = {std::max(hi.x, p.x), std::max(hi.y, p.y), std::max(hi.z, p.z)};
+      }
+    return distance(lo, hi);
+  };
+  std::vector<TrimmedSurface> faces;
+  std::size_t dropped = 0;
+  for (const auto& f : shell.faces()) {
+    const auto loops = f.boundary_curves(0.01 * tolerance);
+    std::vector<TrimLoop> keep;
+    for (std::size_t h = 0; h < f.holes().size(); ++h) {
+      if (extent(loops[h + 1]) < max_size)
+        ++dropped;
+      else
+        keep.push_back(f.holes()[h]);
+    }
+    faces.push_back(
+        keep.size() == f.holes().size()
+            ? f
+            : TrimmedSurface(f.surface(), f.outer(), std::move(keep)).with_label(f.label()));
+  }
+  if (dropped == 0) return shell;
+  // remove the faces of the features: faces with free edges, repeatedly
+  for (std::size_t round = 0; round < shell.faces().size(); ++round) {
+    const Shell s = Shell::sew(faces, tolerance);
+    const auto free = s.free_edges();
+    if (free.empty()) return s.oriented();
+    std::vector<bool> drop(faces.size(), false);
+    for (const auto e : free)
+      for (const auto& use : s.edges()[e].uses) drop[use.face] = true;
+    std::vector<TrimmedSurface> rest;
+    for (std::size_t k = 0; k < faces.size(); ++k)
+      if (!drop[k]) rest.push_back(s.faces()[k]);
+    if (rest.size() == faces.size() || rest.empty()) break;
+    faces = std::move(rest);
+  }
+  throw GeometryError(
+      "remove_holes: the shell does not close after removing the features "
+      "(only holes - through or blind - are supported)");
+}
+
+Shell hollow(const Shell& shell, double thickness, const std::vector<std::string>& open_labels,
+             double tolerance) {
+  if (!(thickness > 0.0)) throw GeometryError("hollow: thickness must be positive");
+  if (!shell.is_closed()) throw GeometryError("hollow: the shell must be closed");
+  const Shell outer = shell.oriented();
+  if (!open_labels.empty()) {
+    std::vector<TrimmedSurface> rest;
+    for (const auto& f : outer.faces())
+      if (std::find(open_labels.begin(), open_labels.end(), f.label()) == open_labels.end())
+        rest.push_back(f);
+    if (rest.size() == outer.faces().size())
+      throw GeometryError("hollow: no face carries one of the open labels");
+    // outward normals: thicken against them (inwards)
+    return thicken(Shell::sew(std::move(rest), tolerance), -thickness, false, tolerance);
+  }
+  std::vector<TrimmedSurface> faces = outer.faces();
+  for (const auto& f : outer.faces()) {
+    const NurbsSurface s = offset_surface(f.surface(), -thickness, 0.01 * tolerance);
+    faces.push_back(TrimmedSurface(s, f.outer(), f.holes())
+                        .with_label(f.label().empty() ? "inner" : f.label() + "_inner"));
+  }
+  const Shell out = Shell::sew(std::move(faces), tolerance);
+  if (!out.is_closed() || out.components().size() != 2)
+    throw GeometryError(
+        "hollow: the offset faces do not form a closed inner shell - the faces "
+        "must join smoothly so that their offsets meet");
+  return out.oriented();
+}
+
 }  // namespace nf

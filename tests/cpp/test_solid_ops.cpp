@@ -6,6 +6,7 @@
 #include "nurbforge/core/error.hpp"
 #include "nurbforge/geometry/primitives.hpp"
 #include "nurbforge/modeling/construct.hpp"
+#include "nurbforge/topology/boolean.hpp"
 #include "nurbforge/topology/solid_ops.hpp"
 #include "nurbforge/topology/solids.hpp"
 
@@ -147,4 +148,45 @@ TEST_CASE("make_pipe: solid pipes along paths", "[solid_ops][pipe]") {
     CHECK(rel_close(bulge.volume(1e-10), pi * 4 * I, 1e-6));
     CHECK_THROWS_AS(make_pipe(line, [](double t) { return 0.5 - t; }), GeometryError);
   }
+}
+
+TEST_CASE("remove_holes: small through and blind holes are filled", "[solid_ops][defeature]") {
+  const Shell plate = make_box({-3, -2, 0}, {6, 4, 1});
+  Shell part =
+      boolean(plate, make_cylinder({-1.5, 0, -1}, {0, 0, 1}, 0.2, 3), BooleanOp::Difference);
+  part = boolean(part, make_cylinder({1.5, 0, 0.5}, {0, 0, 1}, 0.25, 2), BooleanOp::Difference);
+  part = boolean(part, make_cylinder({0, 0, -1}, {0, 0, 1}, 1.0, 3), BooleanOp::Difference);
+  const double big = pi * 1.0 * 1.0, small = pi * 0.04, blind = pi * 0.0625 * 0.5;
+  REQUIRE(rel_close(part.volume(1e-10), 24.0 - big - small - blind, 1e-6));
+  // holes up to 0.6 across go, the bore of diameter 2 stays
+  const Shell clean = remove_holes(part, 0.8);
+  check_solid(clean, 24.0 - big);
+  CHECK(clean.faces().size() < part.faces().size());
+  // nothing to remove
+  CHECK(remove_holes(part, 0.1).faces().size() == part.faces().size());
+  CHECK_THROWS_AS(
+      remove_holes(Shell::sew({TrimmedSurface(make_rectangle({0, 0, 0}, {1, 0, 0}, {0, 1, 0}))}),
+                   1.0),
+      GeometryError);
+}
+
+TEST_CASE("hollow: smooth solids become shells with a wall", "[solid_ops][hollow]") {
+  // closed: a sphere with a concentric void
+  const Shell ball = make_sphere({0, 0, 0}, 1.0);
+  const Shell hollow_ball = hollow(ball, 0.1);
+  check_solid(hollow_ball, 4.0 / 3.0 * pi * (1.0 - 0.729));
+  CHECK(hollow_ball.components().size() == 2);
+  // open: a sphere made of two labelled hemispheres, opened at the top -> a cup
+  const auto upper = revolve(make_arc({0, 0, 0}, {0, 0, 1}, {1, 0, 0}, 1.0, 0.0, pi / 2), {0, 0, 0},
+                             {0, 0, 1}, 2 * pi);
+  const auto lower = revolve(make_arc({0, 0, 0}, {1, 0, 0}, {0, 0, -1}, 1.0, 0.0, pi / 2),
+                             {0, 0, 0}, {0, 0, 1}, 2 * pi);
+  const Shell two = Shell::sew({TrimmedSurface(upper).with_label("top"),
+                                TrimmedSurface(lower).with_label("bottom")})
+                        .oriented();
+  REQUIRE(two.is_closed());
+  const Shell cup = hollow(two, 0.1, {"top"});
+  check_solid(cup, 2.0 / 3.0 * pi * (1.0 - 0.729));
+  CHECK_THROWS_AS(hollow(two, 0.1, {"nothing"}), GeometryError);
+  CHECK_THROWS_AS(hollow(make_box({0, 0, 0}, {1, 1, 1}), 0.1), GeometryError);  // creased
 }

@@ -555,3 +555,14 @@ def test_make_pipe_constant_tapered_and_function_radius():
     assert bulge.volume() == pytest.approx(math.pi * 4 * integral, rel=1e-6)
     wall = nf.pipe_surface(line, lambda t: 0.5)
     assert nf.distance(wall(0.3, 0.5), (0, 0, 2)) == pytest.approx(0.5, rel=1e-6)  # v: path parameter
+
+
+def test_remove_holes_and_hollow():
+    plate = nf.make_box((-3, -2, 0), (6, 4, 1))
+    part = nf.boolean(plate, nf.make_cylinder((-1.5, 0, -1), (0, 0, 1), 0.2, 3), nf.BooleanOp.Difference)
+    part = nf.boolean(part, nf.make_cylinder((0, 0, -1), (0, 0, 1), 1.0, 3), nf.BooleanOp.Difference)
+    clean = nf.remove_holes(part, 0.8)
+    assert clean.is_closed and clean.volume() == pytest.approx(24 - math.pi, rel=1e-7)
+    ball = nf.hollow(nf.make_sphere((0, 0, 0), 1.0), 0.1)
+    assert ball.volume() == pytest.approx(4 / 3 * math.pi * (1 - 0.9**3), rel=1e-7)
+    assert len(ball.components()) == 2

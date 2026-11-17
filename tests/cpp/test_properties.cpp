@@ -8,6 +8,8 @@
 #include "nurbforge/geometry/primitives.hpp"
 #include "nurbforge/geometry/transform.hpp"
 #include "nurbforge/modeling/construct.hpp"
+#include "nurbforge/modeling/offset.hpp"
+#include "nurbforge/topology/trimmed_surface.hpp"
 
 using namespace nf;
 constexpr double pi = std::numbers::pi;
@@ -156,4 +158,21 @@ TEST_CASE("surface area", "[properties][surface]") {
   const auto big = torus.transformed(Transform::scaling({0, 0, 0}, 3.0));
   CHECK(rel_close(area(big), 9 * area(torus), 1e-10));
   CHECK_THROWS_AS(area(s, 0.5, 0.4, 0.0, 1.0), GeometryError);
+}
+
+TEST_CASE("curvature at the poles of flipped spheres", "[properties][curvature]") {
+  // regression: near a pole of a sphere the principal-direction vector of a nearly umbilic point
+  // is tiny but valid; normalized() rejected it and curvature (and offset_surface) threw
+  const auto lower =
+      revolve(make_arc({0, 0, 0}, {1, 0, 0}, {0, 0, -1}, 1.0, 0.0, std::numbers::pi / 2), {0, 0, 0},
+              {0, 0, 1}, 2 * std::numbers::pi);
+  const NurbsSurface flipped = TrimmedSurface(lower).flipped().surface();
+  for (int i = 0; i <= 64; ++i)
+    for (const double v : {0.0, 0.5, 1.0}) {
+      const auto c = curvature(flipped, i / 64.0, v);
+      CHECK(std::abs(std::abs(c.k1) - 1.0) <= 1e-6);
+      CHECK(std::abs(std::abs(c.k2) - 1.0) <= 1e-6);
+      CHECK(std::abs(norm(c.dir1) - 1.0) <= 1e-12);
+    }
+  CHECK_NOTHROW(offset_surface(flipped, 0.1));
 }

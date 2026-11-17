@@ -906,6 +906,14 @@ PYBIND11_MODULE(_core, m) {
         py::arg("options") = SweepOptions{},
         "Pipe wall: a circle of radius radius(t) (t in [0, 1] along the path) swept with the "
         "rotation-minimising frame; u around the circle, v along the path.");
+  m.def("remove_holes", &remove_holes, py::arg("shell"), py::arg("max_size"),
+        py::arg("tolerance") = 1e-6,
+        "Defeaturing: fill the holes (through or blind) of a closed shell whose loops are smaller "
+        "than max_size across; the faces of the removed features are deleted.");
+  m.def("hollow", &hollow, py::arg("shell"), py::arg("thickness"),
+        py::arg("open_labels") = std::vector<std::string>{}, py::arg("tolerance") = 1e-6,
+        "Hollow a smooth closed shell to a wall of the given thickness: an inner void, or - with "
+        "open_labels - removing the faces with these labels and thickening the rest inwards.");
   m.def("integrate", &integrate, py::arg("f"), py::arg("a"), py::arg("b"),
         py::arg("rel_tol") = kIntegrationRelTol, py::arg("breaks") = std::vector<double>{},
         py::arg("abs_tol") = 0.0, "Globally adaptive Gauss-Kronrod integral of f over [a, b].");

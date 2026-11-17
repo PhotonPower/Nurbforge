@@ -62,9 +62,9 @@
 - Split a solid by a plane (symmetry), cut faces labelled ✅
 - Cap planar openings of a shell (exact trim curves, nested openings as holes) ✅
 - Thicken an open, smooth shell into a solid (offset + ruled side walls, symmetric option) ✅
-- Hollow a solid (shell with wall thickness, selectable open faces)
+- Hollow a smooth solid (inner void, or open at labelled faces) ✅
 - Pipe along a path with constant, tapered or function radius, end faces labelled inlet/outlet ✅
-- Defeaturing: merge faces on the same surface, remove small holes
+- Defeaturing: remove small through and blind holes ✅; merge faces on the same surface
 
 ## Infrastructure
 - ✅ Wheels via cibuildwheel (manylinux_2_28 for AlmaLinux 10 compatibility, win_amd64, macOS arm64/x86_64)

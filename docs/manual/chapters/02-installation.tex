@@ -1,0 +1,306 @@
+\chapter{Installation}\label{ch:install}
+
+\NF{} is distributed as a Python package with a compiled C++ core. On the supported platforms
+binary wheels are available, so no compiler is needed. This chapter describes installation from
+PyPI, the optional components, building from source on the three supported operating systems,
+running the test suites and setting up the local language model.
+
+\section{Installing from PyPI}\label{sec:install-pypi}
+
+From version 0.9.0, \NF{} is published on the Python Package Index:
+
+\begin{lstlisting}[style=shell]
+python -m pip install nurbforge              # kernel and Python API
+python -m pip install "nurbforge[mesh]"      # plus gmsh for meshing and STEP via OCC
+\end{lstlisting}
+
+Use a virtual environment so that \NF{} and its dependencies do not interfere with other
+projects:
+
+\begin{lstlisting}[style=shell]
+python3 -m venv .venv
+source .venv/bin/activate          # Windows PowerShell: .venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
+python -m pip install "nurbforge[mesh]"
+\end{lstlisting}
+
+The only mandatory runtime dependency is NumPy ($\ge 1.24$). pip selects the matching wheel for
+your interpreter and platform automatically:
+
+\begin{tabularx}{\textwidth}{@{}lX@{}}
+\toprule
+\textbf{Wheel tag} & \textbf{Platform} \\
+\midrule
+\code{manylinux_2_28_x86_64} & Linux x86\_64 with glibc $\ge 2.28$: AlmaLinux, Rocky and RHEL 8, 9
+  and 10, Debian $\ge$ 10, Ubuntu $\ge$ 18.10, Fedora and others. \\
+\code{win_amd64} & 64-bit Windows 10 and 11. \\
+\code{macosx_14_0_arm64} & macOS 14 (Sonoma) or newer on Apple Silicon. \\
+\code{macosx_14_0_x86_64} & macOS 14 or newer on Intel Macs. \\
+\bottomrule
+\end{tabularx}
+
+Wheels exist for CPython 3.10 to 3.14. On other platforms (for example Linux on ARM, or
+musl-based distributions such as Alpine) pip falls back to the source distribution and compiles
+the C++ core. You then need a C++20 compiler and CMake ($\ge 3.24$); see
+\cref{sec:install-source}.
+
+\subsection{Wheels from GitHub releases}
+Every release on \url{https://github.com/PhotonPower/Nurbforge/releases} also carries all wheels
+and the source distribution as assets. This is useful on machines without internet access:
+download the wheel that matches the Python version (\code{cp312} = CPython 3.12) and platform,
+copy it over and install the file directly:
+
+\begin{lstlisting}[style=shell]
+python -m pip install nurbforge-0.9.0-cp312-cp312-win_amd64.whl
+\end{lstlisting}
+
+NumPy (and gmsh, if wanted) must then be installed the same way or be already present.
+
+\section{Optional components (extras)}\label{sec:install-extras}
+
+\begin{tabularx}{\textwidth}{@{}lX@{}}
+\toprule
+\textbf{Extra} & \textbf{Installs and enables} \\
+\midrule
+\code{nurbforge[mesh]} & \code{gmsh>=4.11}: the \code{nurbforge.mesh} package (meshing, gmsh
+  physical groups, BEM surface meshes, STEP/BREP/IGES export through OpenCASCADE). \\
+\code{nurbforge[llm]} & Nothing extra: the Ollama client uses only the standard library. The
+  extra exists so that installation instructions can name it. \\
+\code{nurbforge[dev]} & pytest, gmsh, ruff and mypy: everything needed to run the test suite and
+  the linters. \\
+\code{nurbforge[docs]} & Sphinx, furo, MyST and Breathe for building the HTML documentation. \\
+\bottomrule
+\end{tabularx}
+
+Several extras can be combined: \code{pip install "nurbforge[mesh,dev]"}. The quotes stop the
+shell from interpreting the brackets.
+
+\subsection{gmsh on Linux}\label{sec:install-gmsh-linux}
+The gmsh wheel from PyPI is built with its graphical user interface. Even when used headless it
+loads a few X11 and OpenGL libraries at import time. On minimal server installations and in
+containers they are often missing. \code{import gmsh} then fails with an \code{OSError}, not an
+\code{ImportError}, for example \code{libGLU.so.1: cannot open shared object file}. On AlmaLinux
+and RHEL install:
+
+\begin{lstlisting}[style=shell]
+sudo dnf install -y mesa-libGL mesa-libGLU libglvnd-opengl libgomp fontconfig \
+                    libX11 libXext libXfixes libXcursor libXinerama libXft libXrender
+\end{lstlisting}
+
+On Debian and Ubuntu the corresponding packages are \code{libglu1-mesa}, \code{libgl1},
+\code{libxft2}, \code{libxcursor1}, \code{libxinerama1} and \code{libgomp1}. No display or X
+server is needed. On Windows and macOS the gmsh wheel works as is.
+
+\begin{tip}
+Code that should run with and without gmsh catches both exceptions:
+\code{except (ImportError, OSError)}. The examples in this manual and in the repository do so.
+\end{tip}
+
+\section{Checking the installation}\label{sec:install-check}
+
+The following script prints the version, the compiled core module and the gmsh status, and
+computes the volume of a unit sphere as a quick self-test:
+
+\example{02_check_installation.py}
+
+On macOS with Apple Silicon and Python 3.14 it prints, for example,
+
+\begin{lstlisting}[style=text]
+Nurbforge 0.9.0 on Python 3.14.5 (Darwin arm64)
+compiled core: _core.cpython-314-darwin.so
+unit sphere volume 4.188790204786
+gmsh 4.15.2
+\end{lstlisting}
+
+The exit status is 0 if the volume agrees with $4\pi/3$ to $10^{-8}$. If \code{import nurbforge}
+itself fails with \code{ImportError: ... _core}, the compiled module does not match the
+interpreter. This typically happens after an editable install with one Python version and use with
+another, or when the current directory is the repository root and the source tree shadows the
+installed package. Reinstall, or run from another directory.
+
+\section{Building from source}\label{sec:install-source}
+
+A source build is needed to work on \NF{} itself, to use the C++ library directly, or on platforms
+without wheels. The repository is
+\begin{lstlisting}[style=shell]
+git clone https://github.com/PhotonPower/Nurbforge.git
+cd Nurbforge
+\end{lstlisting}
+
+The build has two parts that can be used independently:
+\begin{enumerate}
+  \item the C++ core, unit tests and examples, built with CMake directly
+    (\cref{sec:install-cmake});
+  \item the Python package, built by \code{pip} through scikit-build-core, which runs the same
+    CMake files and compiles the pybind11 module (\cref{sec:install-python-src}).
+\end{enumerate}
+
+\subsection{Requirements}
+
+\begin{tabularx}{\textwidth}{@{}lX@{}}
+\toprule
+\textbf{Tool} & \textbf{Version and notes} \\
+\midrule
+C++ compiler & C++20: GCC $\ge$ 11 (AlmaLinux 10 ships GCC 14), MSVC from Visual Studio 2022
+  or 2026, Apple Clang from the Xcode Command Line Tools (macOS $\ge$ 14). \\
+CMake & $\ge 3.24$; on Windows with Visual Studio 2026 $\ge 4.2$. Installing it with
+  \code{pip install cmake} into the virtual environment is the easiest way to get a recent one. \\
+Ninja & Used by the \code{debug}, \code{release} and \code{ci} presets; \code{pip install ninja}. \\
+Python & $\ge 3.10$ with development headers (Linux: \code{python3-devel}). \\
+pybind11, scikit-build-core & Needed for the Python module; pip installs them automatically for
+  \code{pip install .}. \\
+Git & To clone the repository. Catch2 (C++ tests) is fetched by CMake if not installed. \\
+\bottomrule
+\end{tabularx}
+
+\subsection{AlmaLinux 10 / RHEL 10}\label{sec:install-alma}
+These steps mirror the \code{almalinux10} CI job, which runs them on every change in an
+\code{almalinux:10} container.
+
+\begin{lstlisting}[style=shell]
+sudo dnf install -y gcc-c++ git python3 python3-devel python3-pip
+# runtime libraries for the gmsh wheel (see above)
+sudo dnf install -y mesa-libGL mesa-libGLU libglvnd-opengl libgomp fontconfig \
+                    libX11 libXext libXfixes libXcursor libXinerama libXft libXrender
+python3 -m venv .venv
+source .venv/bin/activate
+pip install --upgrade pip cmake ninja pybind11 scikit-build-core
+\end{lstlisting}
+
+CMake and Ninja come from pip, so the distribution versions do not matter.
+
+\subsection{Windows 11}\label{sec:install-windows}
+Install Visual Studio 2022 or 2026 with the workload \emph{Desktop development with C++} (the
+Community edition is sufficient), Python $\ge 3.10$ (from python.org, \code{winget install
+Python.Python.3.12} or uv) and Git. In PowerShell, from the repository root:
+
+\begin{lstlisting}[style=shell]
+python -m venv .venv
+.venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip cmake ninja pybind11 scikit-build-core
+\end{lstlisting}
+
+The \code{msvc} preset uses the newest installed Visual Studio with its multi-configuration
+generator. No \emph{Developer PowerShell} is needed, because CMake finds MSVC itself. The Ninja
+presets (\code{debug}, \code{release}) need \code{cl.exe} on \code{PATH} and therefore have to run
+from a \emph{Developer PowerShell for VS}.
+
+\begin{warning}[Windows pitfalls]
+\begin{itemize}
+  \item \code{Python was not found}: the Microsoft Store alias is active but no Python is
+    installed. Install Python or disable the alias under \emph{Settings $\to$ Apps $\to$ Advanced
+    app settings $\to$ App execution aliases}.
+  \item \code{Building for: NMake Makefiles} or \code{Running 'nmake' '-?' failed}: CMake is too
+    old for the installed Visual Studio. Use the CMake from the virtual environment.
+  \item After switching compilers or CMake versions, delete \code{build/msvc} and configure
+    again.
+\end{itemize}
+\end{warning}
+
+\subsection{macOS}\label{sec:install-macos}
+macOS 14 or newer with the Xcode Command Line Tools (\code{xcode-select --install}) and Python
+$\ge 3.10$ (python.org or Homebrew) is all that is needed:
+
+\begin{lstlisting}[style=shell]
+python3 -m venv .venv
+source .venv/bin/activate
+pip install --upgrade pip cmake ninja pybind11 scikit-build-core
+\end{lstlisting}
+
+\paragraph{Deployment target.} Without further settings, Apple Clang builds for the running
+macOS version, and the binaries may not start on older systems. To build for other Macs, set
+the minimum version before configuring:
+\begin{lstlisting}[style=shell]
+export MACOSX_DEPLOYMENT_TARGET=14.0
+\end{lstlisting}
+The release wheels use 14.0. The lower bound is 13.3, because from that version Apple's libc++
+provides \code{std::to_chars} for \code{double}, which the STEP writer uses. Below 13.3 CMake
+stops with an explicit message.
+
+\subsection{Building the C++ core and tests}\label{sec:install-cmake}
+
+The repository contains CMake presets. Build trees go to \code{build/<preset>}.
+
+\begin{lstlisting}[style=shell]
+cmake --preset release -DNF_BUILD_PYTHON=OFF      # Windows: --preset msvc
+cmake --build --preset release -j
+ctest --preset release
+\end{lstlisting}
+
+\begin{tabularx}{\textwidth}{@{}lX@{}}
+\toprule
+\textbf{Preset} & \textbf{Configuration} \\
+\midrule
+\code{debug} & Ninja, \code{CMAKE_BUILD_TYPE=Debug}. \\
+\code{release} & Ninja, \code{CMAKE_BUILD_TYPE=Release}. \\
+\code{ci} & Release with warnings as errors and the benchmark executable, as used in CI. \\
+\code{msvc} & Windows only: newest Visual Studio, multi-configuration; build preset uses
+  \code{Release}. \\
+\bottomrule
+\end{tabularx}
+
+The CMake options are
+
+\begin{tabularx}{\textwidth}{@{}llX@{}}
+\toprule
+\textbf{Option} & \textbf{Default} & \textbf{Meaning} \\
+\midrule
+\code{NF_BUILD_TESTS} & \code{ON} & Catch2 unit tests (\code{tests/cpp}). \\
+\code{NF_BUILD_PYTHON} & \code{ON} & The pybind11 module (needs pybind11 and Python headers). \\
+\code{NF_BUILD_EXAMPLES} & \code{ON} & The C++ examples in \code{examples/cpp}. \\
+\code{NF_WARNINGS_AS_ERRORS} & \code{OFF} & Treat compiler warnings as errors. \\
+\code{NF_BUILD_BENCHMARKS} & \code{OFF} & The benchmark executable (\code{benchmarks/}). \\
+\bottomrule
+\end{tabularx}
+
+\code{cmake --install build/release --prefix <dir>} installs the static library, the headers
+and a CMake package configuration, so other projects can use \code{find_package(Nurbforge)}
+(\cref{ch:cpp}).
+
+\subsection{Building the Python package}\label{sec:install-python-src}
+
+\begin{lstlisting}[style=shell]
+pip install -e ".[dev]"        # editable: Python sources are used from the checkout
+pip install ".[mesh]"          # or a regular installation
+\end{lstlisting}
+
+scikit-build-core configures CMake with \code{SKBUILD} set. Tests, examples and the install rules
+of the C++ library are then skipped, and only the core library and the module \code{_core} are
+built. With an editable install, changes to the Python files take effect immediately. Changes
+to C++ sources need another \code{pip install -e .}.
+
+\section{Running the tests}\label{sec:install-tests}
+
+\begin{lstlisting}[style=shell]
+ctest --preset release                 # C++ unit tests (Catch2)
+pytest                                 # Python tests (tests/python)
+pytest tests/python/test_mesh.py -v    # a single module
+ruff check python tests examples       # lint
+\end{lstlisting}
+
+The Python tests also run every example script in \code{examples/python} and
+\code{docs/manual/examples}. Tests that need gmsh are skipped automatically if gmsh cannot be
+imported or loaded. The LLM tests use a scripted fake client and need no running model.
+
+\section{Setting up the language model (optional)}\label{sec:install-ollama}
+
+The LLM interface (\cref{ch:llm}) talks to a model served locally by
+\href{https://ollama.com}{Ollama}. Nothing else needs to be installed on the Python side.
+
+\begin{enumerate}
+  \item Install Ollama from \url{https://ollama.com/download} (Linux, Windows, macOS).
+  \item Start the server and pull a model that supports tool calling:
+\begin{lstlisting}[style=shell]
+ollama serve &              # on Windows and macOS the app starts the server
+ollama pull qwen2.5:14b     # the default model; llama3.1, mistral-nemo, ... also work
+\end{lstlisting}
+  \item Start the interactive shell or use the Python API:
+\begin{lstlisting}[style=shell]
+nurbforge-llm --model qwen2.5:14b
+\end{lstlisting}
+\end{enumerate}
+
+The server address and the model are taken from the environment variables
+\code{OLLAMA_HOST} (default \code{http://localhost:11434}) and \code{NURBFORGE_LLM_MODEL}
+(default \code{qwen2.5:14b}); see \cref{app:cli}. A 14-billion-parameter model needs about 9\,GB
+of memory. Smaller models work, but they make more mistakes in multi-step requests.

@@ -1,0 +1,501 @@
+\chapter{Meshing with gmsh}\label{ch:meshing}
+
+Most numerical solvers do not work on NURBS geometry directly. Finite-element (FEM),
+boundary-element (BEM) and finite-volume codes need a mesh of triangles, quadrangles or
+tetrahedra. \NF{} does not mesh by itself. It hands its geometry \emph{exactly} to
+\href{https://gmsh.info}{gmsh}, an established open-source mesh generator. The subpackage
+\code{nurbforge.mesh} contains this bridge. This chapter covers:
+\begin{itemize}
+  \item the exact transfer of curves, surfaces and trimmed surfaces;
+  \item shells and solids, with physical groups taken from face labels;
+  \item local mesh sizes and three-dimensional meshes;
+  \item BEM-ready surface meshes as NumPy arrays;
+  \item file output, and the implementation details that matter in practice.
+\end{itemize}
+
+\section{Installation and the gmsh API}
+
+gmsh is an optional dependency:
+
+\begin{lstlisting}[style=shell]
+pip install "nurbforge[mesh]"     # or: pip install gmsh  (version 4.11 or newer)
+\end{lstlisting}
+
+Without gmsh, importing \code{nurbforge.mesh} still works. The first function that needs gmsh
+raises an \code{ImportError} that explains how to install it. On AlmaLinux and RHEL the pip wheel of
+gmsh needs a few X11 and OpenGL runtime libraries, even when it is used without a display (see
+\cref{ch:install}). If they are missing, \code{import gmsh} raises \code{OSError}, not
+\code{ImportError}. Scripts that treat gmsh as optional therefore catch both:
+
+\begin{lstlisting}[style=python]
+try:
+    mesh_surfaces([front, back], "lens.msh", size=1.0)
+except (ImportError, OSError) as exc:    # gmsh missing or its libraries unavailable
+    print(f"meshing skipped: {exc}")
+\end{lstlisting}
+
+gmsh is a stateful library: there is one global model, which is created with
+\code{gmsh.initialize()} and released with \code{gmsh.finalize()}. \NF{}'s functions work on
+this current model. The context manager \apiref{mesh.GmshSession} handles initialisation and
+clean-up. Inside the session the complete gmsh Python API is available as \code{g.gmsh} (the
+imported \code{gmsh} module itself), so anything not wrapped by \NF{} can be done with gmsh
+calls directly.
+
+\section{Exact transfer of NURBS geometry}\label{sec:mesh-transfer}
+
+\subsection{What ``exact'' means}
+
+\NF{} passes the original NURBS data to gmsh's OpenCASCADE (OCC) kernel, through
+\code{occ.addBSpline} and \code{occ.addBSplineSurface}: the degree, the distinct knots with
+their multiplicities, the control points and the weights. gmsh therefore meshes the true
+geometry, not a tessellation. Mesh nodes lie on the exact surface, so a sphere stays a sphere,
+whatever the mesh size. The test suite checks that gmsh's own evaluation
+(\code{gmsh.model.getValue}) agrees with \NF{} to $10^{-9}$. In the example below the
+difference is $5\cdot10^{-16}$, which is rounding.
+
+Two technical details are handled automatically:
+\begin{itemize}
+  \item \textbf{Control point order.} \NF{} stores a surface's control net row-major, with
+    $v$ running fastest (index $i\cdot n_v+j$). gmsh expects $u$ running fastest.
+    \code{add_surface} reorders the points.
+  \item \textbf{Temporary points.} The control points are created as gmsh points and removed
+    again after the spline has been built. Otherwise they would stay in the model as free
+    vertices and end up as stray mesh nodes.
+\end{itemize}
+
+\subsection{The transfer functions}
+
+\begin{center}
+\begin{tabularx}{\textwidth}{@{}lX@{}}
+\toprule
+Function & Effect \\
+\midrule
+\apiref{mesh.add_curve}\code{(curve)} & Adds a \code{NurbsCurve} as a B-spline curve and
+  returns the gmsh curve tag. Useful for 1D meshes and embedded lines. \\
+\apiref{mesh.add_surface}\code{(surface, wire_tags=None)} & Adds a \code{NurbsSurface} and
+  returns the surface tag. \code{wire_tags} optionally trims the surface with gmsh wires
+  defined in its \emph{parameter} space, outer wire first. \\
+\apiref{mesh.add_trimmed_surface}\code{(trimmed)} & Adds a \code{TrimmedSurface}. The trim
+  loops are passed exactly, as B-spline wires in parameter space, outer loop first, then the
+  holes. The helper curves are removed afterwards. An untrimmed face is passed as the plain
+  surface, so OCC can handle a closed (periodic) patch itself. \\
+\apiref{mesh.add_shell}\code{(shell, ...)} & Adds a shell with its topology and, optionally,
+  a volume and physical groups (\cref{sec:mesh-shell}). \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+These module functions work on whatever gmsh model is current. The session methods
+\apiref{mesh.GmshSession.add_curve} and \apiref{mesh.GmshSession.add_surface} do the same, and
+\code{add_surface} dispatches on the type: a \code{NurbsSurface} goes to \code{add_surface},
+and a \code{TrimmedSurface} to \code{add_trimmed_surface}.
+
+The following script transfers a sphere (a single rational surface), a plate with a circular
+hole (a trimmed surface) and a circle. It compares gmsh's evaluation with \NF{}'s, meshes the
+surfaces and writes the mesh in two formats.
+
+\example{15_mesh_exact_transfer.py}
+
+\begin{lstlisting}[style=text]
+max |gmsh - nurbforge| on the sphere: 4.58e-16
+sphere: 2110 triangles
+plate: 159 triangles
+sphere nodes: radius between 2.000000000000 and 2.000000000000
+wrote transfer.msh and transfer.vtk
+\end{lstlisting}
+
+Every node of the sphere mesh lies at radius $2$ to twelve decimal places. For trimmed
+surfaces, nodes on the trim edges follow OCC's own 3D approximation of the trim curve. Their
+deviation is about $10^{-4}$ in the tests. Interior nodes are exact.
+
+\begin{note}[Separate surfaces do not share edges]
+Surfaces added one by one are independent in gmsh. Even if two of them touch along a common
+boundary, each has its own boundary curve. \code{mesh(heal=True)} calls
+\code{occ.removeAllDuplicates()}, which merges coincident edges of simple adjacent patches. For
+real B-rep models, always use \code{add_shell}. It keeps the topology, including seams, as
+described in the next section.
+\end{note}
+
+\section{The session: \texttt{GmshSession}}\label{sec:mesh-session}
+
+\begin{lstlisting}[style=python]
+from nurbforge.mesh import GmshSession
+
+with GmshSession(model_name="nurbforge", verbose=False) as g:
+    g.add_shell(part, physical_groups=True)
+    g.refine("inlet", 0.05, distance=1.0)
+    g.mesh(dim=3, size=0.3, order=2, curvature=24)
+    g.write("part.msh")
+\end{lstlisting}
+
+\begin{longtable}{@{}>{\raggedright\arraybackslash}p{0.3\textwidth}p{0.64\textwidth}@{}}
+\toprule
+\textbf{Member} & \textbf{Description} \\
+\midrule\endhead
+\code{GmshSession(model_name, verbose)} & Constructor (defaults \code{"nurbforge"} and \code{False}). On entering the
+  \code{with} block, gmsh is initialised (unless it already is) and a model of this name is
+  added. \code{verbose=True} turns on gmsh's terminal output. Leaving the block always calls
+  \code{gmsh.finalize()}, also after an exception. \\
+\code{g.gmsh} & The gmsh module, for direct API calls. \\
+\code{add_curve(curve)} & See \cref{sec:mesh-transfer}. \\
+\code{add_surface(surface)} & \code{NurbsSurface} or \code{TrimmedSurface}. Returns the tag. \\
+\code{add_shell(shell, solid=True, physical_groups=False, volume_name="volume")} & Adds a shell
+  (\cref{sec:mesh-shell}). Returns the surface tags in face order, without repetitions,
+  followed by the volume tag if a volume was created. The session also remembers the face
+  labels. \\
+\code{face_tags()} & Dictionary mapping each face label to its current gmsh surface tags.
+  Unlabelled faces are listed under \code{"unlabeled"}. \\
+\code{refine(where, size, distance=0.0)} & Requests a local mesh size on faces
+  (\cref{sec:mesh-sizes}). \\
+\code{mesh(dim=2, size=None, order=1, heal=True, curvature=None)} & Generates the mesh, see
+  below. \\
+\code{surface_mesh(orient)} & Returns the triangle surface mesh as a
+  \code{SurfaceMesh}, checked and, with \code{orient=True} (default), oriented (\cref{sec:mesh-bem}). \\
+\code{write(path)} & Writes the mesh or geometry. The format is chosen by the extension
+  (\cref{sec:mesh-output}). \\
+\bottomrule
+\end{longtable}
+
+\subsection{\texttt{mesh}: generating the mesh}
+
+\begin{longtable}{@{}p{0.17\textwidth}p{0.12\textwidth}p{0.63\textwidth}@{}}
+\toprule
+\textbf{Parameter} & \textbf{Default} & \textbf{Meaning} \\
+\midrule\endhead
+\code{dim} & 2 & 1 meshes curves only, 2 adds triangles on the surfaces, 3 adds tetrahedra in
+  the volumes. A volume exists only for closed shells added with \code{solid=True}. \\
+\code{size} & \code{None} & Global maximum element size (\code{Mesh.MeshSizeMax}). Without
+  it, gmsh chooses sizes from the model dimensions. \\
+\code{order} & 1 & Element order. 2 gives quadratic elements (6-node triangles, 10-node
+  tetrahedra). Higher orders are possible. The additional nodes are placed on the exact
+  geometry. \\
+\code{heal} & \code{True} & Calls \code{occ.removeAllDuplicates()} before meshing. This merges
+  coincident points and edges of separately added surfaces. Shells added with
+  \code{add_shell} already have a consistent topology. \\
+\code{curvature} & \code{None} & Number of elements per $2\pi$ of curvature
+  (\code{Mesh.MeshSizeFromCurvature}). Strongly curved regions, such as small fillets and
+  bores, get smaller elements, while flat regions keep the global size. Must be at least 1. \\
+\bottomrule
+\end{longtable}
+
+\code{mesh} first synchronises the OCC model, then sets the options and rebuilds the size
+fields from all \code{refine} calls. Finally it calls \code{gmsh.model.mesh.generate(dim)},
+and \code{setOrder(order)} if \code{order} $>1$. Calling \code{mesh} again re-meshes the
+model with the current settings.
+
+\section{Shells, solids and physical groups}\label{sec:mesh-shell}
+
+\subsection{\texttt{add\_shell}}
+
+\code{add_shell(shell, solid=True, physical_groups=False, volume_name="volume")} transfers a
+complete B-rep shell. Its faces share their edges in gmsh as they do in \NF{}, so the mesh is
+conforming: neighbouring faces have the same nodes along their common edge. For a
+\emph{closed} shell with \code{solid=True}, a gmsh volume is created as well, which
+\code{mesh(dim=3)} fills with tetrahedra. With \code{solid=False} only the surfaces remain.
+That is what surface meshes for BEM need, because a volume would only be in the way. An
+open shell never gets a volume.
+
+The return value is the list of gmsh surface tags in the order of \code{shell.faces}, without
+repetitions, followed by the volume tag if one was created.
+
+\subsection{Physical groups from face labels}
+
+Solvers assign boundary conditions and materials through \emph{physical groups}: named sets of
+mesh entities that are written into the mesh file. \NF{} creates them from face labels.
+
+Every \code{TrimmedSurface} carries a \code{label}:
+\begin{itemize}
+  \item The solid primitives label their faces: \code{bottom}, \code{top}, \code{front},
+    \code{back}, \code{left} and \code{right} for a box; \code{side}, \code{bottom} and
+    \code{top} for a cylinder and a cone; \code{surface} for a sphere and a torus.
+  \item \apiref{Shell.with_face_labels} sets the labels of all faces at once.
+  \item Booleans, transforms and STEP keep labels. Every piece of a split face inherits the
+    label of the face it came from.
+\end{itemize}
+A label given before a chain of operations therefore still identifies the inlet of a pipe
+after a slot has been cut into it.
+
+With \code{physical_groups=True}, \code{add_shell} creates:
+\begin{itemize}
+  \item one physical \emph{surface} group per label, named after the label and containing all
+    faces with that label;
+  \item a physical \emph{volume} group named \code{volume_name}, if a volume was created.
+\end{itemize}
+
+\code{face_tags()} returns the current gmsh tags of every label. Faces are matched to gmsh
+surfaces by an interior point, not by tag number. The result is therefore correct even after
+gmsh has renumbered surfaces, for example after \code{removeAllDuplicates}, or after further
+shells were added. Only the session method \code{g.add_shell} records the labels. The module
+function \code{add_shell} creates physical groups as well, but \code{face_tags} and
+\code{refine} cannot see its labels.
+
+\section{Local mesh sizes}\label{sec:mesh-sizes}
+
+\code{refine(where, size, distance=0.0)} requests a mesh size of \code{size} on selected faces:
+
+\begin{itemize}
+  \item \code{where} is a face label, a gmsh surface tag, or a list mixing both. Labels refer
+    to shells added with \code{g.add_shell}.
+  \item With \code{distance} $=0$, only the faces themselves get the size. gmsh's
+    \code{Constant} field applies it exactly on the faces and their boundaries.
+  \item With \code{distance} $>0$, the size grows linearly from \code{size} on the faces to the
+    global size (\code{mesh(size=...)}) at that distance, also into the volume. This uses a
+    \code{Distance} field and a \code{Threshold} field. Without a global size, the target at
+    \code{distance} is the diagonal of the model's bounding box.
+  \item Several refinements combine by taking the smallest size everywhere (a \code{Min}
+    field, which becomes the background mesh).
+  \item Faces next to a refined face also become finer near the shared edge, because gmsh
+    grades the mesh away from a fine boundary.
+\end{itemize}
+
+Refinements are only stored when \code{refine} is called. They are resolved to gmsh surfaces
+and applied in \code{mesh()}. The order of \code{refine} and \code{add_shell} calls therefore
+does not matter, and renumbering in between is harmless. Errors are reported early or clearly:
+\begin{itemize}
+  \item a non-positive \code{size}, a negative \code{distance} or an empty list raises
+    \code{ValueError} immediately;
+  \item an unknown label raises \code{KeyError} in \code{mesh()}, listing the available labels.
+\end{itemize}
+
+\section{A complete solid example}
+
+The script below labels the faces of a pipe, cuts a slot with a Boolean and transfers the
+result with physical groups. It refines the inlet with growth into the volume and the outlet
+on the face only. It then meshes the volume with tetrahedra, using curvature-based sizing, and
+compares the volume of the tetrahedral mesh with the exact volume.
+
+\example{15_mesh_solid.py}
+
+\begin{lstlisting}[style=text]
+face labels: ['back', 'bottom', 'front', 'inlet', 'outlet', 'top', 'wall']
+surfaces [1, 2, 3, 4, 5, 6, 7], volume 1
+face_tags: {'wall': [1], 'inlet': [2], 'outlet': [3], 'bottom': [4], 'top': [5],
+            'front': [6], 'back': [7]}
+  physical group dim=2 'wall'
+  ...
+  physical group dim=2 'back'
+  physical group dim=3 'fluid'
+38652 tetrahedra, mesh volume 14.8665, exact 14.9133
+wrote pipe.msh
+\end{lstlisting}
+
+The slot's faces carry the labels of the box that cut it (\code{bottom}, \code{top},
+\code{front}, \code{back}). Its left and right faces lie outside the pipe and have vanished.
+The linear tetrahedra cut the curved wall by chords, so the mesh volume is about 0.3\,\%
+smaller than the exact volume. A finer mesh, or \code{order=2}, reduces the difference.
+
+\section{BEM-ready surface meshes}\label{sec:mesh-bem}
+
+Boundary-element solvers discretise only the surface of a body. They expect a mesh that is:
+\begin{enumerate}
+  \item \textbf{closed} (watertight): every edge is shared by exactly two triangles;
+  \item \textbf{consistently oriented}: neighbouring triangles traverse their common edge in
+    opposite directions, so the normals do not flip from one triangle to the next;
+  \item \textbf{oriented outwards}: the normals point out of the material.
+\end{enumerate}
+A small orientation error, such as a single reversed face, silently changes the sign of
+integrals over that face and spoils the solution. \NF{} therefore checks all three properties
+and repairs the orientation.
+
+\subsection{\texttt{bem\_mesh}: one call}
+
+\begin{lstlisting}[style=python]
+from nurbforge.mesh import bem_mesh
+
+m = bem_mesh(shell, size=0.2, order=2, curvature=None, refine={"top": 0.1},
+             path="part.msh")
+\end{lstlisting}
+
+\apiref{mesh.bem_mesh} opens a session, adds the shell with \code{solid=False}, applies the
+refinements (a dictionary from label or surface tag to local size), meshes in 2D, extracts and
+orients the surface mesh, and optionally writes it to \code{path}. If a path is given, physical
+groups per face label are written as well. The result is a \apiref{mesh.SurfaceMesh}.
+
+\subsection{\texttt{SurfaceMesh}}
+
+\begin{longtable}{@{}>{\raggedright\arraybackslash}p{0.33\textwidth}p{0.61\textwidth}@{}}
+\toprule
+\textbf{Member} & \textbf{Content} \\
+\midrule\endhead
+\code{nodes} & \code{(N, 3)} float array of node coordinates. Only nodes used by triangles are
+  included. \\
+\code{triangles} & \code{(M, 3)} int array for linear elements, or \code{(M, 6)} for quadratic
+  elements. Indices are 0-based rows of \code{nodes}. The node order is gmsh's: three corners,
+  then the midpoints of the edges 0--1, 1--2 and 2--0. \\
+\code{surfaces} & \code{(M,)} gmsh surface tag of every triangle. \\
+\code{node_tags} & \code{(N,)} gmsh node tag of every row of \code{nodes}, to match the arrays
+  with a written \code{.msh} file. \\
+\code{groups} & Dictionary mapping each face label to the array of triangle indices with that
+  label. Every triangle is in exactly one group. \\
+\code{order} & 1 or 2. \\
+\code{normals()} & \code{(M, 3)} unit normals of the flat corner triangles. \\
+\code{areas()} & \code{(M,)} areas of the corner triangles. \\
+\code{centroids()} & \code{(M, 3)} centroids of the corner triangles. \\
+\code{volume()} & Enclosed volume by the divergence theorem. It is positive for an
+  outward-oriented mesh, and cavities count negative. For quadratic meshes it uses the corner
+  triangles, so it converges like a linear mesh. \\
+\code{boundary_edges()} & \code{(K, 2)} corner-node edges used by only one triangle. Empty for a
+  watertight mesh. \\
+\code{is_watertight()} & \code{True} if every edge is used by exactly two triangles. \\
+\code{is_consistently_oriented()} & \code{True} if every directed edge occurs once. \\
+\bottomrule
+\end{longtable}
+
+\subsection{\texttt{surface\_mesh} and the orientation rules}
+
+\code{g.surface_mesh(orient=True)} does the work behind \code{bem_mesh} in an existing session,
+after \code{g.mesh(dim=2)}. It proceeds in four steps.
+
+\begin{enumerate}
+  \item \textbf{Collect.} The triangles of all meshed surfaces are gathered into one array and
+    their nodes renumbered.
+  \item \textbf{Check.} The function raises \apiref{mesh.MeshTopologyError}, a subclass of
+    \code{ValueError}, in these cases:
+    \begin{itemize}
+      \item an edge is used by only one triangle. The shell is open, or surfaces added
+        separately with \code{add_surface} do not share their edges.
+      \item an edge is used by more than two triangles (non-manifold).
+      \item the model contains quadrangles (\code{Mesh.RecombineAll}), mixed element orders,
+        or no surface mesh at all.
+      \item the arrangement of surfaces is not orientable.
+    \end{itemize}
+  \item \textbf{Make consistent.} gmsh orients every surface by its own parametrisation, and
+    neighbouring surfaces may disagree. A breadth-first search over the shared edges decides,
+    surface by surface, whether to flip it. After this step every shared edge is traversed in
+    opposite directions.
+  \item \textbf{Orient outwards.} Every closed connected component is turned so that its
+    normals point \emph{out of the solid}. On the outer boundary they point away from the
+    material. On a cavity they point into the void, which is also away from the material. The
+    decision uses the signed volume of the component and how many other components enclose
+    it, determined by a ray-parity test. A component inside an even number of others must have
+    positive volume, one inside an odd number negative volume.
+\end{enumerate}
+
+The flips are also applied to the gmsh model, with \code{gmsh.model.mesh.reverse}. A
+subsequent \code{g.write("part.msh")}, \code{.stl} or \code{.vtk} therefore contains the same,
+correctly oriented mesh. With \code{orient=False}, step 2 is still performed, but gmsh's
+orientation is returned unchanged. That is useful for diagnostics.
+
+\begin{note}
+Shells produced by \NF{} are already oriented outwards, and the transfer through STEP
+(\cref{sec:mesh-impl}) preserves the orientation. For such shells the repair in steps 3 and 4
+usually changes nothing. It is a safety net, for example for models built from separately
+created faces, or when gmsh's mesh has been modified by hand.
+\end{note}
+
+\subsection{Example: a body with a cavity}
+
+\example{15_mesh_bem.py}
+
+\begin{lstlisting}[style=text]
+nodes (8272, 3), triangles (4134, 6), order 2
+groups: {'bottom': 460, 'top': 462, 'front': 462, 'back': 458, 'left': 462,
+         'right': 458, 'surface': 1372}
+watertight True, consistent True
+mesh volume 59.8454, exact 59.8112
+outer faces pointing outwards: True
+cavity faces pointing to the centre: True
+total area 108.5098, exact 108.5664
+before: False
+after: True volume 6.2530
+MeshTopologyError: surface mesh is not watertight: 24 open edge(s) (used by one
+triangle). Mesh a closed shell added with add_shell, so that its faces share their edges.
+\end{lstlisting}
+
+The cavity, the sphere labelled \code{surface}, is refined to half the global size. Its
+normals point to the centre of the sphere, which is into the void, while the box's normals
+point outwards. In the second part, one face of a cylinder is reversed on purpose with a raw
+gmsh call. \code{surface_mesh()} detects and repairs this, and the repaired orientation is
+written to \code{cylinder.stl}.
+
+\begin{tip}[Passing the mesh to a solver]
+Most BEM codes need exactly \code{nodes} and \code{triangles}, possibly with a region number
+per triangle. A region array follows directly from \code{groups}:
+\begin{lstlisting}[style=python]
+region = np.empty(len(m.triangles), dtype=int)
+for k, (label, idx) in enumerate(sorted(m.groups.items())):
+    region[idx] = k
+\end{lstlisting}
+For quadratic BEM elements, check the node order your solver expects. gmsh's order (corners,
+then edge midpoints 0--1, 1--2, 2--0) is the most common convention.
+\end{tip}
+
+\section{Convenience functions}
+
+\paragraph{\apiref{mesh.mesh_surfaces}\code{(surfaces, path, size=None, order=1)}} Adds
+surfaces and trimmed surfaces, meshes them in 2D and writes the result: a one-liner for quick
+surface meshes of loose surfaces, such as lens surfaces.
+
+\begin{lstlisting}[style=python]
+from nurbforge.mesh import mesh_surfaces
+mesh_surfaces([front, back, edge], "lens.msh", size=1.0)
+\end{lstlisting}
+
+\paragraph{\apiref{mesh.export_step}\code{(objects, path, solid=True)}} Writes surfaces,
+trimmed surfaces and shells through OCC as STEP, BREP or IGES (by extension). Closed shells
+become solids if \code{solid} is set. See \cref{sec:step-gmsh} for the comparison with the
+native writer.
+
+\paragraph{\apiref{mesh.bem_mesh}} See \cref{sec:mesh-bem}.
+
+\section{Output formats}\label{sec:mesh-output}
+
+\code{g.write(path)} calls \code{gmsh.write}, which chooses the format from the extension. The
+most important formats are:
+
+\begin{center}
+\begin{tabularx}{\textwidth}{@{}lX@{}}
+\toprule
+Extension & Content \\
+\midrule
+\code{.msh} & gmsh's native mesh format, including physical groups. It is read by most
+  open-source solvers (FEniCS/DOLFINx via \code{meshio} or \code{gmshio}, Elmer,
+  bempp-cl, \dots). \\
+\code{.vtk} & Legacy VTK, for ParaView and other visualisation tools. \\
+\code{.stl} & Triangles only. The orientation is preserved; groups are lost. \\
+\code{.inp}, \code{.unv}, \code{.bdf}, \code{.mesh}, \dots & Abaqus, I-DEAS, Nastran, Medit
+  and others; see the gmsh documentation. \\
+\code{.step}, \code{.brep}, \code{.iges} & The \emph{geometry} of the model (OCC) instead of
+  the mesh. \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+Many gmsh options (\code{Mesh.MshFileVersion}, \code{Mesh.SaveAll}, \code{Mesh.Binary},
+\dots) can be set with \code{g.gmsh.option.setNumber(...)} before \code{write}.
+
+\section{Implementation notes}\label{sec:mesh-impl}
+
+\paragraph{Shells travel through STEP.} \code{add_shell} writes the shell with \NF{}'s native
+STEP writer (\cref{ch:step}) into a temporary file. It then reads the file with OCC's STEP
+reader (\code{occ.importShapes}), with \code{Geometry.OCCTargetUnit} temporarily set to
+\code{MM} so that no unit conversion takes place. The transfer stays exact, because the file
+contains the original B-splines. OCC builds the topology itself, including the seam edges of
+closed surfaces.
+
+Why not transfer face by face? A trimmed closed face is a problem: a cylinder with a bore or a
+slot, or a sphere, cone or torus cut by a Boolean. Its outer trim loop runs along the seam
+twice. If the faces are added one by one and then merged with \code{removeAllDuplicates},
+gmsh deletes such faces, and sewing leaves broken volumes. The STEP route avoids this.
+
+\paragraph{Faces are found by interior points.} After the import, each face of the shell is
+matched to the gmsh surface closest to an interior point of the face. The same matching is
+used by \code{face_tags}, so labels remain valid after any renumbering.
+
+\paragraph{\texttt{mesh(heal=True)}} merges duplicate points and edges of separately added
+patches. This is harmless for shells, which are already consistent.
+
+\paragraph{OCC's integrals.} OCC's \code{getMass} is only accurate to about 0.5\,\% for
+trimmed rational faces. \NF{}'s own \code{area()} and \code{volume()} are accurate to the
+requested tolerance. The volume of a fine tetrahedral mesh of a re-imported solid agrees with
+\NF{}'s value, not with OCC's.
+
+\paragraph{Labels and Booleans.} Labels are a kernel feature (\cref{ch:solids}), and
+\code{nurbforge.mesh} only translates them into groups. A typical modelling workflow is
+therefore:
+\begin{enumerate}
+  \item label the faces of the primitives;
+  \item combine the primitives with Booleans;
+  \item mesh with \code{physical_groups=True} and assign boundary conditions by name in the
+    solver.
+\end{enumerate}

@@ -1,0 +1,380 @@
+\chapter{Slicing and hatching}\label{ch:slicing}
+
+Additive manufacturing processes build a part layer by layer. In two-photon lithography (2PP),
+for example, a focused laser writes each layer as a set of \emph{contour lines} along the
+boundary and parallel \emph{hatch lines} that fill the interior. \NF{} computes both from the
+exact B-rep:
+
+\begin{itemize}
+\item \apiref{section} cuts a closed shell with a plane and returns closed, oriented loops of
+exact or tightly fitted curves -- not polygons;
+\item \apiref{critical_heights} and \apiref{is_extrusion_band} tell you where the topology of
+the sections changes and where all layers are identical;
+\item \apiref{hatch} fills the region bounded by section loops with hatch lines (intersected
+exactly with the loop curves) and inward contour lines (offsets of the loops).
+\end{itemize}
+
+All three functions are const queries and thread-safe, so layers can be processed in
+parallel.
+
+\section{Sections of solids}\label{sec:section}
+
+\begin{lstlisting}
+sec = nf.section(shell, plane, options=nf.SectionOptions())
+\end{lstlisting}
+
+\code{section} intersects every face of a closed shell with the plane, clips the
+intersection curves to the trimmed regions, chains them into closed loops and orients them
+by the outward normals of the solid. The shell is oriented first if necessary.
+
+Compared with \code{planar_section} on a single surface (\cref{sec:planar-section}), the
+result is \emph{topologically complete}: loops are closed, holes and islands are
+distinguished by orientation, and every piece knows the face it came from.
+
+\subsection{Options}
+
+\begin{center}
+\begin{tabularx}{\linewidth}{@{}llX@{}}
+\toprule
+\apiref{SectionOptions} field & Default & Meaning \\
+\midrule
+\code{join_tolerance} & $10^{-6}$ & chaining tolerance (model units): ends of neighbouring
+pieces closer than this are joined. Use the sewing tolerance of the shell. \\
+\code{fit_tolerance} & $0$ & accuracy of traced and fitted section curves on general faces;
+$0$ means $10^{-9}$ of the model size. \\
+\code{s_axis} & $(0,0,0)$ & first in-plane axis $s$ (projected into the plane and
+normalised); zero: chosen automatically. The second axis is $t = n\times s$. \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\code{SectionOptions()} takes no constructor arguments; set the fields as attributes:
+
+\begin{lstlisting}
+opts = nf.SectionOptions()
+opts.s_axis = (1, 0, 0)      # plane coordinates (s, t) = (x, y) for planes normal to z
+opts.join_tolerance = 1e-5
+\end{lstlisting}
+
+\begin{tip}
+For layer-by-layer processing always set \code{s_axis}. With the automatic choice the
+in-plane axes are only guaranteed to be orthonormal; fixing them makes the plane coordinates of
+all layers comparable, so the hatch direction and phase mean the same in every layer.
+\end{tip}
+
+\subsection{The result}
+
+\begin{center}
+\begin{tabularx}{\linewidth}{@{}lX@{}}
+\toprule
+Member & Meaning \\
+\midrule
+\apiref{PlanarSection}\code{.origin} & origin of the plane coordinates (\code{plane.point}) \\
+\code{.s_axis}, \code{.t_axis}, \code{.normal} & orthonormal frame; a plane point is
+$p = \mathrm{origin} + s\,\mathbf{s} + t\,\mathbf{t}$ \\
+\code{.loops} & list of \apiref{SectionLoop} \\
+\midrule
+\code{SectionLoop.curves} & consecutive pieces (\apiref{SectionCurve}); the end of one is the
+start of the next within the join tolerance \\
+\code{SectionLoop.area} & signed area in $(s,t)$: $>0$ for outer loops, $<0$ for holes \\
+\midrule
+\code{SectionCurve.curve} & the piece in plane coordinates $(s, t, 0)$ \\
+\code{SectionCurve.curve3d} & the same piece in 3D (same parameter) \\
+\code{SectionCurve.pcurve} & the piece as $(u, v, 0)$ on the surface of its face (same
+parameter) \\
+\code{SectionCurve.face} & index of the source face in the shell \\
+\code{SectionCurve.exact} & \code{True} for an exact isoparametric curve, \code{False} for a
+traced and fitted curve \\
+\code{SectionCurve.normal(t)} & outward unit normal of the solid at parameter $t$ \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+Loops are oriented with the \emph{solid on the left} in $(s,t)$: outer boundaries run
+counter-clockwise, holes clockwise, islands inside holes counter-clockwise again. The sum of
+all loop areas is therefore the material area of the layer.
+
+Faces whose height along the plane normal depends on one parameter only -- planar faces,
+extrusions along the normal and surfaces of revolution about it -- give \emph{exact}
+section curves: an iso-parameter curve of the face. Other faces give curves traced by the
+surface/surface intersection and fitted to \code{fit_tolerance}.
+
+\subsection{Example}
+
+The following script builds a plate with a spherical dome and a bore, sections it at two
+heights, and investigates its critical heights:
+
+\example{12_sections.py}
+
+\begin{lstlisting}[style=text]
+body: 9 faces, volume 31.330383
+origin Vec3(0.000000, 0.000000, 0.500000), s Vec3(1.000000, 0.000000, 0.000000), t Vec3(0.000000, 1.000000, 0.000000), normal Vec3(0.000000, 0.000000, 1.000000)
+loop 0: area +24.000000 (outer), 4 piece(s): face 2 exact, face 5 exact, face 3 exact, face 4 exact
+loop 1: area -0.785398 (hole), 1 piece(s): face 8 exact
+material area 23.214602 (24 - pi/4 = 23.214602)
+hole piece at t: plane (2.5000, -0.0000), 3D (2.5000, -0.0000, 0.5000), outward normal (-1.000, +0.000, +0.000)
+z = 2: 1 loop, area 3.92699082 (pi r^2 = 3.92699082)
+critical heights: [-0.5, 0.0, 1.0, 2.5]
+0.1..0.9 is an extrusion band: True; 1.1..2.0: False
+section at z = 1: GeometryError: section: the plane contains a face (choose a height between critical heights)
+\end{lstlisting}
+
+At $z=0.5$ the section consists of the rectangle of the plate (four exact pieces from the four
+side faces) and the bore as a clockwise hole. The outward normal of the solid on the bore
+points \emph{into} the bore, towards its axis -- away from the material. At $z=2$ only the
+dome is cut, giving a circle of radius $\sqrt{1.5^2-1}$.
+
+\subsection{Errors}
+
+\code{section} raises \code{GeometryError} if a chain of pieces does not close (open shell, or
+a gap larger than \code{join_tolerance}; the message gives the position) and if the plane
+\emph{contains} a face -- planes through critical heights at which a planar face lies in the
+section plane are not supported. The example shows the latter at $z=1$, the top of the plate.
+
+\section{Critical heights and extrusion bands}\label{sec:critical-heights}
+
+\begin{lstlisting}
+hs = nf.critical_heights(shell, direction, tolerance=nf.Tolerance())
+ok = nf.is_extrusion_band(shell, direction, h0, h1, tolerance=nf.Tolerance())
+\end{lstlisting}
+
+\code{critical_heights} returns the sorted heights $h = p\cdot\hat d$ ($\hat d$ = normalised
+\code{direction}) at which the topology of the sections can change: vertices, planar faces
+normal to the direction, interior extrema of the height on faces (where
+$S_u\cdot\hat d = S_v\cdot\hat d = 0$) and on edges ($C'\cdot\hat d = 0$). Between two
+neighbouring critical heights the sections have the same number of loops and pieces. Heights
+closer than \code{tolerance.length} are merged.
+
+The list is conservative: it may contain heights at which nothing changes. In the example,
+$-0.5$ is the lower pole of the dome's sphere, which lies inside the plate and is not part of
+the trimmed face; $2.5$ is the top pole of the dome; $0$ and $1$ are the bottom and top of
+the plate.
+
+Use the critical heights to
+\begin{itemize}
+\item avoid section planes \emph{at} a critical height (a plane containing a face raises an
+error; a plane through a vertex or touching a face gives degenerate loops) -- slice at
+mid-layer heights, or shift by a small amount;
+\item adapt the layer thickness, e.g. to place a layer boundary exactly at the top of a
+plateau.
+\end{itemize}
+
+\code{is_extrusion_band(shell, direction, h0, h1)} returns \code{True} if every face that
+meets the open band $h_0 < p\cdot\hat d < h_1$ has a normal perpendicular to the direction
+there (within \code{tolerance.angular}). Then the band is an extrusion along the direction and
+all its sections are identical: one section can be computed and reused for every layer in the
+band. The plate between $z=0.1$ and $0.9$ is such a band; between $1.1$ and $2.0$ the dome is
+not.
+
+\section{Hatching}\label{sec:hatch}
+
+\begin{lstlisting}
+segments, contours = nf.hatch(loops, direction, spacing, *, phase=0.0, contours=[],
+                              min_length=0.0, tolerance=0.0, contour_tolerance=0.0)
+\end{lstlisting}
+
+\subsection{Input loops}
+
+\code{loops} may be
+\begin{itemize}
+\item a \code{PlanarSection} (its loops are used in plane coordinates),
+\item a list of \code{SectionLoop}, or
+\item a list of closed chains of \code{NurbsCurve} in the $xy$ plane (a single closed curve
+counts as a loop); $z$ is ignored.
+\end{itemize}
+
+Loops must be oriented with the region on the left: outer loops counter-clockwise, holes
+clockwise, islands inside holes counter-clockwise. The region is decided by this
+orientation (winding number), \emph{not} by even--odd counting -- for hand-made loops make sure
+the holes run clockwise (a circle made with normal $-\hat z$ does).
+
+\subsection{Parameters}
+
+\begin{center}
+\begin{tabularx}{\linewidth}{@{}llX@{}}
+\toprule
+Parameter & Default & Meaning \\
+\midrule
+\code{direction} & -- & direction $d$ of the hatch lines (2 or 3 components; $z$ ignored,
+normalised) \\
+\code{spacing} & -- & distance between neighbouring lines ($>0$) \\
+\code{phase} & $0$ & offset of the line family: the lines are $n\cdot p =
+\mathrm{phase} + k\cdot\mathrm{spacing}$ for integer $k$, with $n = (-d_y, d_x)$, measured from
+the origin of the loop coordinates. The same phase gives the same lines in every layer. \\
+\code{contours} & \code{[]} & inward offset distances ($>0$) of contour lines; one or more
+contours per loop and distance \\
+\code{min_length} & $0$ & hatch segments shorter than this are dropped \\
+\code{tolerance} & $0$ & contact tolerance: where a loop comes within this distance of a
+line without crossing it, the line is not split. $0$: $10^{-9}$ of the model size. \\
+\code{contour_tolerance} & $0$ & fit tolerance of the contour curves (see
+\code{offset_curve}); $0$: $10^{-7}$ of the model size \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\code{hatch} raises \code{GeometryError} if \code{spacing} $\le 0$, the direction is zero in
+the $xy$ plane, or more than $10^7$ lines would be needed.
+
+\subsection{Results}
+
+\begin{center}
+\begin{tabularx}{\linewidth}{@{}lX@{}}
+\toprule
+Member & Meaning \\
+\midrule
+\apiref{HatchSegment}\code{.start}, \code{.end} & end points $(x, y, 0)$; start before end
+along the direction \\
+\code{.line} & index $k$ of the hatch line \\
+\code{.region} & index of the outer loop (area $>0$) of the region containing the segment \\
+\code{.start_loop}, \code{.end_loop} & loops on which the segment starts and ends \\
+\code{.length} & length of the segment \\
+\midrule
+\apiref{HatchContour}\code{.curves} & consecutive curve pieces of the closed contour (offset
+pieces and arcs about reflex corners) \\
+\code{.loop} & first source loop (= \code{loops[0]}) \\
+\code{.loops} & sorted indices of all loops the contour was offset from \\
+\code{.index} & index of its distance in the \code{contours} list \\
+\code{.distance} & the offset distance \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+Segments are sorted by line index and then along the direction; contours by (first) source
+loop and then by the order of the distances.
+
+\subsection{How the lines are computed}
+
+Every hatch line is intersected \emph{exactly} with the loop curves: the signed height
+$n\cdot c(t)$ of each Bézier piece is a rational function with the same weights as the
+curve, so its sign changes are found by subdividing the control values and refined to
+machine precision. There is no polygonisation. Special cases:
+
+\begin{itemize}
+\item a loop that only touches a line (within \code{tolerance}) does not split it, so tangent
+lines give no zero-length segments;
+\item an edge lying exactly on a hatch line is not hatched itself (the line runs along the
+boundary). Write such edges as contours.
+\end{itemize}
+
+\subsection{How the contours are computed}
+
+A contour at distance $\delta$ is the boundary of the region shrunk by $\delta$: the set of
+points of the region at distance $\ge\delta$ from all loops. The raw offset of every loop
+(\code{offset_curve} of its pieces into the region, circular arcs about reflex corners) is
+split at all self- and mutual intersections, and the fragments that lie inside the region at
+distance $\ge\delta$ are chained into closed contours. Consequently
+\begin{itemize}
+\item contours are trimmed at convex corners;
+\item a loop gives \emph{several} contours where the region has a neck narrower than
+$2\delta$;
+\item the contours of a hole and of another loop \emph{merge} where they come closer than
+$2\delta$;
+\item a loop gives \emph{no} contour where the region is thinner than $2\delta$ everywhere.
+\end{itemize}
+
+\begin{warning}[Kinked input curves]
+Contours are offsets of the loop \emph{curves}; each curve must be smooth. A closed polyline
+or a \code{make_rectangle_curve} outline is a single degree-1 curve with corners at interior
+knots, and offsetting it fails with
+\code{GeometryError: hatch: contour at distance 0.1 does not close near (3.9, 0.1)}.
+Split such curves into their smooth pieces first, e.g. with
+\code{curve.decompose_bezier()}, which returns the straight segments of a polyline. Section
+loops do not have this problem: their pieces end at the face boundaries.
+\end{warning}
+
+\subsection{Example: hatching a hand-made region}
+
+\example{12_hatch_basics.py}
+
+\begin{lstlisting}[style=text]
+10 segments, total length 25.267949
+  line 1: (0.0000, 0.2500) -> (4.0000, 0.2500), loops 0->0, region 0
+  line 2: (0.0000, 0.5000) -> (4.0000, 0.5000), loops 0->0, region 0
+  line 3: (0.0000, 0.7500) -> (0.5670, 0.7500), loops 0->1, region 0
+  line 3: (1.4330, 0.7500) -> (4.0000, 0.7500), loops 1->0, region 0
+  line 4: (0.0000, 1.0000) -> (0.5000, 1.0000), loops 0->1, region 0
+  line 4: (1.5000, 1.0000) -> (4.0000, 1.0000), loops 1->0, region 0
+phase 0.1: first line at y = 0.1000, 12 segments
+min_length 0.6: 10 of 12 segments kept
+45 deg: 20 segments, spacing x length = 7.3304 (region area 7.2146)
+contour d = 0.1: from loops [0], 4 pieces, length 11.200000
+contour d = 0.3: from loops [0, 1], 5 pieces, length 7.730101
+contour d = 0.3: from loops [0, 1], 3 pieces, length 1.073464
+contour d = 0.3: from loops [0, 1], 3 pieces, length 1.073464
+contour d = 0.1: from loops [1], 4 pieces, length 3.769911
+dumbbell, neck width 0.4, d = 0.1: 1 contour(s)
+dumbbell, neck width 0.4, d = 0.3: 2 contour(s)
+\end{lstlisting}
+
+The output illustrates the rules above:
+
+\begin{itemize}
+\item With phase 0 and spacing $0.25$ the lines are $y = 0.25k$. The lines $y=0$ and $y=2$
+lie on the edges of the rectangle and are not hatched; lines 3 to 5 are split by the hole.
+\item \code{phase=0.1} shifts the family to $y = 0.1 + 0.25k$, giving 8 lines and 12 segments.
+\item \code{min_length=0.6} drops the two short pieces left of the hole.
+\item The product spacing $\times$ total length approximates the area of the region; it
+converges as the spacing decreases.
+\item At $\delta=0.1$ each loop has its own contour (the hole's contour has length
+$2\pi\cdot0.6$). At $\delta=0.3$ the hole is closer than $2\delta$ to the outer boundary, so
+the contours merge, and the narrow gaps split them into three closed contours.
+\item The dumbbell has a neck of width $0.4$: one contour at $\delta = 0.1$, two at
+$\delta = 0.3 > 0.2$.
+\end{itemize}
+
+\section{Workflow: writing paths for two-photon lithography}\label{sec:2pp}
+
+The complete workflow combines the pieces of this chapter: build the part as a closed shell,
+section it at the mid-heights of all layers, hatch each layer with contours and alternating
+directions, and write the paths in the format the writing system expects.
+
+\example{12_writing_paths.py}
+
+\begin{lstlisting}[style=text]
+lens: aperture 40.792 um, sag 8.0 um, volume 5495.6927 um^3, critical heights [0.0, 8.0]
+layer  0 z = 0.25: area 1272.149 um^2, 160 hatch lines (5086.03 um), 1 contour(s)
+layer  5 z = 2.75: area  903.012 um^2, 136 hatch lines (3613.13 um), 1 contour(s)
+layer 10 z = 5.25: area  494.604 um^2, 100 hatch lines (1978.26 um), 1 contour(s)
+layer 15 z = 7.75: area   46.928 um^2,  30 hatch lines ( 186.72 um), 1 contour(s)
+16 layers, 1794 hatch lines, 16 contours -> lens_paths.txt
+hatched volume 5495.89 um^3 vs. cap volume 5495.69 um^3
+\end{lstlisting}
+
+Design decisions in the script, and how to adapt them:
+
+\begin{description}
+\item[Units.] \NF{} has no unit system: the model is built in micrometres, and every length
+(layer distance, spacing, inset) is in micrometres too. Declare the unit when exporting STEP
+(\code{unit="um"}, \cref{ch:step}).
+\item[Layer heights.] Layers are sectioned at their mid-heights $z = (i+\tfrac12)\,\Delta z$.
+The critical heights of the lens are $0$ and $8$ (base and apex); mid-layer planes never hit
+them. Check \code{critical_heights} for your part and shift layers that would.
+\item[Plane coordinates.] \code{s_axis = (1, 0, 0)} makes the section coordinates equal to
+$(x, y)$ for horizontal planes, so the paths can be written directly with the layer height as
+$z$. For tilted slicing, map plane coordinates back with
+$p = \mathrm{origin} + s\,\mathbf{s} + t\,\mathbf{t}$ or use \code{curve3d}.
+\item[Hatch pattern.] The direction alternates between $0^\circ$ and $90^\circ$; the phase of
+half a spacing keeps the lines away from the symmetry axes. Other strategies (rotating by
+$67^\circ$ per layer, island hatching) only change \code{direction} and \code{phase}.
+\item[Contours.] One contour at an inset of $0.15\,\mu$m is written before the hatch lines.
+Several distances (\code{contours=[0.1, 0.3]}) give several shells of contour lines.
+\item[Meander.] Every second segment is reversed so that the stage does not have to return
+to the same side after each line. When a line has several segments (holes), a real path
+planner should order segments by region and proximity; the fields \code{line}, \code{region},
+\code{start_loop} and \code{end_loop} contain the necessary information.
+\item[Export.] Contours are sampled into polylines with \code{NurbsCurve.sample}; hatch
+segments are written by their end points. The file format here (one polyline per line:
+layer, kind, $x\,y\,z$ triples) is a placeholder -- write whatever your machine reads, e.g.
+GWL for Nanoscribe systems. The written volume (spacing $\times$ layer distance $\times$
+hatch length) is a useful sanity check: here it matches the cap volume to 0.004\,\%.
+\end{description}
+
+\begin{tip}[Performance]
+\code{section} and \code{hatch} are const queries, so layers are independent. The Python
+binding of \code{hatch} releases the global interpreter lock while it computes, so hatching
+many layers in a \code{concurrent.futures.ThreadPoolExecutor} uses several cores;
+\code{section} currently keeps the lock, so to parallelise sectioning use a
+\code{ProcessPoolExecutor} (shells are rebuilt cheaply in each worker, or sent as STEP text
+with \code{to_step}/\code{from_step}). For extrusion bands (\code{is_extrusion_band}) compute
+one section and reuse it for all layers in the band.
+\end{tip}

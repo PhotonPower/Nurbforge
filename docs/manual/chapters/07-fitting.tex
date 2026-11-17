@@ -1,0 +1,168 @@
+\chapter{Fitting measured data}\label{ch:fitting}
+
+Measured profiles, point clouds from a coordinate measuring machine, simulation output or
+sampled analytic functions are turned into NURBS by \emph{fitting}. \NF{} offers two families of
+methods, both following Piegl \& Tiller, chapter~9:
+
+\begin{itemize}
+\item \textbf{Interpolation} passes exactly through every data point. It needs as many control
+  points as data points and reproduces noise faithfully.
+\item \textbf{Least-squares approximation} uses fewer control points than data points and
+  minimises the sum of squared deviations at the data parameters; the first and the last point
+  are always interpolated. It smooths the data and gives compact curves.
+\end{itemize}
+
+All fits produce \emph{non-rational} B-splines on the domain $[0,1]$ (curves) or $[0,1]^2$
+(surfaces). Input points are NumPy arrays: shape $(n, 3)$ for curves, $(n_u, n_v, 3)$ for
+surface grids.
+
+\section{Data parameters}\label{sec:data-params}
+
+Every fit first assigns a parameter $\bar u_k \in [0,1]$ to each data point. The choice matters:
+it determines where along the curve each point ends up and therefore the shape between the
+points. \apiref{data_parameters}\code{(points, method)} returns these parameters; the enumeration
+\apiref{Parametrization} offers three methods (P\&T Eq.~9.3--9.6):
+
+\begin{tabularx}{\linewidth}{@{}l>{\raggedright\arraybackslash}X@{}}
+\toprule
+Method & Parameter increments \\
+\midrule
+\code{Uniform} & equal: $\bar u_k = k/(n-1)$. Only suitable for evenly spaced data. \\
+\code{ChordLength} & proportional to the distance between consecutive points,
+  $\Delta\bar u_k \propto |\mathbf Q_k - \mathbf Q_{k-1}|$. Good for evenly curved data. \\
+\code{Centripetal} & proportional to the square root of the distance,
+  $\Delta\bar u_k \propto |\mathbf Q_k - \mathbf Q_{k-1}|^{1/2}$. Robust at sharp turns and
+  uneven spacing; the \textbf{default} of every fit. \\
+\bottomrule
+\end{tabularx}
+
+Consecutive identical points are rejected (\code{GeometryError}) for the non-uniform methods,
+since they would give a zero parameter increment. The data parameters are also what you need to
+measure the deviation of a fit \emph{at the data}: the distance between $\mathbf C(\bar u_k)$ and
+$\mathbf Q_k$ is an upper bound of the point-to-curve distance.
+
+\section{Curve interpolation}\label{sec:interpolate-curve}
+
+\begin{lstlisting}[style=text]
+interpolate_curve(points, degree=3, method=Parametrization.Centripetal,
+                  end_derivatives=None) -> NurbsCurve
+\end{lstlisting}
+
+\apiref{interpolate_curve} computes the global interpolant (A9.1): a B-spline of the given
+degree through all $n$ points with $n$ control points and knots obtained by averaging the
+parameters (Eq.~9.8). It needs at least $\text{degree}+1$ points. \code{end_derivatives} is an
+optional pair $(\mathbf C'(0), \mathbf C'(1))$ of first derivatives \emph{with respect to the
+curve parameter on $[0,1]$} -- not unit tangents. A natural magnitude is the total chord length
+of the data. Prescribed end derivatives add two control points (Eq.~9.21/9.22) and require a
+degree of at least 2.
+
+Interpolation reproduces polynomial data of degree $\le p$ exactly, e.g.\ points on a line give a
+line for any degree (with a suitable parametrisation). Between the points the interpolant may
+oscillate if the data are noisy or unevenly spaced; check it on a dense sample.
+
+\section{Least-squares approximation}\label{sec:approximate-curve}
+
+\begin{lstlisting}[style=text]
+approximate_curve(points, degree, n_ctrl, method=Parametrization.Centripetal) -> NurbsCurve
+approximate_curve_tol(points, degree, tolerance, method=Parametrization.Centripetal) -> NurbsCurve
+\end{lstlisting}
+
+\apiref{approximate_curve} fits a B-spline with exactly \code{n_ctrl} control points
+($\text{degree}+1 \le n_\text{ctrl} \le n$) in the least-squares sense (Eq.~9.63--9.69). The
+interior knots are placed so that every knot span contains data; the first and last data point
+are interpolated.
+
+\apiref{approximate_curve_tol} searches the \emph{smallest} number of control points for which
+every data point lies within \code{tolerance} of the curve point at its parameter: exponential
+search followed by bisection, falling back to interpolation if no approximation meets the
+tolerance. This is usually the most convenient fitting function -- specify the accuracy, not the
+number of control points.
+
+\section{Example: fitting a spiral}
+
+\example{07_curve_fitting.py}
+
+Output:
+
+\begin{lstlisting}[style=text]
+Uniform      parameters of points 0..3: [0.0, 0.0256, 0.0513, 0.0769]
+ChordLength  parameters of points 0..3: [0.0, 0.0041, 0.0116, 0.0213]
+Centripetal  parameters of points 0..3: [0.0, 0.0105, 0.0246, 0.0407]
+interpolate_curve:       40 ctrl, data deviation 3.7e-16, distance to spiral 1.5e-05
+approximate_curve n= 6:   6 ctrl, data deviation 1.9e-02
+approximate_curve n= 8:   8 ctrl, data deviation 2.8e-03
+approximate_curve n=12:  12 ctrl, data deviation 7.1e-04
+approximate_curve_tol 1e-03:  12 ctrl, data deviation 7.1e-04
+approximate_curve_tol 1e-05:  25 ctrl, data deviation 6.0e-06
+with end derivatives: 42 ctrl (2 more), C'(0) = Vec3(0.000000, 4.000000, 0.000000)
+line data: C(0.5) = Vec3(2.500000, 5.000000, 0.000000)
+\end{lstlisting}
+
+Observations:
+
+\begin{itemize}
+\item The data are denser at the start (the samples are spaced like $t^{1.5}$). Uniform
+  parameters ignore this; chord length and centripetal parameters follow the actual spacing.
+\item The interpolant is exact at the 40 data points ($3.7\cdot10^{-16}$), but between them it
+  deviates from the true spiral by $1.5\cdot10^{-5}$ where the samples are sparse. The data
+  deviation of a fit is \emph{not} its deviation from the underlying shape.
+\item With 12 control points the least-squares curve stays within $7.1\cdot10^{-4}$ of the data.
+  \code{approximate_curve_tol} with a tolerance of $10^{-3}$ finds exactly these 12 control
+  points; a tolerance of $10^{-5}$ needs 25.
+\end{itemize}
+
+\section{Surface fitting}\label{sec:surface-fitting}
+
+\begin{lstlisting}[style=text]
+interpolate_surface(points, degree_u=3, degree_v=3, method=Parametrization.Centripetal) -> NurbsSurface
+approximate_surface(points, degree_u, degree_v, ctrl_u, ctrl_v,
+                    method=Parametrization.Centripetal) -> NurbsSurface
+\end{lstlisting}
+
+Surface fits work on a \emph{grid} of points, a NumPy array of shape $(n_u, n_v, 3)$: \code{points[i, j]}
+is the point at the $i$-th position along $u$ and the $j$-th along $v$ (build it with
+\code{np.meshgrid(..., indexing="ij")}). Scattered points must first be resampled onto a grid.
+
+\apiref{interpolate_surface} interpolates all grid points (A9.4) with an $n_u\times n_v$ control
+net. The $u$ parameters are averaged over all columns and the $v$ parameters over all rows;
+degenerate rows (all points equal, e.g.\ a pole) are skipped in the averaging.
+
+\apiref{approximate_surface} fits a \code{ctrl_u} $\times$ \code{ctrl_v} net by least squares,
+first through all rows and then through the resulting columns. The corner points are
+interpolated.
+
+For a graph $z = f(x,y)$ over a rectangle whose $u$ and $v$ should coincide with $x$ and $y$, use
+\apiref{sag_surface} (\cref{ch:optics}) instead: it keeps $x$ and $y$ exactly linear and
+refines to a tolerance.
+
+\example{07_surface_fitting.py}
+
+Output:
+
+\begin{lstlisting}[style=text]
+grid shape (12, 10, 3)
+interpolate_surface: net 12 x 10, max distance to z = sin(x) cos(y) 3.0e-05, corner error 5.0e-16
+approximate_surface: net 6 x 5, max distance to z = sin(x) cos(y) 6.5e-04, corner error 0.0e+00
+interpolant: max distance of the 120 grid points 3.8e-14
+\end{lstlisting}
+
+\section{Practical advice}\label{sec:fitting-advice}
+
+\begin{itemize}
+\item \textbf{Degree.} Cubic (3) is the standard: $C^2$ continuous, flexible, little overshoot.
+  Use degree 5 for very smooth data where curvature continuity of higher derivatives matters;
+  degree 1 or 2 only for polylines or special cases.
+\item \textbf{Interpolate or approximate?} Interpolate exact data (analytic samples, design
+  points). Approximate measured data: noise is smoothed, and the curve has far fewer control
+  points, which makes all later operations faster.
+\item \textbf{Prefer \code{approximate_curve_tol}.} A tolerance a little above the measurement
+  uncertainty gives the most compact curve that still represents the data.
+\item \textbf{Check between the points.} The tolerance is verified at the data parameters. If the
+  shape between the samples matters, evaluate the fit on a denser set of points (as in the
+  examples, with \apiref{closest_point}) or sample the source more densely.
+\item \textbf{Sharp corners.} A single smooth fit through a corner rounds it off and overshoots.
+  Split the data at the corner, fit the pieces separately and \apiref{join} them.
+\item \textbf{Closed curves.} The fits produce open, clamped curves. For a closed curve repeat
+  the first point at the end; the curve is then closed but in general only $C^0$ at the seam.
+  Prescribe equal end derivatives with \code{end_derivatives} to make it $C^1$.
+\end{itemize}

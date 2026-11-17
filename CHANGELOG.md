@@ -4,6 +4,13 @@ All notable changes are documented here. Format: [Keep a Changelog](https://keep
 versioning: [SemVer](https://semver.org).
 
 ## [Unreleased]
+### Added
+- User manual (LaTeX/PDF, `docs/manual`): installation, concepts and every part of the API in
+  18 chapters with 40 tested example scripts, plus a command reference generated from the
+  installed package (every class, method, property, enumeration and function of `nurbforge`,
+  `nurbforge.mesh` and `nurbforge.llm`, and all LLM tools). `python docs/manual/build.py` builds
+  it; CI builds it for documentation changes and attaches `nurbforge-manual.pdf` to every
+  release. A test runs all examples and fails if a public API entry has no description.
 
 ## [0.9.0] – 2026-11-17
 Meshing for solvers: local mesh sizes by face label, curvature-based sizing and BEM-ready

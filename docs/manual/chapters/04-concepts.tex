@@ -1,0 +1,369 @@
+\chapter{Concepts}\label{ch:concepts}
+
+This chapter explains the ideas that the whole interface relies on: how points are passed, what
+a NURBS curve and surface are, how parameters, knots and weights behave, which conventions the
+constructors follow, how tolerances are handled, and how errors, immutability, threads and units
+work. Later chapters refer back to these sections.
+
+\section{Points and vectors}\label{sec:concepts-vec3}
+
+Points and vectors are represented by the class \apiref{Vec3} with the attributes \code{x},
+\code{y} and \code{z}. It supports the usual vector arithmetic (\code{+}, \code{-},
+multiplication by a scalar from either side), iteration (\code{list(v)}, unpacking
+\code{x, y, z = v}) and conversion to a tuple with \code{to_tuple()}. The free functions
+\apiref{dot}, \apiref{cross}, \apiref{norm} and \apiref{distance} complete the set.
+
+\paragraph{Implicit conversion.} Wherever a function expects a point or a vector, any sequence
+of exactly three numbers is accepted: a tuple, a list, a \code{Vec3} or a one-dimensional
+NumPy array, including a row of an $(n,3)$ array. Results are always returned as \code{Vec3}.
+A sequence of the wrong length is rejected with a \code{TypeError} that lists the accepted
+signatures. There are no two-dimensional points: points in a plane are given with $z=0$.
+
+\paragraph{Bulk data.} Functions that take or return many points use NumPy arrays: point lists
+of shape $(n,3)$ (fitting, polylines), point grids of shape $(n_u,n_v,3)$ (surface fitting) and
+the results of \code{curve.sample(n)} and \code{surface.sample(nu, nv)}. Control points are
+returned as arrays too (\code{curve.control_points}, shape $(n,3)$).
+
+\example{04_points_and_vectors.py}
+
+\begin{lstlisting}[style=text]
+a + b = Vec3(1.000000, 3.000000, 2.000000)  a - b = Vec3(1.000000, 1.000000, 2.000000)  2 * a = Vec3(2.000000, 4.000000, 4.000000)
+components: 1.0 2.0 2.0  tuple: (1.0, 2.0, 2.0)  list: [1.0, 2.0, 2.0]
+dot 2.0  cross Vec3(-2.000000, 0.000000, 1.000000)  norm 3.0  distance 2.449489742783178
+length of line2: 5.000000000000001
+midpoint Vec3(1.500000, 2.000000, 0.000000) -> [1.5 2.  0. ]
+sample(5): (5, 3) [0.   0.75 1.5  2.25 3.  ]
+\end{lstlisting}
+
+\begin{note}[Printed precision]
+The text representation of \code{Vec3} (and of \code{Tolerance}) shows six decimal places. The
+stored values are full double-precision numbers. Print the components with a format string,
+for example \code{f"{p.x:.15g}"}, when you need all digits.
+\end{note}
+
+\section{NURBS curves}\label{sec:concepts-nurbs}
+
+\subsection{Definition}
+A NURBS curve of degree $p$ with control points $\mathbf P_0,\dots,\mathbf P_n$, positive weights
+$w_0,\dots,w_n$ and a knot vector $U=\{u_0,\dots,u_{n+p+1}\}$ is
+\begin{equation}
+  \mathbf C(u) = \frac{\sum_{i=0}^{n} N_{i,p}(u)\, w_i\, \mathbf P_i}
+                      {\sum_{i=0}^{n} N_{i,p}(u)\, w_i},
+  \qquad u \in [u_p, u_{n+1}] .
+\end{equation}
+The $N_{i,p}$ are the B-spline basis functions, defined recursively by the Cox--de Boor formula:
+\begin{align}
+  N_{i,0}(u) &= \begin{cases} 1 & u_i \le u < u_{i+1} \\ 0 & \text{otherwise,} \end{cases}\\
+  N_{i,p}(u) &= \frac{u-u_i}{u_{i+p}-u_i}\,N_{i,p-1}(u)
+              + \frac{u_{i+p+1}-u}{u_{i+p+1}-u_{i+1}}\,N_{i+1,p-1}(u)
+\end{align}
+(with $0/0 := 0$). Each $N_{i,p}$ is a piecewise polynomial of degree $p$. It is nonzero only on
+$[u_i, u_{i+p+1})$, the basis functions are nonnegative and they sum to one. Hence:
+\begin{itemize}
+  \item \textbf{Local control.} Moving $\mathbf P_i$ changes the curve only for
+    $u\in[u_i,u_{i+p+1})$.
+  \item \textbf{Convex hull.} On each knot span the curve lies in the convex hull of the $p+1$
+    active control points (for positive weights).
+  \item \textbf{Affine invariance.} Transforming the control points transforms the curve. This is
+    how \code{transformed()} works.
+\end{itemize}
+Internally, evaluation uses homogeneous coordinates $\mathbf P^w_i = (w_i\mathbf P_i,\, w_i)$:
+the curve is a polynomial B-spline in four dimensions, projected back by division by the last
+coordinate. \NF{} implements the algorithms of Piegl and Tiller, \emph{The NURBS Book}, and names
+them in the source code (for example A2.1 \emph{FindSpan}, A4.2 \emph{RatCurveDerivs}, A5.1
+\emph{CurveKnotIns}, A7.1 \emph{MakeNurbsCircle}).
+
+\subsection{Knot vectors}
+A knot vector is non-decreasing and has exactly $n_{\text{ctrl}}+p+1$ entries. The number of
+times a value appears is its \emph{multiplicity}. At an interior knot of multiplicity $m$ the
+curve is $C^{p-m}$ continuous. \NF{} requires $m\le p$ for interior knots, so curves are at
+least $C^0$ continuous.
+
+A knot vector is \emph{clamped} when its first and last values have multiplicity $p+1$. Then the
+curve starts at the first control point and ends at the last one, tangent to the control
+polygon. All constructors create clamped curves. Unclamped curves are allowed, and
+\apiref{NurbsCurve.clamped} converts them.
+
+Helpers for knot vectors:
+\begin{itemize}
+  \item \apiref{clamped_uniform_knots} \code{(degree, n_ctrl)}: a clamped vector with uniform
+    interior knots, e.g.\ \code{clamped_uniform_knots(3, 6)} $=[0,0,0,0,\frac13,\frac23,1,1,1,1]$.
+  \item \apiref{unique_knots} \code{(knots)}: the distinct values and their multiplicities,
+    e.g.\ \code{([0.0, 0.5, 1.0], [3, 2, 3])}.
+  \item \apiref{validate_knots} \code{(knots, degree, n_ctrl)}: raises
+    \code{GeometryError} if the vector is invalid.
+\end{itemize}
+
+\subsection{Weights and rational curves}
+With all weights equal, the denominator is constant and the curve is a polynomial B-spline.
+Different weights make it \emph{rational}, and only rational curves can represent conics
+exactly. Increasing $w_i$ pulls the curve towards $\mathbf P_i$. Multiplying all weights by
+the same factor does not change the curve. \code{curve.is_rational} reports whether the weights
+differ.
+
+\subsection{Parameter domain}
+The curve is defined on $[u_p, u_{n+1}]$, returned as \code{curve.domain}. All constructors use
+$[0,1]$. \apiref{reparametrize} maps a curve to another interval without changing its shape.
+The parameter is generally \emph{not} proportional to arc length. Use \apiref{arc_length}
+and \apiref{parameter_at_length} to convert between parameter and length.
+
+\subsection{Building a curve from its definition}
+Usually curves come from constructors, but \apiref{NurbsCurve} can also be created from its
+data. The following script builds a quarter circle as a rational quadratic with the middle
+weight $\cos 45^\circ$, shows that the same control points without weights give a parabola,
+inserts a knot and computes derivatives:
+
+\example{04_nurbs_by_hand.py}
+
+\begin{lstlisting}[style=text]
+<NurbsCurve degree=2 n_ctrl=3 rational> rational: True clamped: True
+max | |C(u)| - 1 | = 2.22e-16
+non-rational: |C(0.5)| = 1.060660
+knots after inserting 0.3 twice: [0.0, 0.0, 0.0, 0.3, 0.3, 1.0, 1.0, 1.0]
+max deviation after insertion: 2.5e-16
+C(0) = Vec3(1.000000, 0.000000, 0.000000)  C'(0) = Vec3(0.000000, 1.414214, 0.000000)  C''(0) = Vec3(-2.000000, 0.828427, 0.000000)
+curvature at u = 0.5: 1.000000000000
+GeometryError: knot vector size must be n_ctrl + degree + 1 = 6 (got 4)
+\end{lstlisting}
+
+The constructor signature is
+\code{NurbsCurve(degree, knots, control_points, weights=[])}. An empty weight list means a
+non-rational curve. \code{NurbsCurve.from_points(degree, points)} creates a clamped uniform
+B-spline that uses the given points as its control points (it does \emph{not} interpolate them;
+for interpolation see \cref{ch:fitting}).
+
+\subsection{Operations that change the representation only}
+Several operations change knots, degree or the number of control points but leave the geometric
+curve unchanged (up to rounding): knot insertion and refinement
+(\apiref{NurbsCurve.insert_knot}, \apiref{NurbsCurve.refine_knots}), degree elevation
+(\apiref{NurbsCurve.elevate_degree}), Bézier decomposition
+(\apiref{NurbsCurve.decompose_bezier}) and clamping. Knot removal and degree reduction change the
+curve within a given tolerance, measured as a Cartesian deviation in model units. These
+operations are used to make curves \emph{compatible} (same degree and knot vector), which loft,
+ruled and Gordon surfaces need. \Cref{ch:curves} describes them in detail.
+
+\section{NURBS surfaces}\label{sec:concepts-surfaces}
+
+A tensor-product NURBS surface of degrees $(p,q)$ has a net of $(n+1)\times(m+1)$ control points
+$\mathbf P_{ij}$ with weights $w_{ij}$ and two knot vectors $U$ and $V$:
+\begin{equation}
+  \mathbf S(u,v) = \frac{\sum_{i}\sum_{j} N_{i,p}(u)\,N_{j,q}(v)\,w_{ij}\,\mathbf P_{ij}}
+                        {\sum_{i}\sum_{j} N_{i,p}(u)\,N_{j,q}(v)\,w_{ij}} .
+\end{equation}
+For fixed $v$ it is a curve in $u$ (an \emph{iso-curve}, \apiref{NurbsSurface.iso_curve_v}), and
+vice versa.
+
+\subsection{Control net ordering}
+The control points are stored \textbf{row-major with $i$ along $u$}: point $\mathbf P_{ij}$ has
+the index $i\cdot n_v + j$, where $n_v$ is \code{num_v}. The constructor is
+\code{NurbsSurface(degree_u, degree_v, knots_u, knots_v, num_u, num_v, control_points,
+weights=[])} with \code{control_points} as a flat list or an array of shape
+$(n_u n_v, 3)$. \code{surface.control_points} returns the same layout.
+
+\example{04_surface_net.py}
+
+\begin{lstlisting}[style=text]
+S(1, 0) = Vec3(2.000000, 0.000000, 0.000000)  S(0, 1) = Vec3(0.000000, 1.000000, 0.000000)  S(1, 1) = Vec3(2.000000, 1.000000, 1.000000)
+net shape 2 x 2  control_points: (4, 3)
+normal at (0.5, 0.5): Vec3(-0.218218, -0.436436, 0.872872)
+S_u = Vec3(2.000000, 0.000000, 0.500000)  S_v = Vec3(0.000000, 1.000000, 0.500000)
+transposed normal: Vec3(0.218218, 0.436436, -0.872872)
+\end{lstlisting}
+
+\begin{warning}[gmsh and other libraries]
+Other libraries may order the net differently. gmsh, for example, expects $u$ to run fastest.
+The \code{nurbforge.mesh} module reorders automatically. Reorder yourself only when you pass raw
+control points to other software.
+\end{warning}
+
+\subsection{Normals and orientation}
+The normal of a surface is $\mathbf S_u\times\mathbf S_v$, normalised
+(\apiref{NurbsSurface.normal}). At degenerate points such as the poles of a revolved sphere,
+where $\mathbf S_u$ vanishes, \NF{} returns the limit normal. Swapping $u$ and $v$
+(\apiref{NurbsSurface.transposed}) or reversing one direction flips the normal. The orientation
+matters for offsets, fillets, trimmed faces and shells: a closed shell is \emph{oriented} when
+all face normals point out of the solid.
+
+\section{Conventions}\label{sec:concepts-conventions}
+
+\begin{longtable}{@{}p{0.27\textwidth}p{0.67\textwidth}@{}}
+\toprule
+\textbf{Item} & \textbf{Convention} \\
+\midrule
+\endhead
+Knot vectors & Non-decreasing, size \code{n_ctrl + degree + 1}, interior multiplicity
+  $\le$ degree. Clamped vectors are typical but not required. \\
+Default domain & $[0,1]$ for all constructors (primitives, construction, fitting). \\
+Surface net & Row-major, \code{index = i * num_v + j}, $i$ along $u$. \\
+Revolution & $u$ = circumferential (degree 2, rational), $v$ = profile. \\
+Extrusion, ruled & $u$ = profile, $v$ = sweep direction (degree 1). \\
+Loft & $u$ along the sections, $v$ across them. \\
+Angles & Radians in the C++ and Python API; \textbf{degrees} in the LLM tools. \\
+Arcs & \code{make_arc(center, x_axis, y_axis, radius, start, end)} runs from angle
+  \code{start} to \code{end}, measured from \code{x_axis} towards \code{y_axis}. \\
+Circles & Counter-clockwise about the given normal. The start point lies in a direction
+  perpendicular to the normal chosen by the kernel; for the normal $+z$ it is on the $+y$ axis,
+  so $u=0.25$ is on $-x$. Use \code{make_circle_3pt} or \code{make_arc} to control the start. \\
+Trim loops & In the $(u,v)$ parameter space of the surface; outer loop counter-clockwise, holes
+  clockwise. \\
+Shells & Normals point outwards (away from the material); voids have normals pointing into the
+  void. \\
+Planar sections & Loops oriented with the solid on the left: outer loops counter-clockwise,
+  holes clockwise in the plane coordinates. \\
+Tolerances & \code{Tolerance(length=1e-10, parametric=1e-10, angular=1e-9)}; see below. \\
+\bottomrule
+\end{longtable}
+
+\section{Exact and approximated constructions}\label{sec:concepts-exact}
+
+Every operation in \NF{} falls into one of three classes:
+
+\begin{description}[style=nextline,leftmargin=1.5em]
+  \item[Exact] The result represents the mathematical object exactly; the only error is
+    floating-point rounding (relative $10^{-15}$ to $10^{-13}$). Lines, polylines, polygons,
+    arcs and circles, conics, extrusions, revolutions, ruled surfaces, bilinear patches, the
+    solid primitives, translational sweeps, transforms,
+    knot insertion and refinement, degree elevation, splitting, and fillet arcs between curves.
+  \item[Approximated to a verified tolerance] The exact result is not a NURBS (or not one of
+    reasonable size). The operation builds an approximation and checks it at dense check
+    points, refining until the requested tolerance is met: helices and spirals, general
+    sweeps, offsets, surface fillets, aspheric and freeform optical surfaces, sag surfaces,
+    Coons and Gordon surfaces (where the input curves must be made compatible),
+    intersection and section curves on general surfaces, trim curves mapped to 3D, fits to a
+    tolerance, degree reduction and knot removal.
+  \item[Numerical results] Scalars computed to a relative accuracy: lengths, areas, volumes,
+    mass properties (adaptive Gauss--Kronrod integration with \code{rel_tol}), closest points
+    and intersection points (Newton iterations to the \code{Tolerance}).
+\end{description}
+
+\section{The tolerance model}\label{sec:concepts-tolerances}
+
+\subsection{Three kinds of tolerance}
+Lengths, parameter values and angles have different units and scale differently. \NF{}
+therefore separates them (architecture decision ADR~0005):
+
+\begin{tabularx}{\textwidth}{@{}llX@{}}
+\toprule
+\textbf{Field} & \textbf{Default} & \textbf{Used for} \\
+\midrule
+\code{length} & $10^{-10}$ (model units) & Zero lengths, coincident points, parallel lines,
+  convergence of point iterations. \\
+\code{parametric} & $10^{-10}$ (parameter units) & Equal knots, multiplicities, snapping to
+  parameter values. \\
+\code{angular} & $10^{-9}$ (radians) & Angle limits, orthogonality and parallelism of unit
+  vectors. \\
+\bottomrule
+\end{tabularx}
+
+The defaults are the kernel constants \code{nf::tol::kLength}, \code{kParametric} and
+\code{kAngular} (C++). Weights are compared \emph{relatively}, because a NURBS does not change
+when all weights are scaled.
+
+Iterative algorithms take an optional \apiref{Tolerance} object:
+\code{nf.closest_point(curve, p, nf.Tolerance(length=1e-6))}. Construct it with keyword arguments.
+Fields not given keep their defaults.
+
+\subsection{Tolerances of approximating operations}
+Functions that build approximations take a scalar \code{tolerance} in model units, for example
+\code{offset_surface(s, d, tolerance=1e-7)} or \code{SweepOptions(tolerance=1e-6)}. The meaning
+is always the same: the maximum deviation of the result from the exact object, \emph{checked} at
+dense check points (typically eight per knot span, or $8\times8$ per patch), with knots inserted
+until the check passes. The tolerance is verified at these points, not proven in between. The
+test suite evaluates the results at additional random points and finds errors within 1.5 to 2
+times the tolerance. For a strict bound, request a smaller tolerance.
+
+\example{04_tolerances.py}
+
+\begin{lstlisting}[style=text]
+defaults: length 1e-10, parametric 1e-10, angular 1e-09
+repr rounds to 6 digits: Tolerance(length=0.000000, parametric=0.000000, angular=0.000000)
+closest point u = 0.750000, distance 2.000000000000
+helix: degree 5, 216 control points, max deviation 7.6e-09 (tolerance 1e-8)
+\end{lstlisting}
+
+\begin{warning}[The repr of Tolerance]
+\code{print(nf.Tolerance())} shows zeros because the representation rounds to six decimal
+places. The actual values are $10^{-10}$ and $10^{-9}$, as the attributes show.
+\end{warning}
+
+\subsection{Choosing tolerances}
+\begin{itemize}
+  \item Choose approximation tolerances relative to the size of the model: for a part of size
+    100\,mm, $10^{-6}$ (one nanometre) is far below any manufacturing tolerance. Tighter
+    tolerances make the results larger (more knots and control points) and slower to compute.
+  \item Many options use \code{0} as ``automatic''. For example, a \code{fit_tolerance} of 0
+    in \code{SurfaceIntersectionOptions} means $10^{-7}$ of the model size.
+    \Cref{app:tolerances} lists every such parameter with its default.
+  \item The sewing tolerance (\code{Shell.sew(faces, tolerance=1e-6)}) and the Boolean tolerance
+    (\code{boolean(a, b, op, tolerance=1e-6)}) are distances in model units. For models in
+    metres or micrometres scale them accordingly (\cref{sec:concepts-units}).
+\end{itemize}
+
+\section{Errors}\label{sec:concepts-errors}
+
+\begin{description}[style=nextline,leftmargin=1.5em]
+  \item[\code{nf.GeometryError}] A subclass of \code{ValueError}, raised for invalid input or
+    when a geometric operation is impossible: a knot vector of the wrong size, a zero axis, an
+    offset that reaches a radius of curvature, a Boolean of an open shell, a tolerance that
+    cannot be met within the allowed refinement. The message names the function and the
+    violated condition, often with the offending values.
+  \item[\code{TypeError}] Raised by the bindings when arguments have the wrong type, for example
+    a point with two coordinates. The message lists the accepted signatures.
+  \item[\code{NotImplementedError}] Reserved for recognised requests whose implementation is
+    still planned.
+  \item[\code{nurbforge.mesh.MeshTopologyError}] A subclass of \code{ValueError} for surface
+    meshes that are not watertight or orientable (\cref{ch:meshing}).
+\end{description}
+
+Since \code{GeometryError} is a \code{ValueError}, generic handlers keep working. Catch
+\code{nf.GeometryError} to distinguish geometric failures from other value errors. Errors never
+leave partially modified objects behind: inputs are immutable, and a failed operation returns
+nothing.
+
+\section{Immutability and value semantics}\label{sec:concepts-immutability}
+
+Curves, surfaces, trimmed surfaces and shells are immutable. Methods such as
+\code{insert_knot}, \code{transformed}, \code{reversed}, \code{oriented} or
+\code{with_face_labels} return \emph{new} objects:
+
+\begin{lstlisting}
+c2 = c.insert_knot(0.5)        # c is unchanged
+moved = shell.transformed(nf.Transform.translation((0, 0, 10)))
+\end{lstlisting}
+
+Calling \code{c.insert_knot(0.5)} without using the return value therefore has no effect. In
+return, objects can be stored in containers, shared between parts of a model and reused without
+defensive copies. The geometry objects cannot be pickled. To move them between processes, write
+them to STEP text with \apiref{to_step} and read them back with \apiref{from_step}, or rebuild
+them from the script that created them.
+
+\section{Thread safety}\label{sec:concepts-threads}
+
+All \code{const} queries may run concurrently on shared objects: evaluation, derivatives, closest
+points, intersections, sections, critical heights, lengths, areas, volumes and mass properties,
+and STEP reading and writing. Internal caches, such as trim polylines, are built in the
+constructors, so reading never writes. The C++ test suite runs these queries concurrently under
+ThreadSanitizer.
+
+In Python, most functions hold the global interpreter lock while they compute. Threads therefore
+give no speed-up, except for \apiref{hatch} and STEP reading, which release the lock. The
+surface/surface intersection uses several threads internally. For parallel batch work in Python
+use processes and pass geometry as STEP text or recreate it in each process.
+
+\section{Units}\label{sec:concepts-units}
+
+The kernel works in dimensionless \emph{model units}. It is up to you whether one unit is a
+millimetre, a micrometre or a metre. Units enter in three places only:
+
+\begin{enumerate}
+  \item \textbf{Tolerances} given in model units (\code{length}, sewing and Boolean tolerances,
+    fit tolerances) must suit the scale. The defaults ($10^{-10}$ for comparisons, $10^{-6}$ for
+    sewing and Booleans, $10^{-7}$ for most fits) suit models of size 1 to 1000.
+  \item \textbf{STEP files} declare a unit: \code{write_step(..., unit="mm")} writes the
+    coordinates unchanged and states what one model unit means. \code{read_step(...,
+    unit="mm")} converts the file's coordinates to the requested unit (\cref{ch:step}).
+  \item \textbf{gmsh} uses the coordinates as they are. Mesh sizes are in model units.
+\end{enumerate}
+
+For a microlens in micrometres, model it in micrometres, use tolerances such as $10^{-6}$\,µm
+or larger, and write the STEP file with \code{unit="um"}.

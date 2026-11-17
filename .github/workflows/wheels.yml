@@ -74,9 +74,34 @@ jobs:
           path: dist/*.tar.gz
           if-no-files-found: error
 
+  manual:
+    name: User manual (PDF)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.release_tag || github.ref }}
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: TeX Live
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends latexmk lmodern texlive-latex-recommended \
+            texlive-latex-extra texlive-fonts-recommended
+      - name: Build the manual from the tagged sources
+        run: |
+          python -m pip install ".[mesh]"
+          python docs/manual/build.py
+      - uses: actions/upload-artifact@v7
+        with:
+          name: manual
+          path: docs/manual/build/nurbforge-manual.pdf
+          if-no-files-found: error
+
   release:
     name: GitHub release
-    needs: [wheels, sdist]
+    needs: [wheels, sdist, manual]
     if: >-
       startsWith(github.ref, 'refs/tags/v') ||
       (github.event_name == 'workflow_dispatch' && inputs.release_tag != '')
@@ -102,10 +127,12 @@ jobs:
           text = open("CHANGELOG.md", encoding="utf-8").read()
           m = re.search(r"^## \[" + re.escape(version) + r"\][^\n]*\n(.*?)(?=^## \[)", text, re.S | re.M)
           notes = m.group(1).strip() if m else f"Nurbforge {version}"
-          notes += ("\n\n### Install\nBinary wheels for Linux (manylinux_2_28 x86_64), Windows "
-                    "(win_amd64) and macOS 14+ (arm64, x86_64), CPython 3.10-3.14, and the sdist "
-                    "are attached, e.g.\n\n"
-                    f"```bash\npip install nurbforge-{version}-cp312-cp312-win_amd64.whl\n```\n")
+          notes += ("\n\n### Install\n```bash\npip install nurbforge          # from PyPI; "
+                    "nurbforge[mesh] adds gmsh\n```\nBinary wheels for Linux (manylinux_2_28 "
+                    "x86_64), Windows (win_amd64) and macOS 14+ (arm64, x86_64), CPython "
+                    "3.10-3.14, and the sdist are also attached below.\n\n### Documentation\n"
+                    "`nurbforge-manual.pdf`: the user manual with the complete command reference "
+                    "of this version.\n")
           open("notes.md", "w", encoding="utf-8").write(notes)
           PY
       - name: Create or update the release
@@ -135,4 +162,8 @@ jobs:
         with:
           path: dist
           merge-multiple: true
+      - name: Keep only wheels and sdist (the manual PDF goes to the GitHub release only)
+        run: |
+          find dist -type f ! -name '*.whl' ! -name '*.tar.gz' -delete
+          ls -l dist
       - uses: pypa/gh-action-pypi-publish@release/v1

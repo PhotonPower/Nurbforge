@@ -1,0 +1,217 @@
+\chapter{Tolerances and defaults}\label{app:tolerances}
+
+This appendix lists every tolerance-like parameter of the Python API with its default and
+meaning. The values are taken from the signatures of the installed package and from the kernel
+headers. Background on the tolerance model is in \cref{sec:concepts-tolerances}. All lengths are
+in model units; ``model size'' means the size of the bounding box of the input.
+
+\section{Kernel constants}
+
+\begin{tabularx}{\textwidth}{@{}llX@{}}
+\toprule
+\textbf{C++ constant} & \textbf{Value} & \textbf{Meaning} \\
+\midrule
+\code{nf::tol::kLength} & $10^{-10}$ & Model-space lengths: zero lengths, coincident points,
+  parallel lines. Also \code{nf::kTolerance} (alias). \\
+\code{nf::tol::kParametric} & $10^{-10}$ & Parameter differences: equal knots, multiplicities,
+  snapping. \\
+\code{nf::tol::kAngular} & $10^{-9}$ & Angles in radians, dot products of unit vectors. \\
+\bottomrule
+\end{tabularx}
+
+The class \apiref{Tolerance} bundles the three values for one operation:
+\code{Tolerance(length=1e-10, parametric=1e-10, angular=1e-9)}. Functions that take a
+\code{Tolerance} default to these values. Weights are compared relatively.
+
+\section{Parameters by area}
+
+In the following tables, \emph{Tol.} denotes a \code{Tolerance} object with the kernel defaults.
+A default of 0 means that the value is derived automatically, as described in the last column.
+
+\subsection{NURBS operations}
+\begin{longtable}{@{}p{0.33\textwidth}p{0.14\textwidth}p{0.47\textwidth}@{}}
+\toprule
+\textbf{Function / parameter} & \textbf{Default} & \textbf{Meaning} \\
+\midrule
+\endhead
+\code{NurbsCurve.remove_knot}, \code{try_remove_knot}: \code{tolerance} & $10^{-10}$ & Maximum
+  Cartesian deviation allowed by knot removal. \\
+\code{NurbsCurve.reduce_degree}: \code{tolerance} & $10^{-10}$ & Maximum deviation of the
+  degree-reduced curve; \code{GeometryError} if not met. \\
+\code{NurbsSurface.}\allowbreak\code{remove_knot_u/v}, \code{try_remove_knot_u/v}, \code{reduce_degree_u/v}:
+  \code{tolerance} & $10^{-10}$ & As for curves, over all rows or columns. \\
+\code{join}, \code{join_u}, \code{join_v}: \code{tolerance} & $10^{-10}$ & Maximum gap between
+  the end of the first and the start of the second curve or surface. \\
+\bottomrule
+\end{longtable}
+
+\subsection{Primitives, construction and modelling}
+\begin{longtable}{@{}p{0.33\textwidth}p{0.14\textwidth}p{0.47\textwidth}@{}}
+\toprule
+\textbf{Function / parameter} & \textbf{Default} & \textbf{Meaning} \\
+\midrule
+\endhead
+\code{make_helix}: \code{tolerance} & $10^{-7}$ & Deviation of the C2 quintic from the exact
+  helix or spiral. \\
+\code{SweepOptions}: \code{tolerance} & $10^{-6}$ & Deviation from the ideal swept surface,
+  estimated at test points between the placed sections. \\
+\code{SweepOptions}: \code{max_sections} & 1025 & Maximum number of placed sections;
+  \code{GeometryError} if the tolerance is not met. \\
+\code{coons}: \code{tolerance} & $10^{-7}$ & Corner agreement of the boundary curves and
+  approximation of rational boundaries by non-rational ones. \\
+\code{gordon}: \code{tolerance} & $10^{-7}$ & Consistency of the curve network (intersection
+  parameters) and approximation of rational curves. \\
+\code{offset_curve}: \code{tolerance} & $10^{-7}$ & Deviation of the fitted cubic offset. \\
+\code{offset_surface}: \code{tolerance} & $10^{-7}$ & Deviation of the fitted quintic offset. \\
+\code{fillet_curves}: \code{tolerance} & $10^{-7}$ & Fit tolerance of the auxiliary offset
+  curves (start values only; the fillet arc is exact). \\
+\code{fillet_corners}: \code{tolerance} & $10^{-7}$ & As for \code{fillet_curves}. \\
+\code{fillet_surfaces}: \code{tolerance} & $10^{-6}$ & Accuracy of the fillet surface,
+  contact curves and p-curves, verified between the sections. \\
+\code{fillet_surfaces}: \code{offset_tolerance} & 0 & Fit tolerance of the auxiliary offset
+  surfaces; 0 means \code{tolerance}/10. \\
+\code{fillet_surfaces}: \code{max_sections} & 1025 & Maximum number of sections. \\
+\bottomrule
+\end{longtable}
+
+\subsection{Fitting and optics}
+\begin{longtable}{@{}p{0.33\textwidth}p{0.14\textwidth}p{0.47\textwidth}@{}}
+\toprule
+\textbf{Function / parameter} & \textbf{Default} & \textbf{Meaning} \\
+\midrule
+\endhead
+\code{approximate_curve_tol}: \code{tolerance} & required & Maximum distance of the data
+  points from the curve; the fewest control points meeting it are used. \\
+\code{asphere_surface}, \code{asphere_profile}: \code{tolerance} & $10^{-7}$ & Sag error of
+  the fitted profile, checked at 8 points per knot span. Pure conics are exact. \\
+\code{zernike_surface}, \code{xy_polynomial_surface}: \code{tolerance} & $10^{-7}$ & Sag error,
+  checked at $8\times8$ points per knot rectangle. \\
+\code{zernike_surface}, \code{xy_polynomial_surface}: \code{half_width} & 0 & Half width of the
+  square domain; 0 means \code{norm_radius}. \\
+\code{sag_surface}: \code{tolerance} & $10^{-7}$ & Sag error of the graph surface. \\
+\code{sag_surface}: \code{max_spans} & 256 & Maximum number of knot spans per direction. \\
+\bottomrule
+\end{longtable}
+
+\subsection{Analysis and integration}
+\begin{longtable}{@{}p{0.33\textwidth}p{0.14\textwidth}p{0.47\textwidth}@{}}
+\toprule
+\textbf{Function / parameter} & \textbf{Default} & \textbf{Meaning} \\
+\midrule
+\endhead
+\code{closest_point}, \code{closest_point_local}: \code{tolerance} & Tol. & Convergence of the
+  Newton iteration (length and parametric). \\
+\code{intersect} (curve/curve, curve/surface, curve/plane): \code{tolerance} & Tol. & Accuracy
+  of the intersection points. \\
+\code{SurfaceIntersection}\allowbreak\code{Options}: \code{tolerance} & Tol. & Point accuracy of the marching. \\
+\code{SurfaceIntersection}\allowbreak\code{Options}: \code{chord_tolerance} & 0 & Maximum deviation of the traced
+  polyline from the true curve, controls the step; 0 means $10^{-4}$ of the model size. \\
+\code{SurfaceIntersection}\allowbreak\code{Options}: \code{fit_tolerance} & 0 & Accuracy of the fitted 3D curve and
+  p-curves, verified between the fit points; 0 means $10^{-7}$ of the model size. \\
+\code{length}, \code{arc_length}, \code{parameter_at_length}: \code{rel_tol} & $10^{-10}$ &
+  Relative accuracy of the adaptive integration. \\
+\code{area} (surface): \code{rel_tol} & $10^{-10}$ & Relative accuracy. \\
+\code{integrate}: \code{rel_tol}, \code{abs_tol} & $10^{-10}$, 0 & Relative and absolute accuracy
+  of the Gauss--Kronrod integral. \\
+\bottomrule
+\end{longtable}
+
+\subsection{Trimming, shells and Booleans}
+\begin{longtable}{@{}p{0.33\textwidth}p{0.14\textwidth}p{0.47\textwidth}@{}}
+\toprule
+\textbf{Function / parameter} & \textbf{Default} & \textbf{Meaning} \\
+\midrule
+\endhead
+\code{TrimmedSurface(...)}: \code{tolerance} & Tol. & Validation of the trim loops: they must be
+  closed (within \code{length}, in parameter units) and lie in the parameter domain. \\
+\code{TrimmedSurface.area}: \code{rel_tol} & $10^{-9}$ & Relative accuracy (Green's theorem). \\
+\code{TrimmedSurface.}\allowbreak\code{boundary_curves}: \code{tolerance} & $10^{-7}$ & Fit tolerance of the 3D
+  boundary curves where they cannot be exact. \\
+\code{split}: \code{tolerance} & Tol. & Tolerances of the surface/surface intersection that
+  produces the cut curves. \\
+\code{Shell.sew}: \code{tolerance} & $10^{-6}$ & Two boundary curves form one edge if each lies on
+  the other within this distance. \\
+\code{Shell.area}, \code{volume}, \code{mass_properties}: \code{rel_tol} & $10^{-8}$ & Relative
+  accuracy of the surface integrals. \\
+\code{boolean}: \code{tolerance} & $10^{-6}$ & Contacts and overlaps thinner than this are
+  treated as contacts (tangential contacts, coincident faces). \\
+\code{point_in_shell}: \code{tolerance} & $10^{-6}$ & Geometric tolerance of the ray casting
+  (rays that hit a face boundary or graze a face are discarded; the majority of several valid
+  rays decides). \\
+\bottomrule
+\end{longtable}
+
+\subsection{Sections and hatching}
+\begin{longtable}{@{}p{0.33\textwidth}p{0.14\textwidth}p{0.47\textwidth}@{}}
+\toprule
+\textbf{Function / parameter} & \textbf{Default} & \textbf{Meaning} \\
+\midrule
+\endhead
+\code{SectionOptions}: \code{join_tolerance} & $10^{-6}$ & Ends of neighbouring section pieces
+  closer than this are joined (the sewing tolerance). \\
+\code{SectionOptions}: \code{fit_tolerance} & 0 & Accuracy of traced section curves on general
+  faces; 0 means $10^{-9}$ of the model size. Isoparametric sections are exact. \\
+\code{critical_heights}, \code{is_extrusion_band}: \code{tolerance} & Tol. & Classification of
+  heights. \\
+\code{hatch}: \code{min_length} & 0 & Hatch segments shorter than this are dropped. \\
+\code{hatch}: \code{tolerance} & 0 & Contacts of a loop with a hatch line without crossing do not
+  split the line; 0 means $10^{-9}$ of the model size. \\
+\code{hatch}: \code{contour_tolerance} & 0 & Fit tolerance of the contour curves; 0 means
+  $10^{-7}$ of the model size. \\
+\bottomrule
+\end{longtable}
+
+\subsection{STEP}
+\begin{longtable}{@{}p{0.33\textwidth}p{0.14\textwidth}p{0.47\textwidth}@{}}
+\toprule
+\textbf{Function / parameter} & \textbf{Default} & \textbf{Meaning} \\
+\midrule
+\endhead
+\code{write_step}, \code{to_step}: \code{uncertainty} & $10^{-6}$ & Written as \code{UNCERTAINTY_}\allowbreak\code{MEASURE_WITH_UNIT}; readers such as OpenCASCADE use it as the initial vertex
+  and edge tolerance. Fitted edge curves are written within 1/100 of the sewing tolerance. \\
+\code{write_step}, \code{to_step}: \code{unit} & \code{"mm"} & Declared length unit
+  (\code{mm}, \code{cm}, \code{m}, \code{inch}, \code{um}). \\
+\code{read_step}, \code{from_step} (and \code{_named}): \code{tolerance} & $10^{-6}$ & Sewing
+  tolerance in target units; trim curves are fitted to a tenth of it. \\
+\code{read_step}, \code{from_step}: \code{unit} & \code{"mm"} & Target unit of the conversion. \\
+\bottomrule
+\end{longtable}
+
+\subsection{Meshing (\code{nurbforge.mesh})}
+\begin{longtable}{@{}p{0.33\textwidth}p{0.14\textwidth}p{0.47\textwidth}@{}}
+\toprule
+\textbf{Function / parameter} & \textbf{Default} & \textbf{Meaning} \\
+\midrule
+\endhead
+\code{GmshSession.mesh}: \code{size} & None & Global maximum element size; None keeps gmsh's
+  default. \\
+\code{GmshSession.mesh}: \code{order}, \code{dim} & 1, 2 & Element order and dimension. \\
+\code{GmshSession.mesh}: \code{curvature} & None & Elements per $2\pi$ of curvature (at least
+  1); None disables curvature-based sizes. \\
+\code{GmshSession.mesh}: \code{heal} & True & Remove duplicate entities before meshing. \\
+\code{GmshSession.refine}: \code{distance} & 0 & Distance over which the local size grows to the
+  global size; 0 refines only the faces themselves. \\
+\code{bem_mesh}: \code{size}, \code{order}, \code{curvature}, \code{refine} & None, 1, None, None
+  & As for \code{GmshSession}; \code{refine} maps labels or surface tags to sizes. \\
+\bottomrule
+\end{longtable}
+
+\subsection{LLM interface (\code{nurbforge.llm})}
+\begin{longtable}{@{}p{0.33\textwidth}p{0.14\textwidth}p{0.47\textwidth}@{}}
+\toprule
+\textbf{Function / parameter} & \textbf{Default} & \textbf{Meaning} \\
+\midrule
+\endhead
+\code{GeometryAgent}: \code{max_steps} & 20 & Maximum model turns (tool-call rounds) per
+  request. \\
+\code{GeometryAgent}: \code{verify_rounds} & 1 & Verification rounds after each answer. \\
+\code{OllamaClient}: \code{timeout} & 300\,s & HTTP timeout per request. \\
+\code{verify.check}: \code{tolerance} & None & None means $10^{-6}$ relative, at least $10^{-9}$
+  absolute. \\
+Measured properties (\code{inspect}) & $10^{-8}$ & Relative accuracy of lengths, areas and
+  volumes. \\
+\code{constraints.solve}: \code{tolerance}, \code{max_iterations} & $10^{-8}$, 40 &
+  Levenberg--Marquardt stopping criteria on the relative target residuals. Results with residuals
+  up to $10^{-6}$ count as converged. \\
+\bottomrule
+\end{longtable}

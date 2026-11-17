@@ -2,6 +2,7 @@
 
 | Document | Content |
 |---|---|
+| [manual/](https://github.com/PhotonPower/Nurbforge/tree/main/docs/manual) | User manual (LaTeX/PDF): all topics in depth, tested examples, complete command reference; the PDF is attached to every release |
 | [tutorial.md](tutorial.md) | Tutorial: from curves to trimmed solids, Booleans, meshing and the LLM interface |
 | [architecture.md](architecture.md) | Layers, modules, dependencies, error handling |
 | [math/nurbs.md](math/nurbs.md) | NURBS definitions, conventions, implemented algorithms |

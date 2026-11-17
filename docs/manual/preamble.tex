@@ -1,0 +1,112 @@
+% Nurbforge user manual – preamble (pdfLaTeX, TeX Live 2023+)
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+\usepackage{textcomp}
+\usepackage[a4paper,margin=2.5cm,headheight=14pt]{geometry}
+\usepackage{microtype}
+\usepackage{amsmath,amssymb}
+\usepackage{xcolor}
+\usepackage{graphicx}
+\usepackage{booktabs,tabularx,longtable,array}
+\usepackage{enumitem}
+\usepackage{fancyhdr}
+\usepackage{listings}
+\usepackage[most]{tcolorbox}
+\usepackage[hidelinks,pdfusetitle,bookmarksnumbered]{hyperref}
+\usepackage[nameinlink,capitalise]{cleveref}
+
+\definecolor{nfblue}{HTML}{1F4E79}
+\definecolor{nfgrey}{HTML}{F4F6F8}
+\definecolor{nfrule}{HTML}{C9D2DC}
+\definecolor{nfnote}{HTML}{2E7D32}
+\definecolor{nfwarn}{HTML}{B26A00}
+\definecolor{nfcomment}{HTML}{5B6B7A}
+\definecolor{nfstring}{HTML}{8B2252}
+\definecolor{nfkeyword}{HTML}{1F4E79}
+
+\hypersetup{colorlinks=true,linkcolor=nfblue,urlcolor=nfblue,citecolor=nfblue}
+
+\setlist{itemsep=2pt,topsep=4pt}
+\setlength{\parindent}{0pt}
+\setlength{\emergencystretch}{3em}
+\setlength{\parskip}{0.55em}
+\renewcommand{\arraystretch}{1.18}
+
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small\nouppercase{\leftmark}}
+\fancyhead[R]{\small Nurbforge \NFVersion}
+\fancyfoot[C]{\small\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+
+% ---------------------------------------------------------------- code
+\lstdefinestyle{nfbase}{
+  basicstyle=\ttfamily\small,
+  columns=fullflexible, keepspaces=true,
+  breaklines=true, breakatwhitespace=false,
+  postbreak=\mbox{\textcolor{nfcomment}{$\hookrightarrow$}\space},
+  showstringspaces=false, upquote=true, tabsize=4,
+  backgroundcolor=\color{nfgrey}, frame=single, rulecolor=\color{nfrule},
+  framesep=4pt, xleftmargin=4pt, xrightmargin=4pt,
+  aboveskip=8pt, belowskip=6pt,
+  commentstyle=\color{nfcomment}\itshape,
+  stringstyle=\color{nfstring},
+  keywordstyle=\color{nfkeyword}\bfseries,
+  literate={µ}{{\textmu}}1 {²}{{\textsuperscript{2}}}1 {³}{{\textsuperscript{3}}}1
+           {π}{{$\pi$}}1 {–}{{--}}1 {—}{{---}}1 {×}{{$\times$}}1 {°}{{\textdegree}}1
+           {≤}{{$\le$}}1 {≥}{{$\ge$}}1 {→}{{$\to$}}1 {·}{{$\cdot$}}1,
+}
+\lstdefinestyle{python}{style=nfbase, language=Python,
+  morekeywords={as,with,None,True,False,self,lambda,yield,assert,nonlocal}}
+\lstdefinestyle{shell}{style=nfbase, language=bash, keywordstyle=\color{black}}
+\lstdefinestyle{cpp}{style=nfbase, language=C++}
+\lstdefinestyle{text}{style=nfbase, language={}}
+\lstdefinestyle{json}{style=nfbase, language={}}
+\lstdefinestyle{cmake}{style=nfbase, language={}}
+% signature blocks of the command reference
+\lstdefinestyle{sig}{style=nfbase, language={}, backgroundcolor=\color{white},
+  frame=leftline, framerule=2pt, rulecolor=\color{nfblue}, basicstyle=\ttfamily\footnotesize,
+  aboveskip=2pt, belowskip=2pt}
+\lstset{style=python}
+
+% Python example from docs/manual/examples (whole file, tested by the test suite)
+\newcommand{\example}[2][]{%
+  \lstinputlisting[style=python,title={\small\texttt{examples/\detokenize{#2}}},#1]{examples/#2}}
+
+% inline code: \code{nf.make_box(...)}; underscores, # and & are fine, braces must balance
+\newcommand{\code}[1]{\texttt{\detokenize{#1}}}
+% API name linked to its entry in the command reference (Appendix A):
+%   \apiref{make_box}, \apiref{NurbsCurve.insert_knot}, \apiref{mesh.bem_mesh},
+%   \apiref{mesh.GmshSession.refine}, \apiref{llm.GeometryAgent}
+% LLM tool linked to Appendix B: \toolref{make_circle}
+\newcommand{\apiref}[1]{\hyperref[ref:#1]{\texttt{\detokenize{#1}}}}
+\newcommand{\toolref}[1]{\hyperref[tool:#1]{\texttt{\detokenize{#1}}}}
+
+% ---------------------------------------------------------------- boxes
+\newtcolorbox{note}[1][Note]{enhanced, breakable, colback=nfnote!5, colframe=nfnote!70,
+  boxrule=0.5pt, left=6pt, right=6pt, top=4pt, bottom=4pt, fonttitle=\bfseries\small,
+  title={#1}, coltitle=white}
+\newtcolorbox{warning}[1][Caution]{enhanced, breakable, colback=nfwarn!6, colframe=nfwarn!80,
+  boxrule=0.5pt, left=6pt, right=6pt, top=4pt, bottom=4pt, fonttitle=\bfseries\small,
+  title={#1}, coltitle=white}
+\newtcolorbox{tip}[1][Tip]{enhanced, breakable, colback=nfblue!4, colframe=nfblue!70,
+  boxrule=0.5pt, left=6pt, right=6pt, top=4pt, bottom=4pt, fonttitle=\bfseries\small,
+  title={#1}, coltitle=white}
+
+% ---------------------------------------------------------------- command reference
+% \begin{refentry}{qualified name}{kind} <signature listing> <description> \end{refentry}
+\newenvironment{refentry}[2]{%
+  \par\addvspace{6pt}\needspace{5\baselineskip}%
+  \noindent{\large\bfseries\texttt{\detokenize{#1}}}\hfill{\small\textsf{\textcolor{nfcomment}{#2}}}%
+  \label{ref:#1}\par\nopagebreak[4]\vspace{2pt}}{\par}
+% \begin{toolentry}{tool name} ... \end{toolentry}   (Appendix B, label tool:<name>)
+\newenvironment{toolentry}[1]{%
+  \par\addvspace{6pt}\needspace{5\baselineskip}%
+  \noindent{\large\bfseries\texttt{\detokenize{#1}}}\hfill{\small\textsf{\textcolor{nfcomment}{tool}}}%
+  \label{tool:#1}\par\nopagebreak[4]\vspace{2pt}}{\par}
+\newcommand{\needspace}[1]{\par\penalty-100\begingroup\setlength{\dimen0}{#1}%
+  \dimen2=\pagegoal\advance\dimen2 by -\pagetotal
+  \ifdim\dimen0>\dimen2 \ifdim\dimen2>0pt \newpage\fi\fi\endgroup}
+
+\newcommand{\NF}{Nurbforge}

@@ -1,0 +1,562 @@
+\chapter{STEP import and export}\label{ch:step}
+
+STEP (ISO 10303, ``Standard for the Exchange of Product model data'') is the neutral file
+format that practically every CAD system reads and writes. \NF{} contains its own STEP writer
+and reader in the C++ core. Neither needs OpenCASCADE, gmsh or any other library. Both work
+directly on the kernel's data structures: shells, trimmed faces and NURBS geometry. This
+chapter explains how to use both directions, every option, what ends up in the file, how
+foreign files are translated and where the limits are.
+
+There are two ways to produce STEP files from \NF{}:
+
+\begin{description}[leftmargin=1.5em, style=nextline]
+  \item[Native writer (\apiref{write_step}, \apiref{to_step})] Part of the kernel. It writes the
+    B-spline data unchanged and keeps the topology of the shell exactly as it is: shared edges,
+    vertices and seams. This is the recommended route.
+  \item[gmsh route (\apiref{mesh.export_step})] Hands the geometry to gmsh's OpenCASCADE kernel,
+    which then writes STEP, BREP or IGES (\cref{sec:step-gmsh}). It needs the optional gmsh
+    package and is mainly useful for BREP and IGES output, or for writing loose surfaces that
+    do not form a shell.
+\end{description}
+
+Reading is always done by the native reader (\apiref{read_step}, \apiref{from_step} and their
+\code{_named} variants).
+
+\section{Writing STEP files}\label{sec:step-write}
+
+\subsection{The basic call}
+
+\apiref{write_step} takes a path and either a single \code{Shell} or a list of shells:
+
+\begin{lstlisting}[style=python]
+import nurbforge as nf
+
+part = nf.boolean(nf.make_box((-2, -2, 0), (4, 4, 2)),
+                  nf.make_cylinder((0, 0, -1), (0, 0, 1), 0.5, 4), nf.BooleanOp.Difference)
+nf.write_step("block.step", part)                     # one shell
+nf.write_step("parts.step", [part, other], unit="m")  # several shells
+text = nf.to_step(part)                               # the file contents as str
+\end{lstlisting}
+
+\apiref{to_step} accepts exactly the same arguments, without the path, and returns the
+complete file contents as a Python string. This is useful for storing models in a database,
+sending them over a network or inspecting them in tests. \code{write_step(path, ...)} and
+\code{open(path).read() == to_step(...)} give identical text if all options, including the
+time stamp, are equal.
+
+Only shells can be written. A single surface or trimmed surface is first wrapped into a shell:
+\code{nf.Shell.sew([nf.TrimmedSurface(surface)])}. The result is then written as an open
+surface model.
+
+\subsection{Options}
+
+All options are keyword arguments with defaults. They are identical for \code{write_step} and
+\code{to_step}:
+
+\begin{longtable}{@{}p{0.2\textwidth}p{0.15\textwidth}p{0.57\textwidth}@{}}
+\toprule
+\textbf{Option} & \textbf{Default} & \textbf{Meaning} \\
+\midrule\endhead
+\code{unit} & \code{"mm"} & Length unit declared in the file: \code{"mm"}, \code{"cm"},
+  \code{"m"}, \code{"inch"} or \code{"um"} (micrometre, written as
+  \code{SI_UNIT(.MICRO.,.METRE.)}). Coordinates are \emph{not} converted. The unit only states
+  what one model unit means, and importing programs convert on their side. A cube with edge
+  length 2 written with \code{unit="m"} therefore appears in OpenCASCADE, which works in
+  millimetres, with a volume of $8\cdot10^{9}$. \\
+\code{name} & \code{"nurbforge"} & Name of the \code{PRODUCT} and the name field of the
+  \code{FILE_NAME} header entry. CAD systems show it as the part name. \\
+\code{author} & \code{""} & Author field of \code{FILE_NAME}. \\
+\code{organization} & \code{""} & Organisation field of \code{FILE_NAME}. \\
+\code{timestamp} & current UTC time & ISO 8601 time stamp in \code{FILE_NAME}. Set it
+  explicitly (for example \code{"2026-01-01T00:00:00"}) to get byte-identical, reproducible
+  files, for instance under version control or in regression tests. \\
+\code{uncertainty} & $10^{-6}$ & Value of \code{UNCERTAINTY_MEASURE_WITH_UNIT} in model units.
+  Importers such as OpenCASCADE use it as their initial vertex and edge tolerance. It should be
+  at least as large as the sewing tolerance of the shells. \\
+\code{names} & \code{[]} & One name per shell. Each name becomes the name of that shell's
+  \code{MANIFOLD_SOLID_BREP} or \code{BREP_WITH_VOIDS}, and of the \code{CLOSED_SHELL} or
+  \code{OPEN_SHELL}. \apiref{read_step_named} returns these names, so applications can assign
+  materials, roles or boundary conditions per body. If given, the list must have exactly one
+  entry per shell. \\
+\bottomrule
+\end{longtable}
+
+\begin{note}[Units in the C++ API]
+In C++ the options are fields of \code{nf::StepOptions}, and the unit is the enumeration
+\code{nf::StepLengthUnit} (\code{Millimetre}, \code{Centimetre}, \code{Metre}, \code{Inch},
+\code{Micrometre}). The shell names are \code{StepOptions::shell_names}.
+\end{note}
+
+\subsection{A complete example}
+
+The following script writes a drilled block with all header options set. It then compares the
+file with the string variant and counts the main entities. Finally it writes three named
+shells into one file, one of them open, and reads the names back.
+
+\example{14_step_export.py}
+
+Output:
+
+\begin{lstlisting}[style=text]
+part: 7 faces, closed=True, volume=30.429204
+file and string identical: True
+MANIFOLD_SOLID_BREP          1
+CLOSED_SHELL                 1
+ADVANCED_FACE                7
+EDGE_CURVE                   17
+VERTEX_POINT                 12
+B_SPLINE_SURFACE_WITH_KNOTS  7
+B_SPLINE_CURVE_WITH_KNOTS    17
+schema: AUTOMOTIVE_DESIGN { 1 0 10303 214 1 1 1 1 }
+open shell closed: False
+  Block  faces= 7 closed=True
+  Plug   faces= 3 closed=True
+  Cover  faces= 5 closed=False
+\end{lstlisting}
+
+The block has seven faces: four sides, top and bottom with a hole each, and the bore.
+These seven faces have 17 edges in total; every one becomes exactly one \code{EDGE_CURVE},
+shared by the two faces that meet there. The schema is AP214 (\code{AUTOMOTIVE_DESIGN}), which
+every common CAD system reads.
+
+\subsection{What is written: the file structure}\label{sec:step-structure}
+
+Knowing the structure helps when a file is rejected by another program, or when you post-process
+files yourself.
+
+\paragraph{Header.} \code{FILE_DESCRIPTION}, \code{FILE_NAME} (name, time stamp, author,
+organisation) and \code{FILE_SCHEMA(('AUTOMOTIVE_DESIGN { 1 0 10303 214 1 1 1 1 }'))}.
+
+\paragraph{Product structure.} \code{APPLICATION_CONTEXT},
+\code{APPLICATION_PROTOCOL_DEFINITION}, \code{PRODUCT}, \code{PRODUCT_DEFINITION_FORMATION},
+\code{PRODUCT_DEFINITION}, \code{PRODUCT_DEFINITION_SHAPE} and
+\code{SHAPE_DEFINITION_REPRESENTATION}. All shells of one call belong to one product. There is
+no assembly structure.
+
+\paragraph{Representation context.} \code{GEOMETRIC_REPRESENTATION_CONTEXT(3)} with the length
+unit (an \code{SI_UNIT} with prefix, or \code{CONVERSION_BASED_UNIT('INCH', ...)}), radian,
+steradian and the uncertainty.
+
+{\raggedright \paragraph{Closed shells (solids).} Each closed shell becomes a
+\code{MANIFOLD_SOLID_BREP(CLOSED_SHELL(...))} inside an
+\code{ADVANCED_BREP_SHAPE_REPRESENTATION}.\par}
+\begin{itemize}
+  \item A shell that is not consistently oriented is oriented first, with \apiref{Shell.oriented}.
+  \item Every connected component is classified by its signed volume. A component whose
+    normals point outwards is a solid of its own. A component whose normals point inwards is a
+    void; an example is the inner sphere of a cube with a spherical cavity. A void becomes an
+    \code{ORIENTED_CLOSED_SHELL(..., .F.)} of the smallest solid that contains it, and that
+    solid is then written as a \code{BREP_WITH_VOIDS}.
+\end{itemize}
+
+{\raggedright \paragraph{Open shells (surface models).} Each open shell becomes a
+\code{SHELL_BASED_SURFACE_MODEL(OPEN_SHELL(...))} inside a
+\code{MANIFOLD_SURFACE_SHAPE_REPRESENTATION}. If one call contains both closed and open
+shells, all items go into one plain \code{SHAPE_REPRESENTATION}. Empty shells are skipped.\par}
+
+\paragraph{Faces.} Every face is an \code{ADVANCED_FACE(bounds, surface, same_sense)}. The
+outer trim loop becomes the \code{FACE_OUTER_BOUND} and every hole a \code{FACE_BOUND}. Each
+bound is an \code{EDGE_LOOP} of \code{ORIENTED_EDGE}s. The face orientation is carried by the
+parametrisation of the surface, because \apiref{TrimmedSurface.flipped} reparametrises the
+surface instead of setting a flag. Therefore \code{same_sense} is \code{.T.} except where a
+face must point against its surface normal, as in voids and inside-out components. There
+\code{same_sense} and the bound orientations are \code{.F.}.
+
+{\raggedright \paragraph{Edges and vertices.} Every edge of the shell (\code{ShellEdge}) is written once, as
+\code{EDGE_CURVE(VERTEX_POINT, VERTEX_POINT, curve, .T.)}. All its uses refer to it through
+\code{ORIENTED_EDGE}s, with orientation \code{.F.} where the loop runs against the curve
+direction. Some special cases:\par}
+\begin{itemize}
+  \item The seam of a closed surface, for example the line where a cylinder closes, appears
+    twice in the same loop with opposite orientations.
+  \item The poles of revolved surfaces, such as the tips of a sphere, are degenerate boundary
+    pieces and are not written as edges.
+  \item Sewing can split an edge at a T-junction. The resulting pieces are ordered along their
+    loop by chaining their vertices.
+\end{itemize}
+
+\paragraph{Geometry.} Surfaces become \code{B_SPLINE_SURFACE_WITH_KNOTS}, and curves become
+\code{B_SPLINE_CURVE_WITH_KNOTS}. Knots are written as distinct values with multiplicities
+(\code{knot_spec .UNSPECIFIED.}, \code{self_intersect .F.}), and the \code{closed} flags are
+computed from the control net. Rational geometry, which includes every exact circle, cylinder,
+sphere, cone and torus, needs the STEP ``complex instance'' notation:
+
+\begin{lstlisting}[style=text]
+(BOUNDED_SURFACE() B_SPLINE_SURFACE(pu,pv,net,.UNSPECIFIED.,uc,vc,.F.)
+ B_SPLINE_SURFACE_WITH_KNOTS(mu,mv,ku,kv,.UNSPECIFIED.) GEOMETRIC_REPRESENTATION_ITEM()
+ RATIONAL_B_SPLINE_SURFACE(weights) REPRESENTATION_ITEM('') SURFACE())
+\end{lstlisting}
+
+The partial entity types are listed in alphabetical order, each with only its own explicit
+attributes, as the standard requires. Control points and weights are written with the
+$u$ index outermost, which is \NF{}'s storage order.
+
+\paragraph{Numbers.} Real numbers use the shortest representation that reads back to the same
+double (\code{std::to_chars}). They always contain a decimal point (\code{1.}, \code{0.25},
+\code{1.E-05}), so no precision is lost in a write--read round trip. Long instances are
+wrapped after commas.
+
+\subsection{Limitations of the writer}
+
+\begin{itemize}
+  \item \textbf{Edge curves.} The 3D edge curves are the trim curves mapped into space. They are
+    exact where the mapping allows it:
+    \begin{itemize}
+      \item On planar faces, the image of a trim circle is a rational circle.
+      \item Along iso-parameter lines the iso-curve of the surface is used, for example for the
+        end circles and the seam of a cylinder.
+    \end{itemize}
+    Everywhere else the edge is a cubic fit within $1/100$ of the sewing tolerance. Conics are
+    written as B-splines, never as \code{CIRCLE} or \code{ELLIPSE} entities.
+  \item \textbf{No p-curves.} \code{SURFACE_CURVE} and \code{PCURVE} entities are not written.
+    Readers project the edges onto the faces themselves, which OpenCASCADE does without
+    complaint.
+  \item \textbf{One product.} There is no assembly structure, and no colours, layers or names
+    per face. Face labels (\cref{ch:solids}) are not written.
+  \item \textbf{Edges between shells.} Faces are written per shell. An edge shared by two
+    different shells is written once per shell.
+  \item \textbf{gmsh import.} gmsh's \code{importShapes} drops free faces from a file that also
+    contains solids. This also happens with files written by OpenCASCADE itself, so in gmsh a
+    mixed file shows only its solids.
+\end{itemize}
+
+\subsection{Validation of the writer}
+
+The test suite writes shells natively and re-imports them with OpenCASCADE through gmsh. It
+then compares OpenCASCADE's volume with \apiref{Shell.volume}. Every import yields exactly one
+solid. The remaining differences on curved faces come from OpenCASCADE's approximate mass
+integration; planar faces agree to rounding.
+
+\begin{center}
+\begin{tabular}{@{}lrrr@{}}
+\toprule
+Shape & \code{Shell.volume()} & OCC volume & rel.\ difference \\
+\midrule
+Cube $2\times2\times2$ & 8 & 8.000000000000 & $2\cdot10^{-16}$ \\
+Unit sphere (rational, seam) & 4.188790205 & 4.187243221 & $3.7\cdot10^{-4}$ \\
+Union of two unit spheres (distance 1) & 7.068583460 & 7.067161594 & $2.0\cdot10^{-4}$ \\
+Cube minus cylinder $r=0.3$ & 7.434513326 & 7.435302412 & $1.1\cdot10^{-4}$ \\
+Cube minus sphere $r=0.5$ (void) & 7.476401224 & 7.476577524 & $2.4\cdot10^{-5}$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+The C++ tests also check the file syntax:
+\begin{itemize}
+  \item entity counts, and that every reference resolves;
+  \item each edge is used exactly twice, with opposite orientations, and seams are correct;
+  \item the order of the partial types in complex entities;
+  \item the syntax of every real number.
+\end{itemize}
+
+\section{Reading STEP files}\label{sec:step-read}
+
+\subsection{The reader functions}
+
+The native reader imports the B-rep solids and surface models of STEP files. Files may come
+from other CAD systems (AP203, AP214 or AP242; the schema name is not checked) or from
+\code{write_step}. There are four entry points, which differ only in their input and output:
+
+\begin{center}
+\begin{tabularx}{\textwidth}{@{}lX@{}}
+\toprule
+Function & Input $\to$ result \\
+\midrule
+\apiref{read_step}\code{(path, *, unit, tolerance, skip_unsupported)} & file $\to$
+  \code{list[Shell]} \\
+\apiref{from_step}\code{(text, *, ...)} & file contents (\code{str}) $\to$ \code{list[Shell]} \\
+\apiref{read_step_named}\code{(path, *, ...)} & file $\to$ \code{list[(name, Shell)]} \\
+\apiref{from_step_named}\code{(text, *, ...)} & contents $\to$ \code{list[(name, Shell)]} \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+The options are keyword-only:
+
+\begin{longtable}{@{}p{0.22\textwidth}p{0.12\textwidth}p{0.58\textwidth}@{}}
+\toprule
+\textbf{Option} & \textbf{Default} & \textbf{Meaning} \\
+\midrule\endhead
+\code{unit} & \code{"mm"} & Target unit. All coordinates are converted from the unit declared
+  in the file into this unit. Possible values are \code{"mm"}, \code{"cm"}, \code{"m"},
+  \code{"inch"} and \code{"um"}. Files without a unit declaration are read as millimetres. \\
+\code{tolerance} & $10^{-6}$ & Sewing tolerance in the \emph{target} unit. Faces are sewn with
+  \code{Shell.sew(faces, tolerance)}, and trim curves are rebuilt to $\text{tolerance}/10$.
+  Files from systems that work with coarse tolerances (``sloppy'' files, where edges do not lie
+  exactly on their faces) may need a larger value, such as $10^{-5}$ or $10^{-4}$ mm. \\
+\code{skip_unsupported} & \code{False} & By default an unsupported entity raises
+  \code{GeometryError}. With \code{True}, the affected face is left out and the message is
+  issued as a Python \code{UserWarning}. The shell then stays open where the face is missing. \\
+\bottomrule
+\end{longtable}
+
+The returned shells are ordinary \NF{} objects: all queries, Booleans, sections and meshing
+apply to them directly.
+
+\paragraph{Which shells are returned.}
+\begin{itemize}
+  \item Each \code{MANIFOLD_SOLID_BREP} becomes one shell.
+  \item A \code{BREP_WITH_VOIDS} becomes \emph{one} shell that holds the outer boundary and the
+    voids. Void faces point into the void, as \apiref{Shell.oriented} expects, so
+    \code{volume()} is the volume of the material.
+  \item Every shell of a \code{SHELL_BASED_SURFACE_MODEL} becomes one shell, usually open.
+\end{itemize}
+
+\paragraph{Names.} \code{read_step_named} and \code{from_step_named} return \code{(name, Shell)}
+pairs. The name is the solid name, as written with \code{names=[...]}, or the \code{PRODUCT}
+name if the solid has none. In C++ the pairs are \code{nf::NamedShell}.
+
+\paragraph{The file's unit (C++).} \code{StepReadOptions::file_unit_metres} receives the length
+unit declared in the file, in metres. One use is to detect a model that was drawn in
+micrometres but declared as millimetres.
+
+{\raggedright \paragraph{Warnings (C++).} With \code{skip_unsupported = true}, C++ callers can pass a
+\code{std::vector<std::string>*} in \code{StepReadOptions::warnings} to collect the messages.
+Python reports them as \code{UserWarning}s instead.\par}
+
+\subsection{Example: units, names and errors}
+
+\example{14_step_import.py}
+
+Output:
+
+\begin{lstlisting}[style=text]
+hollow: components=2, volume=7.476401224
+read as m : volume = 7.4764 (expected 7.4764), closed=True
+read as mm: volume = 7.4764e+09 (expected 7.4764e+09), closed=True
+read as cm: volume = 7.4764e+06 (expected 7.4764e+06), closed=True
+Pillar  volume = 1570.7963 um^3
+Cap     volume = 904.7787 um^3
+GeometryError: read_step: unsupported entity OFFSET_SURFACE (#23) (face #54)
+skipped: 1 warning(s), 5 faces, closed=False
+\end{lstlisting}
+
+The cube with a spherical cavity is one shell with two components. It is written as a
+\code{BREP_WITH_VOIDS} and comes back as one closed shell with the same volume. The volume
+scales with the cube of the unit factor, because the coordinates are converted. The error
+message names the entity, its instance number (\texttt{\#23}) and the face it belongs to
+(\texttt{\#54}), so the problem can be found in the file directly.
+
+\subsection{Supported entities}
+
+\begin{longtable}{@{}p{0.16\textwidth}p{0.78\textwidth}@{}}
+\toprule
+\textbf{Kind} & \textbf{Entities} \\
+\midrule\endhead
+Part 21 syntax & Header and \code{DATA} sections, simple and complex instances
+  (\texttt{\#n=(A(...) B(...) ...)}), strings with doubled quotes, enumerations, \texttt{\$},
+  \code{*}, typed parameters such as \code{LENGTH_MEASURE(1.)}, lists, comments, line breaks
+  anywhere. \\
+Topology & \code{MANIFOLD_SOLID_BREP}, \code{BREP_WITH_VOIDS}, \code{SHELL_BASED_SURFACE_MODEL},
+  \code{CLOSED_SHELL}, \code{OPEN_SHELL}, \code{ORIENTED_CLOSED_SHELL},
+  \code{ORIENTED_OPEN_SHELL}, \code{ADVANCED_FACE} and \code{FACE_SURFACE} (with
+  \code{same_sense}), \code{FACE_OUTER_BOUND}, \code{FACE_BOUND} (with orientation),
+  \code{EDGE_LOOP}, \code{VERTEX_LOOP} (ignored), \code{POLY_LOOP}, \code{ORIENTED_EDGE},
+  \code{EDGE_CURVE} (with \code{same_sense}), \code{VERTEX_POINT}. \\
+Surfaces & \code{B_SPLINE_SURFACE_WITH_KNOTS}, \code{BEZIER_SURFACE}, \code{UNIFORM_SURFACE},
+  \code{QUASI_UNIFORM_SURFACE} (also as rational complex instances); \code{PLANE},
+  \code{CYLINDRICAL_SURFACE}, \code{CONICAL_SURFACE}, \code{SPHERICAL_SURFACE},
+  \code{TOROIDAL_SURFACE}. \\
+Curves & \code{B_SPLINE_CURVE_WITH_KNOTS}, \code{BEZIER_CURVE}, \code{UNIFORM_CURVE},
+  \code{QUASI_UNIFORM_CURVE} (also rational), \code{LINE}, \code{CIRCLE}, \code{ELLIPSE},
+  \code{HYPERBOLA}, \code{PARABOLA}, \code{POLYLINE}. \code{SURFACE_CURVE}, \code{SEAM_CURVE}
+  and \code{INTERSECTION_CURVE} contribute their 3D curve. For \code{TRIMMED_CURVE} the basis
+  curve is used, and the vertices bound the edge. \\
+Placement & \code{CARTESIAN_POINT}, \code{DIRECTION}, \code{VECTOR},
+  \code{AXIS2_PLACEMENT_3D}. \\
+Units & \code{SI_UNIT} with any prefix, and \code{CONVERSION_BASED_UNIT} (for example
+  \code{'INCH'} via \code{LENGTH_MEASURE_WITH_UNIT}), for length and plane angle. Plane angles
+  are needed for the semi-angles of cones. Units are taken from the
+  \code{GLOBAL_UNIT_ASSIGNED_CONTEXT}. \\
+\bottomrule
+\end{longtable}
+
+Other entities found while translating a face raise \code{GeometryError} naming the entity and
+instance; examples are \code{OFFSET_SURFACE} and \code{SURFACE_OF_REVOLUTION}. With
+\code{skip_unsupported}, that face is skipped as described above. A \code{FACETED_BREP} is
+reported the same way. Product structure, presentation (colours, layers), PMI and p-curves are
+ignored.
+
+\subsection{How geometry is translated}
+
+\paragraph{B-splines} are taken over unchanged. Files with unclamped knot vectors are clamped
+first.
+
+\paragraph{Analytic surfaces} become exact rational NURBS patches. In each case the normal
+$\mathbf S_u\times\mathbf S_v$ equals the STEP surface normal.
+\begin{itemize}
+  \item A plane becomes a rectangle around the face boundary, enlarged by 5\,\%.
+  \item Cylinders and cones become a revolved line. Cones stop at the apex.
+  \item A sphere becomes a revolved half circle, and a torus a revolved circle.
+\end{itemize}
+A closed surface is represented by a patch covering only part of the full turn, and the
+angular range is chosen from the face boundary:
+\begin{itemize}
+  \item The largest angular gap that no boundary curve crosses lies outside the face,
+    provided the boundary turns away from it (judged by the inward boundary normal). The
+    patch covers the rest.
+  \item If there is no such gap, the patch covers the full turn. It starts at a seam edge of
+    the face, which is an edge used twice in the same loop, so the seams of the file and of
+    the patch coincide.
+\end{itemize}
+
+\paragraph{Edges} are built from their vertices.
+\begin{itemize}
+  \item Lines and conic arcs are exact. Circles and ellipses become rational arcs, hyperbolas
+    and parabolas rational quadratic B\'ezier segments.
+  \item B-spline edges become the sub-curve between the vertex parameters. A closed curve is
+    wrapped around its start point if necessary.
+  \item The end points are set exactly to the vertices.
+\end{itemize}
+
+\subsection{How trim loops are rebuilt}
+
+STEP faces are bounded by 3D edges. \NF{}'s trimmed surfaces need loops in the $(u,v)$
+parameter space of the surface (\cref{ch:trimming}). The reader maps every edge use into
+parameter space, in one of three ways:
+
+\begin{enumerate}
+  \item \textbf{Planar patches with affine parametrisation.} This covers the writer's
+    rectangles and the patches built for \code{PLANE}. The map is exact: the inverse affine map
+    is applied to the edge curve.
+  \item \textbf{Edges on an iso-parameter line.} Examples are the end circles and seams of
+    cylinders and cones, and the meridians and parallels of spheres and tori. These are exact
+    straight segments in parameter space. An edge qualifies if all samples share the fixed
+    parameter to $10^{-9}$ of the domain, the running parameter is monotone, and the
+    iso-curve between neighbouring samples lies on the edge.
+  \item \textbf{All other edges} are projected sample by sample. Each sample uses a local
+    Newton step from the previous one, with a global closest-point search as fallback. The
+    samples are then interpolated with the edge parameter. The image of the interpolant is
+    checked against the 3D edge between the samples and refined until it lies within
+    $\text{tolerance}/10$, plus the edge's own distance from the surface.
+\end{enumerate}
+
+Closed surfaces need special care at the seam and the poles:
+\begin{itemize}
+  \item A sample that lies on the seam takes the side of its nearest regular sample.
+  \item A curve that lies \emph{on} the seam appears twice in its loop and takes the side given
+    by the orientation: the face lies to the left of the loop, seen against the face normal.
+  \item Curves are split where they cross the seam or pass through a pole.
+  \item A point at a pole takes the free parameter of its neighbours. Consecutive curves that
+    end at different parameters of the same pole are connected along the pole.
+  \item A loop that runs once around a closed surface, such as a band on a cylinder or torus
+    without a seam edge, or a spherical cap, is closed along the seam or through the pole.
+\end{itemize}
+The loop with the largest area in parameter space becomes the outer loop. Faces with
+\code{same_sense .F.}, and faces of an \code{ORIENTED_CLOSED_SHELL(.F.)}, are flipped with
+\apiref{TrimmedSurface.flipped}.
+
+\subsection{Validation of the reader}
+
+The C++ tests read back the writer's output and check face counts, closedness, orientation,
+area and volume to within $10^{-6}$. The models are a cube, a sphere, a cylinder with lids,
+the union of two spheres, a cube with a spherical void, an open shell, several shells in one
+file, and files in metres and inches. The tests also read hand-written files in the style of
+other CAD systems: a cube made of \code{PLANE} and \code{LINE}, a cylinder made of
+\code{CYLINDRICAL_SURFACE} and \code{CIRCLE}, a half cylinder, a sphere bounded only by a
+\code{VERTEX_LOOP}, and a hemisphere. The Python tests read files written by gmsh's
+OpenCASCADE kernel, if gmsh is installed, and compare the volumes, computed with
+\code{Shell.volume(1e-7)}:
+
+\begin{center}
+\begin{tabular}{@{}lrrr@{}}
+\toprule
+OCC model & volume read & reference & rel.\ diff. \\
+\midrule
+Box $10\times20\times30$ & 6000 & 6000 & 0 \\
+Cylinder $r=5$, $h=20$ & 1570.796327 & $500\pi$ & $10^{-16}$ \\
+Cone frustum (seam, two circles) & 1455.604596 & $1390\pi/3$ & $3\cdot10^{-13}$ \\
+Cone with apex & 261.799388 & $250\pi/3$ & $5\cdot10^{-12}$ \\
+Sphere $r=4$ (\code{VERTEX_LOOP} only) & 268.0825731 & $256\pi/3$ & $2\cdot10^{-16}$ \\
+Torus $R=20$, $r=5$ (seams both ways) & 9869.604401 & $1000\pi^2$ & $2\cdot10^{-13}$ \\
+Box minus cylinder & 717.256661 & $1000-90\pi$ & $10^{-15}$ \\
+Box, all edges filleted ($r=2$) & 907.7049927 & OCC 907.7049927 & $10^{-13}$ \\
+Cone cut along its axis (\code{HYPERBOLA}) & 65.6912391 & OCC 65.6912385 & $9\cdot10^{-9}$ \\
+Sphere cut through the poles & 56.5486678 & $18\pi$ & $10^{-12}$ \\
+Box with spherical void & 966.489678 & $1000-32\pi/3$ & $10^{-15}$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\subsection{Limitations of the reader}
+
+\begin{itemize}
+  \item \textbf{Assemblies.} Placement transformations (\code{MAPPED_ITEM},
+    \code{ITEM_DEFINED_TRANSFORMATION}, \code{CONTEXT_DEPENDENT_SHAPE_REPRESENTATION}) are not
+    applied. Every solid is returned in the coordinates of its own representation. Only one
+    length unit per file is used: the first \code{GLOBAL_UNIT_ASSIGNED_CONTEXT}.
+  \item \textbf{Unsupported geometry.} \code{SURFACE_OF_REVOLUTION},
+    \code{SURFACE_OF_LINEAR_EXTRUSION}, \code{OFFSET_SURFACE},
+    \code{RECTANGULAR_TRIMMED_SURFACE} and \code{CURVE_BOUNDED_SURFACE} are not supported.
+    Neither are faceted B-reps, tori with minor radius $\ge$ major radius, wireframe and mesh
+    geometry.
+  \item \textbf{P-curves are not used.} Trim loops are always rebuilt from the 3D edges, so the
+    edges must lie on their faces within the tolerance. Sloppy files may need a larger
+    \code{tolerance}.
+  \item \textbf{Seam crossings.} On a closed B-spline surface, a face whose boundary crosses the
+    seam twice without a seam edge (a patch straddling the seam) is rejected. The surface is
+    not reparametrised.
+\end{itemize}
+
+\begin{tip}[Debugging a file that does not import]
+\begin{enumerate}
+  \item Read the error message. It names the entity type, the instance number and the face.
+    Open the file in a text editor and search for the instance, for example \texttt{\#23=}.
+  \item Try \code{skip_unsupported=True} to see how many faces are affected. If only a few
+    faces are missing, the open edges show where (\apiref{Shell.free_edges}).
+  \item If edges do not meet, increase \code{tolerance}, for example to \code{1e-5} or
+    \code{1e-4} in the target unit.
+  \item If the file has an assembly structure, export the part alone from the original CAD
+    system, or apply the placements yourself with \apiref{Shell.transformed}.
+\end{enumerate}
+\end{tip}
+
+\section{STEP, BREP and IGES through gmsh}\label{sec:step-gmsh}
+
+\apiref{mesh.export_step} writes surfaces, trimmed surfaces and shells through gmsh's
+OpenCASCADE kernel:
+
+\begin{lstlisting}[style=python]
+from nurbforge.mesh import export_step
+
+export_step([part], "part.step")                 # format from the extension:
+export_step([part], "part.brep")                 #   .step, .brep, .iges
+export_step([lens_front, lens_back], "lens.iges") # loose surfaces are allowed too
+export_step([part], "faces.step", solid=False)   # closed shells as faces only, no solid
+\end{lstlisting}
+
+Internally, each shell is handed to OpenCASCADE with the native writer and OCC's STEP reader,
+as described in \cref{ch:meshing}. Surfaces are transferred exactly. OCC then writes the file
+in its own way. \Cref{tab:step-routes} compares the two routes.
+
+\begin{table}[htbp]
+\centering
+\begin{tabularx}{\textwidth}{@{}lXX@{}}
+\toprule
+& \textbf{Native} (\code{write_step}) & \textbf{gmsh / OCC} (\code{export_step}) \\
+\midrule
+Dependencies & none & gmsh Python package \\
+Formats & STEP AP214 & STEP, BREP, IGES \\
+Input & shells & shells, surfaces, trimmed surfaces \\
+Topology & exactly the shell's edges and vertices & rebuilt by OCC \\
+Header, units, names & all options of \cref{sec:step-write} & OCC defaults (mm) \\
+Reproducible files & yes (fixed \code{timestamp}) & no \\
+\bottomrule
+\end{tabularx}
+\caption{The two routes to a STEP file.}\label{tab:step-routes}
+\end{table}
+
+Use the native writer whenever a shell is to be written as STEP. Use the gmsh route for BREP
+and IGES, or when you have loose surfaces that do not form a shell.
+
+\section{STEP in the LLM interface}
+
+The tool layer of \cref{ch:llm} has two STEP tools:
+\begin{itemize}
+  \item \toolref{export_step} writes objects with the native writer. Surfaces are sewn into a
+    shell each, and the unit can be chosen.
+  \item \toolref{import_step} reads a file and stores the shells as \code{name},
+    \code{name_1}, \code{name_2}, and so on.
+\end{itemize}
+A model can therefore load an existing part, modify it with Booleans and write it out again,
+all through whitelisted calls.

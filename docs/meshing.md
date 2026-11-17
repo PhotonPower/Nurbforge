@@ -30,7 +30,8 @@ with GmshSession() as g:
 Mesh nodes on trimmed edges follow OCC's own 3D approximation of the trim curve
 (deviation ~1e-4 in our tests).
 
-Shells are added face by face with duplicate removal; closed shells become solids:
+Shells keep their B-rep topology (shared edges, seam edges of closed faces); closed shells become
+solids:
 
 ```python
 from nurbforge.mesh import export_step
@@ -102,6 +103,11 @@ duplicate removal (which renumbers surfaces).
 - Control points are created as temporary gmsh points and removed after the spline is built;
   otherwise they would remain as free vertices and appear as stray mesh nodes.
 - `mesh(heal=True)` calls `occ.removeAllDuplicates()` to merge coincident edges of adjacent patches.
+- `add_shell` hands the shell over through Nurbforge's native STEP writer and OCC's STEP reader
+  (a temporary file, exact NURBS), so OCC builds the topology itself. A face-by-face transfer
+  cannot reproduce the seam of a *trimmed* closed face (cylinder with a bore or slot, sphere,
+  cone or torus cut by a Boolean): the outer trim loop runs along the seam twice, duplicate
+  removal then deletes such faces and sewing leaves broken volumes.
 
 ## Installation
 

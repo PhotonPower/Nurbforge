@@ -16,6 +16,13 @@ versioning: [SemVer](https://semver.org).
 - Wheels workflow: `actions/upload-artifact` v4 → v7 (runs on Node.js 24; Node.js 20 is
   deprecated on GitHub runners).
 
+### Fixed
+- `nurbforge.mesh.add_shell` transferred Boolean results with trimmed closed faces (bores and
+  slots in cylinders, cut spheres, cones, tori) incorrectly to gmsh: faces vanished or the volume
+  was wrong, so meshes of such parts were invalid. Shells are now handed over through the native
+  STEP writer and OCC's STEP reader, which keeps shared and seam edges; `add_shell` returns the
+  surface tags of this shell only, in face order.
+
 ## [0.8.0] – 2026-11-14
 macOS as a third supported platform (Apple Silicon and Intel, macOS ≥ 14, with binary wheels),
 face labels that survive Booleans, transforms and STEP, and gmsh physical groups from them. The

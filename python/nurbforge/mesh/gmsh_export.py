@@ -16,9 +16,11 @@ Example
 from __future__ import annotations
 
 import math
+import os
+import tempfile
 from collections.abc import Iterable
 
-from .._core import NurbsCurve, NurbsSurface, Shell, TrimmedSurface, unique_knots
+from .._core import NurbsCurve, NurbsSurface, Shell, TrimmedSurface, unique_knots, write_step
 
 
 def _gmsh():
@@ -271,37 +273,53 @@ def _closest_surface(gmsh, tags: list[int], p) -> int:
 
 def add_shell(shell: Shell, solid: bool = True, physical_groups: bool = False,
               volume_name: str = "volume") -> list[int]:
-    """Add all faces of a shell; faces are merged along shared edges. For a closed shell and
-    ``solid=True`` a volume is built from the surface loop. Returns the face tags (and the volume
-    tag last, if one was created).
+    """Add a shell with its B-rep topology: faces share their edges. For a closed shell and
+    ``solid=True`` a volume is created. Returns the gmsh surface tag of every face (in the order
+    of ``shell.faces``, without repetitions) and the volume tag last, if one was created.
+
+    The shell is handed over through Nurbforge's native STEP writer (exact NURBS, shared edges)
+    and OCC's STEP reader, so OCC builds the topology itself – including the seam edges of closed
+    surfaces (cylinders, cones, spheres, tori), which a face-by-face transfer with duplicate
+    removal or sewing cannot reproduce once such a face is trimmed (e.g. a bore or a slot from a
+    Boolean).
 
     ``physical_groups=True`` creates one physical surface group per face label
     (``TrimmedSurface.label``, e.g. set with ``Shell.with_face_labels`` before a Boolean;
     unlabelled faces go to ``"unlabeled"``) and a physical volume ``volume_name``, so boundary
-    conditions can be assigned by name in the solver. Faces are matched to the gmsh surfaces
-    (renumbered by the duplicate removal) by an interior point."""
+    conditions can be assigned by name in the solver. Faces are matched to the gmsh surfaces by
+    an interior point."""
     gmsh = _gmsh()
     occ = gmsh.model.occ
-    for f in shell.faces:
-        add_trimmed_surface(f)
-    occ.removeAllDuplicates()
+    with tempfile.TemporaryDirectory() as tmp:
+        path = os.path.join(tmp, "shell.step")
+        write_step(path, [shell], unit="mm")
+        unit = gmsh.option.getString("Geometry.OCCTargetUnit")
+        gmsh.option.setString("Geometry.OCCTargetUnit", "MM")  # no unit conversion
+        try:
+            entities = occ.importShapes(path)
+        finally:
+            gmsh.option.setString("Geometry.OCCTargetUnit", unit)
     occ.synchronize()
-    tags = [t for _, t in gmsh.model.getEntities(2)]
+    volumes = [t for d, t in entities if d == 3]
+    if volumes:
+        surfaces = sorted({t for _, t in gmsh.model.getBoundary([(3, v) for v in volumes],
+                                                                 combined=False, oriented=False)})
+    else:
+        surfaces = [t for d, t in entities if d == 2]
+    if volumes and not solid:
+        occ.remove([(3, v) for v in volumes])  # keeps the surfaces
+        occ.synchronize()
+        volumes = []
+    face_tags = [_closest_surface(gmsh, surfaces, _interior_point(f)) for f in shell.faces]
     if physical_groups:
         groups: dict[str, list[int]] = {}
-        for f in shell.faces:
-            tag = _closest_surface(gmsh, tags, _interior_point(f))
+        for f, tag in zip(shell.faces, face_tags):
             groups.setdefault(f.label or "unlabeled", []).append(tag)
-    if solid and shell.is_closed:
-        loop = occ.addSurfaceLoop(tags, sewing=True)
-        tags.append(occ.addVolume([loop]))
-        occ.synchronize()
-    if physical_groups:
         for name, group in groups.items():
             gmsh.model.addPhysicalGroup(2, sorted(set(group)), name=name)
-        if solid and shell.is_closed:
-            gmsh.model.addPhysicalGroup(3, [tags[-1]], name=volume_name)
-    return tags
+        if volumes:
+            gmsh.model.addPhysicalGroup(3, volumes, name=volume_name)
+    return list(dict.fromkeys(face_tags)) + volumes
 
 
 def export_step(objects, path: str, solid: bool = True) -> None:

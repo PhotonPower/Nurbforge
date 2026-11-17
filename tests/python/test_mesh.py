@@ -208,3 +208,90 @@ def test_refine_errors():
         g.refine("lid", 0.1)
         with pytest.raises(KeyError, match="top"):  # message lists the existing labels
             g.mesh(dim=2, size=1.0)
+
+
+# ------------------------------------------------------------------ shells with trimmed closed faces
+
+_B = nf.BooleanOp
+# Boolean results whose closed faces (cylinder, cone, sphere, torus) are trimmed: the outer trim
+# loop runs along the seam twice, which a face-by-face transfer could not reproduce in OCC
+_TRIMMED_CLOSED = {
+    "pipe with slot": lambda: nf.boolean(nf.make_cylinder((0, 0, 0), (0, 0, 1), 1.0, 5.0),
+                                         nf.make_box((-2, -0.2, 2), (4, 0.4, 1)), _B.Difference),
+    "box with bore": lambda: nf.boolean(nf.make_box((-2, -2, 0), (4, 4, 2)),
+                                        nf.make_cylinder((0, 0, -1), (0, 0, 1), 0.5, 4),
+                                        _B.Difference),
+    # box corner off the centre: with the corner at the centre the cut planes contain the poles,
+    # a degenerate case whose Boolean result depends on the compiler (FMA contraction)
+    "sphere minus corner": lambda: nf.boolean(nf.make_sphere((0, 0, 0), 1.0),
+                                              nf.make_box((0.1, 0.2, 0.15), (2, 2, 2)),
+                                              _B.Difference),
+    "torus minus corner": lambda: nf.boolean(nf.make_torus((0, 0, 0), (0, 0, 1), 2.0, 0.5),
+                                             nf.make_box((1, 1, -1), (3, 3, 2)), _B.Difference),
+    "cone with cross bore": lambda: nf.boolean(nf.make_cone((0, 0, 0), (0, 0, 1), 1.5, 0.5, 3.0),
+                                               nf.make_cylinder((-2, 0, 1.5), (1, 0, 0), 0.3, 4),
+                                               _B.Difference),
+}
+
+
+def _tet_volume():
+    _, _, conn = gmsh.model.mesh.getElements(3)
+    ids, xyz, _ = gmsh.model.mesh.getNodes()
+    pos = dict(zip(ids, np.asarray(xyz).reshape(-1, 3)))
+    return sum(abs(np.dot(pos[b] - pos[a], np.cross(pos[c] - pos[a], pos[d] - pos[a]))) / 6
+               for a, b, c, d in np.asarray(conn[0]).reshape(-1, 4))
+
+
+@pytest.mark.parametrize("name", sorted(_TRIMMED_CLOSED))
+def test_shell_with_trimmed_closed_faces(name):
+    part = _TRIMMED_CLOSED[name]()
+    assert part.is_closed
+    with GmshSession() as g:
+        tags = g.add_shell(part)
+        faces, volume = tags[:-1], tags[-1]
+        assert len(faces) == len(part.faces)               # every face arrives, none duplicated
+        assert len(gmsh.model.getEntities(2)) == len(part.faces)
+        assert gmsh.model.occ.getMass(3, volume) == pytest.approx(part.volume(), rel=5e-3)
+        for f, t in zip(part.faces, faces):                 # face areas (OCC: ~0.5 %)
+            assert gmsh.model.occ.getMass(2, t) == pytest.approx(f.area(), rel=1e-2)
+        g.mesh(dim=3, size=0.1)                             # heal=True must not break it
+        assert _tet_volume() == pytest.approx(part.volume(), rel=1.5e-2)
+
+
+def test_pipe_with_slot_physical_groups_and_mesh_volume():
+    # the example of docs/meshing.md: labels through the Boolean, mesh volume close to exact
+    pipe = nf.make_cylinder((0, 0, 0), (0, 0, 1), 1.0, 5.0).with_face_labels(
+        ["wall", "inlet", "outlet"])
+    part = nf.boolean(pipe, nf.make_box((-2, -0.2, 2), (4, 0.4, 1)), _B.Difference)
+    with GmshSession() as g:
+        g.add_shell(part, physical_groups=True)
+        g.refine("inlet", 0.05, distance=1.0)
+        g.mesh(dim=3, size=0.15)
+        names = {gmsh.model.getPhysicalName(d, t): (d, t) for d, t in gmsh.model.getPhysicalGroups()}
+        wall = gmsh.model.getEntitiesForPhysicalGroup(*names["wall"])
+        wall_area = sum(gmsh.model.occ.getMass(2, t) for t in wall)
+        inlet = _edge_lengths(g.face_tags()["inlet"])
+        vol = _tet_volume()
+    exact_wall = sum(f.area() for f in part.faces if f.label == "wall")
+    assert {"wall", "inlet", "outlet", "volume"} <= set(names)
+    assert wall_area == pytest.approx(exact_wall, rel=1e-2)
+    assert np.median(inlet) == pytest.approx(0.05, rel=0.15)
+    assert vol == pytest.approx(part.volume(), rel=1e-2)
+
+
+def test_open_shell_and_solid_false():
+    part = _TRIMMED_CLOSED["sphere minus corner"]()
+    open_shell = nf.Shell.sew(list(part.faces)[:-1])
+    assert not open_shell.is_closed
+    with GmshSession() as g:
+        tags = g.add_shell(open_shell)
+        assert len(tags) == len(open_shell.faces)          # no volume
+        assert not gmsh.model.getEntities(3)
+        # shared edges: the three remaining faces share their boundaries
+        assert len(gmsh.model.getEntities(1)) < sum(
+            len(gmsh.model.getBoundary([(2, t)])) for t in tags)
+    with GmshSession() as g:
+        tags = g.add_shell(part, solid=False)
+        assert len(tags) == len(part.faces)
+        assert not gmsh.model.getEntities(3)
+        assert len(gmsh.model.getEntities(2)) == len(part.faces)

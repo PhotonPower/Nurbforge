@@ -5,8 +5,8 @@
 #include <cmath>
 #include <vector>
 
-#include "nurbforge/core/error.hpp"
 #include "nurbforge/analysis/closest_point.hpp"
+#include "nurbforge/core/error.hpp"
 #include "nurbforge/geometry/primitives.hpp"
 #include "nurbforge/modeling/construct.hpp"
 #include "nurbforge/modeling/offset.hpp"
@@ -194,7 +194,8 @@ Shell thicken(const Shell& shell, double thickness, bool symmetric, double toler
               const std::string& wall_label) {
   if (!(std::abs(thickness) > 0.0)) throw GeometryError("thicken: thickness must not be zero");
   if (shell.is_closed()) throw GeometryError("thicken: the shell is closed (nothing to thicken)");
-  const double d0 = symmetric ? -0.5 * thickness : 0.0, d1 = symmetric ? 0.5 * thickness : thickness;
+  const double d0 = symmetric ? -0.5 * thickness : 0.0,
+               d1 = symmetric ? 0.5 * thickness : thickness;
   const double fit = 0.01 * tolerance;
   const auto offset_face = [&](const TrimmedSurface& f, double d, const std::string& suffix) {
     if (d == 0.0) return f;
@@ -222,7 +223,8 @@ Shell thicken(const Shell& shell, double thickness, bool symmetric, double toler
   for (const auto& f : shell.faces()) {
     const TrimmedSurface a = offset_face(f, d0, symmetric ? "_offset" : "");
     const TrimmedSurface b = offset_face(f, d1, "_offset");
-    const auto ca = a.boundary_curves(fit), cb = b.boundary_curves(fit), c0 = f.boundary_curves(fit);
+    const auto ca = a.boundary_curves(fit), cb = b.boundary_curves(fit),
+               c0 = f.boundary_curves(fit);
     for (std::size_t l = 0; l < c0.size(); ++l)
       for (std::size_t k = 0; k < c0[l].size(); ++k)
         if (on_free_edge(c0[l][k]))

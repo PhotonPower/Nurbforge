@@ -63,9 +63,11 @@ TEST_CASE("cap: planar openings become trimmed planar faces", "[solid_ops][cap]"
   }
 }
 
-TEST_CASE("thicken: open shells and faces become solids with a wall thickness", "[solid_ops][thicken]") {
+TEST_CASE("thicken: open shells and faces become solids with a wall thickness",
+          "[solid_ops][thicken]") {
   SECTION("flat plate: a box, on either side and symmetric") {
-    const Shell plate = Shell::sew({TrimmedSurface(make_rectangle({0, 0, 0}, {2, 0, 0}, {0, 3, 0}))});
+    const Shell plate =
+        Shell::sew({TrimmedSurface(make_rectangle({0, 0, 0}, {2, 0, 0}, {0, 3, 0}))});
     for (const double t : {0.1, -0.1}) {
       const Shell solid = thicken(plate, t);
       check_solid(solid, 0.6);
@@ -108,7 +110,8 @@ TEST_CASE("thicken: open shells and faces become solids with a wall thickness", 
     for (const auto& f : box.faces())
       if (f.label() != "top") faces.push_back(f);
     CHECK_THROWS_AS(thicken(Shell::sew(faces), 0.1), GeometryError);  // creased open box
-    const Shell plate = Shell::sew({TrimmedSurface(make_rectangle({0, 0, 0}, {1, 0, 0}, {0, 1, 0}))});
+    const Shell plate =
+        Shell::sew({TrimmedSurface(make_rectangle({0, 0, 0}, {1, 0, 0}, {0, 1, 0}))});
     CHECK_THROWS_AS(thicken(plate, 0.0), GeometryError);
   }
 }

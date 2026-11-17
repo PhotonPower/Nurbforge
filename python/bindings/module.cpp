@@ -874,6 +874,12 @@ PYBIND11_MODULE(_core, m) {
       py::arg("face"), py::arg("cuts"), py::arg("tolerance") = Tolerance{},
       "Split a trimmed face along parameter-space curves (general planar arrangement): cuts are "
       "clipped to the face, may end on the trim loops or on other cuts and may cross each other.");
+  m.def("split", py::overload_cast<const Shell&, const Plane&, double, const std::string&>(&split),
+        py::arg("shell"), py::arg("plane"), py::arg("tolerance") = 1e-6,
+        py::arg("cut_label") = "cut",
+        "Split a closed shell by a plane -> (below, above): two closed shells, below opposite to "
+        "the plane normal. The new faces in the plane get `cut_label` (e.g. for a symmetry "
+        "boundary condition); a part is an empty shell if the plane misses the solid.");
   m.def("integrate", &integrate, py::arg("f"), py::arg("a"), py::arg("b"),
         py::arg("rel_tol") = kIntegrationRelTol, py::arg("breaks") = std::vector<double>{},
         py::arg("abs_tol") = 0.0, "Globally adaptive Gauss-Kronrod integral of f over [a, b].");

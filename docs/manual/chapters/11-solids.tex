@@ -368,6 +368,39 @@ chains of many operations on complex parts take correspondingly longer. The face
 independent, but the operation runs single-threaded (parallelisation was measured and not
 adopted, see the benchmarks page of the online documentation).
 
+\section{Splitting a solid by a plane}\label{sec:split-solid}
+
+Symmetric parts are often simulated as a half or a quarter, with a symmetry boundary condition
+on the cut. \apiref{split} with a shell and a \code{Plane} cuts a closed solid into the part
+below the plane (opposite to its normal) and the part above:
+
+\begin{lstlisting}
+below, above = nf.split(shell, nf.Plane(point, normal), tolerance=1e-6, cut_label="cut")
+\end{lstlisting}
+
+Both parts are closed, consistently oriented shells. The new faces lying in the plane carry the
+label \code{cut_label}, so they become their own physical group when meshed
+(\cref{ch:meshing}); all other faces keep their labels. If the plane misses the solid, one part
+is the whole shell and the other an empty shell. Internally the shell is intersected with, and
+reduced by, a box that covers it on one side of the plane -- so the same rules and limitations
+as for Booleans apply (\cref{sec:boolean-limits}).
+
+\example{11_split_solid.py}
+
+\begin{lstlisting}[style=text]
+part volume 7.49734518, halves 3.74867259 + 3.74867259
+right half: closed=True, labels ['back', 'bottom', 'front', 'right', 'side', 'symmetry', 'top']
+  symmetry face: area 0.600000, outward normal (-1, -0, -0)
+  symmetry face: area 0.600000, outward normal (-1, -0, -0)
+cap above: 1.18019135 (pi h^2 (3 - h) / 3 = 1.18019164)
+rest below: 3.00859856, sum 4.18878992 (4 pi / 3 = 4.18879020)
+\end{lstlisting}
+
+The plane through the bore cuts the plate into two halves of equal volume; each half has two
+symmetry faces (on either side of the bore) whose outward normals point against the kept
+half. The sphere caps deviate from the exact volume by about $2.5\times10^{-7}$ relative,
+because the cut circle on the oblique plane is a fitted intersection curve.
+
 \section{Face labels}\label{sec:face-labels}
 
 Labels give faces stable names across operations -- for boundary conditions, physical groups

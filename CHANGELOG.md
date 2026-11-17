@@ -5,6 +5,9 @@ versioning: [SemVer](https://semver.org).
 
 ## [Unreleased]
 ### Added
+- `split(shell, plane, tolerance=1e-6, cut_label="cut")` (C++ and Python): splits a closed solid
+  by a plane into the closed parts below and above; the new faces in the plane are labelled
+  (e.g. for symmetry boundary conditions).
 - User manual (LaTeX/PDF, `docs/manual`): installation, concepts and every part of the API in
   18 chapters with 40 tested example scripts, plus a command reference generated from the
   installed package (every class, method, property, enumeration and function of `nurbforge`,

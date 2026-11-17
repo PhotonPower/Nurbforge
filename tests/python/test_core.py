@@ -505,3 +505,14 @@ def test_transform_operator_on_curves_surfaces_and_faces():
     assert g.label == "aperture" and g.area() == pytest.approx(f.area(), rel=1e-12)
     m = f.transformed(nf.Transform.mirror((0, 0, 0), (0, 0, 1)))
     assert m.surface.normal(0.5, 0.5).z == pytest.approx(-1.0)
+def test_split_solid_by_plane_labels_the_cut():
+    part = nf.boolean(nf.make_box((-2, -1, 0), (4, 2, 1)),
+                      nf.make_cylinder((0, 0, -1), (0, 0, 1), 0.4, 3), nf.BooleanOp.Difference)
+    below, above = nf.split(part, nf.Plane((0, 0, 0), (1, 0, 0)), cut_label="symmetry")
+    v = (8 - math.pi * 0.16) / 2
+    for half in (below, above):
+        assert half.is_closed
+        assert half.volume() == pytest.approx(v, rel=1e-6)
+        assert len(half.faces_labeled("symmetry")) == 2
+    empty, whole = nf.split(part, nf.Plane((0, 0, -5), (0, 0, 1)))
+    assert not empty.faces and whole.volume() == pytest.approx(2 * v, rel=1e-6)

@@ -463,3 +463,40 @@ TEST_CASE("Booleans with cut planes along seams and through poles", "[boolean]")
   CHECK(rel_close(boolean(cyl, quadrant, BooleanOp::Difference).volume(1e-9), 0.75 * vc, 1e-6));
   CHECK(rel_close(boolean(cyl, quadrant, BooleanOp::Intersection).volume(1e-9), 0.25 * vc, 1e-6));
 }
+
+TEST_CASE("split a solid by a plane", "[boolean][split]") {
+  const auto check = [](const Shell& r, double volume) {
+    CHECK(r.is_closed());
+    CHECK(r.is_consistently_oriented());
+    CHECK(rel_close(r.volume(1e-9), volume, 1e-6));
+  };
+  // a drilled box cut in half through the bore (symmetry plane x = 0)
+  const Shell part = boolean(make_box({-2, -1, 0}, {4, 2, 1}),
+                             make_cylinder({0, 0, -1}, {0, 0, 1}, 0.4, 3), BooleanOp::Difference);
+  const double v = 8.0 - pi * 0.16;
+  const auto [left, right] = split(part, Plane{{0, 0, 0}, {1, 0, 0}});
+  check(left, v / 2);
+  check(right, v / 2);
+  // the new faces carry the cut label, the others keep theirs
+  std::size_t cut = 0;
+  for (const auto& f : right.faces()) {
+    if (f.label() == "cut") {
+      ++cut;
+      CHECK(std::abs(f.surface().normal(0.5, 0.5).x + 1.0) <= 1e-9);  // outward: towards -x
+    }
+  }
+  CHECK(cut == 2);  // the cut plane meets the part on both sides of the bore
+  CHECK(right.faces_labeled("side").size() == 1);
+  // an oblique plane through a sphere: two caps whose volumes add up
+  const Shell ball = make_sphere({0, 0, 0}, 1.0);
+  const Vec3 nrm = normalized(Vec3{1, 2, 2});
+  const auto [below, above] = split(ball, Plane{nrm * 0.3, nrm}, 1e-6, "symmetry");
+  const double h = 0.7;  // cap height above the plane
+  check(above, pi * h * h * (3.0 - h) / 3.0);
+  check(below, 4.0 / 3.0 * pi - pi * h * h * (3.0 - h) / 3.0);
+  CHECK(above.faces_labeled("symmetry").size() == 1);
+  // planes that miss the solid
+  CHECK(split(ball, Plane{{0, 0, 5}, {0, 0, 1}}).second.faces().empty());
+  CHECK(split(ball, Plane{{0, 0, -5}, {0, 0, 1}}).first.faces().empty());
+  CHECK_THROWS_AS(split(ball, Plane{{0, 0, 0}, {0, 0, 0}}), GeometryError);
+}

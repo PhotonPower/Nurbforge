@@ -29,8 +29,6 @@ versioning: [SemVer](https://semver.org).
 - `split(surface, pcurves)` with curves that cross or touch each other (e.g. a cross, or
   chords meeting at a corner) returned the unsplit surface; such cuts now go through the general
   planar arrangement (#68).
-
-### Fixed
 - Booleans with cut planes through the poles or along the seam of a closed surface (a sphere
   minus a box with its corner at the centre; a cylinder cut along its seam line) were open with
   GCC and MSVC and closed with Apple Clang (#63). An intersection curve along a seam has its

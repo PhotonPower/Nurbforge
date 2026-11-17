@@ -32,6 +32,7 @@
 #include "nurbforge/optics/surfaces.hpp"
 #include "nurbforge/topology/boolean.hpp"
 #include "nurbforge/topology/shell.hpp"
+#include "nurbforge/topology/solid_ops.hpp"
 #include "nurbforge/topology/solids.hpp"
 #include "nurbforge/topology/trimmed_surface.hpp"
 #include "nurbforge/version.hpp"

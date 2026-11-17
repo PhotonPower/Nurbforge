@@ -880,6 +880,10 @@ PYBIND11_MODULE(_core, m) {
         "Split a closed shell by a plane -> (below, above): two closed shells, below opposite to "
         "the plane normal. The new faces in the plane get `cut_label` (e.g. for a symmetry "
         "boundary condition); a part is an empty shell if the plane misses the solid.");
+  m.def("cap", &cap, py::arg("shell"), py::arg("tolerance") = 1e-6, py::arg("label") = "cap",
+        "Close the planar openings of a shell with planar faces trimmed exactly by the opening's "
+        "edges (coplanar nested openings: faces with holes). The new faces get `label`; the "
+        "result is sewn and oriented outwards. Raises GeometryError for non-planar openings.");
   m.def("integrate", &integrate, py::arg("f"), py::arg("a"), py::arg("b"),
         py::arg("rel_tol") = kIntegrationRelTol, py::arg("breaks") = std::vector<double>{},
         py::arg("abs_tol") = 0.0, "Globally adaptive Gauss-Kronrod integral of f over [a, b].");

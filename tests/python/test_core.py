@@ -516,3 +516,17 @@ def test_split_solid_by_plane_labels_the_cut():
         assert len(half.faces_labeled("symmetry")) == 2
     empty, whole = nf.split(part, nf.Plane((0, 0, -5), (0, 0, 1)))
     assert not empty.faces and whole.volume() == pytest.approx(2 * v, rel=1e-6)
+
+
+def test_cap_closes_planar_openings():
+    side = nf.extrude(nf.make_circle((0, 0, 0), (0, 0, 1), 1.5), (0, 0, 2))
+    tube = nf.Shell.sew([nf.TrimmedSurface(side)])
+    assert not tube.is_closed
+    solid = nf.cap(tube, label="end")
+    assert solid.is_closed and solid.is_consistently_oriented
+    assert solid.volume() == pytest.approx(math.pi * 1.5**2 * 2, rel=1e-8)
+    assert len(solid.faces_labeled("end")) == 2
+    saddle = nf.Shell.sew([nf.TrimmedSurface(nf.make_bilinear((0, 0, 0), (1, 0, 1), (0, 1, 1),
+                                                                (1, 1, 0)))])
+    with pytest.raises(nf.GeometryError, match="not planar"):
+        nf.cap(saddle)

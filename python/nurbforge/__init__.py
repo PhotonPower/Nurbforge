@@ -55,6 +55,7 @@ from ._core import (  # noqa: F401
     asphere_profile,
     asphere_surface,
     boolean,
+    cap,
     circle_loop,
     clamped_uniform_knots,
     closest_point,

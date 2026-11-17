@@ -401,6 +401,34 @@ symmetry faces (on either side of the bore) whose outward normals point against 
 half. The sphere caps deviate from the exact volume by about $2.5\times10^{-7}$ relative,
 because the cut circle on the oblique plane is a fitted intersection curve.
 
+\section{Closing planar openings}\label{sec:cap}
+
+A shell built from surfaces -- an extruded profile, a revolved wall, a pipe between two
+cylinders -- is often open at planar ends. \apiref{cap} closes such openings with planar
+faces:
+
+\begin{lstlisting}
+solid = nf.cap(shell, tolerance=1e-6, label="cap")
+\end{lstlisting}
+
+The free edges of the shell are chained into closed loops. Every loop must lie in a plane
+within \code{tolerance}, otherwise \code{GeometryError} is raised. Loops in the same plane form
+one face: nested loops become holes (the annular end of a pipe), loops inside holes become new
+faces. Each new face is a planar rectangle trimmed by the edges of the opening, which are
+mapped into the rectangle's parameter space by an affine map -- so the trim curves are exact
+(a circular opening gives an exact trim circle). The new faces get the label \code{label}, the
+result is sewn and oriented outwards. A closed shell is returned unchanged.
+
+\example{11_cap.py}
+
+\begin{lstlisting}[style=text]
+pipe wall: 2 faces, closed=False, free edges 4
+capped: 4 faces, closed=True, volume 28.27433388 (pi (R^2 - r^2) h = 28.27433388)
+  end face: 1 hole, area 9.42477796 (3 pi = 9.42477796)
+  end face: 1 hole, area 9.42477796 (3 pi = 9.42477796)
+saddle: GeometryError: cap: an opening is not planar (deviation 0.500000 > tolerance)
+\end{lstlisting}
+
 \section{Face labels}\label{sec:face-labels}
 
 Labels give faces stable names across operations -- for boundary conditions, physical groups

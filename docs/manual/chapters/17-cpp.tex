@@ -93,19 +93,23 @@ and the CMake package files in \code{lib/cmake/Nurbforge}. A consuming project t
 cmake_minimum_required(VERSION 3.24)
 project(my_solver LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 20)
-find_package(Threads REQUIRED)   # needed before Nurbforge (see the note below)
-find_package(Nurbforge REQUIRED)
+find_package(Nurbforge 0.9 REQUIRED)   # also finds its Threads dependency
 add_executable(my_solver main.cpp)
 target_link_libraries(my_solver PRIVATE Nurbforge::core)
 \end{lstlisting}
 
-\begin{warning}[Threads dependency]
-In version \NFVersion{} the installed package configuration does not look up its dependency on
-the system thread library. Without a preceding \code{find_package(Threads REQUIRED)},
-\code{find_package(Nurbforge)} fails with ``The link interface of target Nurbforge::core
-contains: Threads::Threads but the target was not found''. Calling
-\code{find_package(Threads REQUIRED)} first, as above, avoids this.
-\end{warning}
+The package has a version file: \code{find_package(Nurbforge 0.9)} accepts any 0.9.x release
+(same minor version, since the API is not yet stable). The repository's
+\code{tests/install} project is exactly such a consumer; CI builds it against the installed
+package on all three platforms.
+
+\begin{note}[Version 0.9.0 and older]
+The package configuration of 0.9.0 and earlier did not look up the dependency on the system
+thread library, so \code{find_package(Nurbforge)} failed with ``The link interface of target
+Nurbforge::core contains: Threads::Threads but the target was not found'' and had no version
+file. With those versions call \code{find_package(Threads REQUIRED)} before
+\code{find_package(Nurbforge REQUIRED)} and omit the version number.
+\end{note}
 
 A minimal program:
 

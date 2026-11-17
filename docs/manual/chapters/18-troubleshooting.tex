@@ -182,8 +182,9 @@ with a \code{de_DE} locale.
 \cref{sec:install-windows}.
 
 \paragraph{The C++ package is not found: \code{Threads::Threads ... target was not found}.}
-Call \code{find_package(Threads REQUIRED)} before \code{find_package(Nurbforge)}
-(\cref{sec:cpp-cmake}).
+This happens with packages installed from version 0.9.0 or older: call
+\code{find_package(Threads REQUIRED)} before \code{find_package(Nurbforge)}, or install a newer
+version, whose package configuration finds the dependency itself (\cref{sec:cpp-cmake}).
 
 \section{The LLM interface}\label{sec:ts-llm}
 

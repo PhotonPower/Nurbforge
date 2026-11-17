@@ -12,6 +12,14 @@ versioning: [SemVer](https://semver.org).
   it; CI builds it for documentation changes and attaches `nurbforge-manual.pdf` to every
   release. A test runs all examples and fails if a public API entry has no description.
 
+### Fixed
+- Installed CMake package: `NurbforgeConfig.cmake` now finds its `Threads` dependency
+  (`find_dependency`), so `find_package(Nurbforge)` works without a preceding
+  `find_package(Threads)`, and a version file allows `find_package(Nurbforge 0.9)` (#67). CI
+  builds a consumer project (`tests/install`) against the installed package on all platforms.
+- Tutorial: NumPy arrays of three numbers (e.g. rows of an `(n, 3)` array) are accepted as
+  points; the tutorial said they were not (#70).
+
 ## [0.9.0] – 2026-11-17
 Meshing for solvers: local mesh sizes by face label, curvature-based sizing and BEM-ready
 surface meshes (watertight, outward-oriented, as numpy arrays), plus a fix for the gmsh

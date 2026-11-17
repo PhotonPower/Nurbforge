@@ -36,6 +36,13 @@ jobs:
           cmake --build --preset ci -j
       - name: C++ tests
         run: /opt/venv/bin/ctest --preset ci
+      - name: Installed CMake package (find_package from a consumer project)
+        run: |
+          export PATH=/opt/venv/bin:$PATH
+          cmake --install build/ci --prefix "$RUNNER_TEMP/nf"
+          cmake -S tests/install -B build/consumer -G Ninja -DCMAKE_PREFIX_PATH="$RUNNER_TEMP/nf"
+          cmake --build build/consumer
+          ./build/consumer/consumer
       - name: Python package & tests
         run: |
           export PATH=/opt/venv/bin:$PATH
@@ -58,6 +65,12 @@ jobs:
           cmake --build --preset msvc
       - name: C++ tests
         run: ctest --preset msvc
+      - name: Installed CMake package (find_package from a consumer project)
+        run: |
+          cmake --install build/msvc --config Release --prefix "$env:RUNNER_TEMP/nf"
+          cmake -S tests/install -B build/consumer -DCMAKE_PREFIX_PATH="$env:RUNNER_TEMP/nf"
+          cmake --build build/consumer --config Release
+          ./build/consumer/Release/consumer.exe
       - name: Python package & tests
         run: |
           pip install ".[dev]"
@@ -82,6 +95,12 @@ jobs:
           cmake --build --preset ci -j
       - name: C++ tests
         run: ctest --preset ci
+      - name: Installed CMake package (find_package from a consumer project)
+        run: |
+          cmake --install build/ci --prefix "$RUNNER_TEMP/nf"
+          cmake -S tests/install -B build/consumer -G Ninja -DCMAKE_PREFIX_PATH="$RUNNER_TEMP/nf"
+          cmake --build build/consumer
+          ./build/consumer/consumer
       - name: Python package & tests
         run: |
           pip install ".[dev]"

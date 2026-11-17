@@ -19,8 +19,8 @@ explains each algorithm, the [Python API overview](api/python.md) lists all func
 
 ## Conventions in a nutshell
 
-- Points and vectors are `nf.Vec3`; anywhere a point is expected you can pass a tuple or list.
-  NumPy rows are *not* converted implicitly – use `tuple(row)` or `nf.Vec3(*row)`. Bulk inputs
+- Points and vectors are `nf.Vec3`; anywhere a point is expected you can pass a tuple, a list
+  or a NumPy array of three numbers (e.g. a row `pts[i]` of an `(n, 3)` array). Bulk inputs
   (point lists and grids for fitting) take NumPy arrays of shape `(n, 3)` / `(nu, nv, 3)`.
 - Curves are `nf.NurbsCurve`, evaluated with `c(u)`; surfaces are `nf.NurbsSurface`, evaluated
   with `s(u, v)`. `c.domain`, `s.domain_u`, `s.domain_v` give the parameter ranges.

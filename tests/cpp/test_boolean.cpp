@@ -9,6 +9,7 @@
 #include "nurbforge/geometry/transform.hpp"
 #include "nurbforge/modeling/construct.hpp"
 #include "nurbforge/topology/boolean.hpp"
+#include "nurbforge/topology/solids.hpp"
 
 using namespace nf;
 constexpr double pi = std::numbers::pi;
@@ -402,4 +403,29 @@ TEST_CASE("Booleans: cylinder inside a tilted box touching two sides", "[boolean
   const Shell a = rotated_z(box_shell({-r, -r, z0}, {r + ex, r + ey, z0 + 0.8}), 4.8653577882165431);
   const double box = (2 * r + ex) * (2 * r + ey) * 0.8, mid = pi * r * r * 0.8;
   check_contact(a, cylinder_shell(r, 0.0, 2.0), box + pi * r * r * 2.0 - mid, mid, box - mid);
+}
+
+TEST_CASE("Booleans with cut planes along seams and through poles", "[boolean]") {
+  // #63: planes through the centre of a sphere contain its poles, and y = 0 contains its seam;
+  // the intersection curve along the seam lies on the domain boundary of the sphere face, where
+  // the in/out test used to depend on the sign of rounding errors (the result was closed with
+  // Apple Clang, open with GCC and MSVC). Checked here for every operation.
+  const Shell ball = make_sphere({0, 0, 0}, 1.0);
+  const Shell octant = make_box({0, 0, 0}, {2, 2, 2});
+  const double vs = 4.0 / 3.0 * pi, vo = vs / 8.0;
+  const auto check = [](const Shell& r, std::size_t faces, double volume) {
+    CHECK(r.is_closed());
+    CHECK(r.is_consistently_oriented());
+    CHECK(r.faces().size() == faces);
+    CHECK(rel_close(r.volume(1e-9), volume, 1e-6));
+  };
+  check(boolean(ball, octant, BooleanOp::Difference), 4, vs - vo);  // sphere rest + 3 quarter disks
+  check(boolean(ball, octant, BooleanOp::Intersection), 4, vo);     // octant: 1/8 sphere + 3 quarter disks
+  check(boolean(ball, octant, BooleanOp::Union), 7, vs + 8.0 - vo);  // sphere rest + 6 box pieces
+  // a cylinder cut along its seam line (y = 0) and through its axis (x = 0): three quarters
+  const Shell cyl = make_cylinder({0, 0, 0}, {0, 0, 1}, 1.0, 2.0);
+  const double vc = 2.0 * pi;
+  const Shell quadrant = make_box({0, 0, -1}, {2, 2, 4});
+  CHECK(rel_close(boolean(cyl, quadrant, BooleanOp::Difference).volume(1e-9), 0.75 * vc, 1e-6));
+  CHECK(rel_close(boolean(cyl, quadrant, BooleanOp::Intersection).volume(1e-9), 0.25 * vc, 1e-6));
 }

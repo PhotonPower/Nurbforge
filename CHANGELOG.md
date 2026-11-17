@@ -29,6 +29,13 @@ versioning: [SemVer](https://semver.org).
 - `split(surface, pcurves)` with curves that cross or touch each other (e.g. a cross, or
   chords meeting at a corner) returned the unsplit surface; such cuts now go through the general
   planar arrangement (#68).
+- Booleans with cut planes through the poles or along the seam of a closed surface (a sphere
+  minus a box with its corner at the centre; a cylinder cut along its seam line) were open with
+  GCC and MSVC and closed with Apple Clang (#63). An intersection curve along a seam has its
+  p-curve on the domain boundary, where the in/out test depended on the sign of rounding errors
+  (FMA contraction); points on a seam now count as inside if the face covers either side of it,
+  and intersection curves that repeat another one in 3D (one per side of the seam) are used once.
+  A test covers all three operations; the whole C++ suite also passes with `-ffp-contract=off`.
 
 ## [0.9.0] – 2026-11-17
 Meshing for solvers: local mesh sizes by face label, curvature-based sizing and BEM-ready

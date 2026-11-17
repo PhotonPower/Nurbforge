@@ -348,11 +348,12 @@ kept, e.g. circle segments of $10^{-5}$.
 \begin{warning}[Degenerate configurations]
 Booleans are numerically sensitive where the inputs meet in degenerate ways. Known cases:
 \begin{itemize}
-\item \textbf{Cut planes through the poles of a sphere.} Subtracting a box whose corner lies
-exactly at the centre of a sphere (so that two cutting planes contain the poles) yields a
-closed shell with one compiler (Apple Clang) but an open shell with others (GCC, MSVC); the
-result depends on rounding in the last bits (GitHub issue \#63). Moving the box corner
-slightly off the centre, e.g. to $(0.1, 0.2, 0.15)$, gives the same closed result everywhere.
+\item \textbf{Intersection curves through poles and along seams} are handled: a box whose
+corner lies exactly at the centre of a sphere (its faces contain the poles, one contains the
+seam) or a plane along the seam line of a cylinder give closed results on all platforms. Up to
+version 0.9.0 the sphere case was closed with Apple Clang but open with GCC and MSVC (issue
+\#63): the in/out test of the intersection curve on the seam depended on the sign of rounding
+errors.
 \item \textbf{Coincident faces whose common part crosses the seam} of a closed surface are
 not handled (the projected loop would jump in the parameter domain).
 \end{itemize}

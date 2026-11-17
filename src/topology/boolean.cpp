@@ -105,10 +105,36 @@ double distance_to_loops(const TrimmedSurface& f, double u, double v) {
 // taken as touching – inside runs are dropped, gaps between inside runs are closed.
 std::vector<std::pair<double, double>> shared_intervals(const IntersectionCurve& c, const TrimmedSurface& fa,
                                                         const TrimmedSurface& fb, double tolerance) {
+  // A point on the seam of a closed surface counts as inside if the face covers either side of
+  // the seam there. An intersection curve along a seam (a plane through the poles of a sphere)
+  // has its p-curve on the domain boundary u = u0 or u1, where it wobbles by rounding
+  // (|u - u0| ~ 1e-65): the plain test then depended on the sign of the rounding error, i.e. on
+  // the compiler (FMA contraction), and the cut on the other face could stop short (#63).
+  // Ordinary boundaries keep the plain test (tangential contacts along face edges).
+  const auto seam_inside = [&](const TrimmedSurface& f, double u, double v) {
+    const NurbsSurface& S = f.surface();
+    const auto du = S.domain_u(), dv = S.domain_v();
+    const double eu = 1e-9 * (du[1] - du[0]), ev = 1e-9 * (dv[1] - dv[0]);
+    if (std::abs(u - du[0]) <= eu || std::abs(u - du[1]) <= eu) {
+      const double vc = std::clamp(v, dv[0], dv[1]);
+      if (distance(S.evaluate(du[0], vc), S.evaluate(du[1], vc)) <= tolerance &&
+          (f.contains(du[0] + eu, vc) || f.contains(du[1] - eu, vc)))
+        return true;
+    }
+    if (std::abs(v - dv[0]) <= ev || std::abs(v - dv[1]) <= ev) {
+      const double uc = std::clamp(u, du[0], du[1]);
+      if (distance(S.evaluate(uc, dv[0]), S.evaluate(uc, dv[1])) <= tolerance &&
+          (f.contains(uc, dv[0] + ev) || f.contains(uc, dv[1] - ev)))
+        return true;
+    }
+    return false;
+  };
   const auto inside = [&](double t) {
     const Vec3 w1 = c.pcurve1.evaluate(t), w2 = c.pcurve2.evaluate(t);
-    return fa.contains(w1.x, w1.y) && fb.contains(w2.x, w2.y);
+    return (fa.contains(w1.x, w1.y) || seam_inside(fa, w1.x, w1.y)) &&
+           (fb.contains(w2.x, w2.y) || seam_inside(fb, w2.x, w2.y));
   };
+
   const double t0 = c.curve.domain_start(), t1 = c.curve.domain_end();
   const int n = 256;
   std::vector<std::pair<double, double>> out;
@@ -172,6 +198,45 @@ std::vector<std::pair<double, double>> shared_intervals(const IntersectionCurve&
   for (const auto& iv : merged)
     if (!touching(iv.first, iv.second)) kept.push_back(iv);
   return kept;
+}
+
+// The intersection curves of a face pair with their shared intervals, without curves that
+// repeat another one in 3D. A plane through the seam of a closed surface (a sphere cut through
+// its poles, a cylinder along its seam line) meets the surface along the seam, and the
+// intersection returns that curve once for each side of the seam. On the copy along the face
+// boundary the in/out test flips arbitrarily, so it arrives in fragments that differ from the
+// whole copy by rounding; depending on the last bits (e.g. FMA contraction) a fragment escaped
+// prune_cuts and the overlapping cuts left the other face unsplit. Curves are taken by
+// decreasing shared length; a curve whose samples all lie within the tolerance of a curve
+// already taken is dropped.
+std::vector<std::pair<const IntersectionCurve*, std::vector<std::pair<double, double>>>> distinct_curves(
+    const SurfaceIntersection& res, const TrimmedSurface& fa, const TrimmedSurface& fb, double tolerance) {
+  using Entry = std::pair<const IntersectionCurve*, std::vector<std::pair<double, double>>>;
+  std::vector<std::pair<double, Entry>> all;
+  for (const auto& c : res.curves) {
+    auto iv = shared_intervals(c, fa, fb, tolerance);
+    double len = 0.0;
+    for (const auto& [t0, t1] : iv) len += t1 - t0;
+    len /= std::max(c.curve.domain_end() - c.curve.domain_start(), 1e-300);
+    if (!iv.empty()) all.push_back({-len, {&c, std::move(iv)}});
+  }
+  std::stable_sort(all.begin(), all.end(),
+                   [](const auto& x, const auto& y) { return x.first < y.first; });
+  std::vector<Entry> out;
+  for (auto& [key, e] : all) {
+    const NurbsCurve& cur = e.first->curve;
+    bool duplicate = false;
+    for (const auto& kept : out) {
+      duplicate = true;
+      for (int k = 0; k <= 8 && duplicate; ++k) {
+        const Vec3 p = cur.evaluate(cur.domain_start() + (cur.domain_end() - cur.domain_start()) * k / 8.0);
+        duplicate = closest_point(kept.first->curve, p).distance <= tolerance;
+      }
+      if (duplicate) break;
+    }
+    if (!duplicate) out.push_back(std::move(e));
+  }
+  return out;
 }
 
 // How two surfaces relate, from samples of each projected onto the other. Samples whose foot
@@ -451,10 +516,10 @@ Shell boolean(const Shell& a_in, const Shell& b_in, BooleanOp op, double toleran
         touching_b[j].push_back(i);
       }
       if (thin) continue;  // an overlap thinner than the tolerance counts as a contact
-      for (const auto& c : res.curves)
-        for (const auto& [t0, t1] : shared_intervals(c, FA[i], FB[j], tolerance)) {
-          cuts_a[i].push_back(c.pcurve1.sub_curve(t0, t1));
-          cuts_b[j].push_back(c.pcurve2.sub_curve(t0, t1));
+      for (const auto& [c, intervals] : distinct_curves(res, FA[i], FB[j], tolerance))
+        for (const auto& [t0, t1] : intervals) {
+          cuts_a[i].push_back(c->pcurve1.sub_curve(t0, t1));
+          cuts_b[j].push_back(c->pcurve2.sub_curve(t0, t1));
         }
     }
   // classification of a piece of `face` against the other shell: "on" if its interior point lies

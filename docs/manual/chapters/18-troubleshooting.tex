@@ -84,16 +84,14 @@ face, or a tool flush with a face, are handled. Problems can still arise when
 \begin{itemize}
   \item coincident faces have a common part that crosses the seam of a closed surface (a known
     limitation),
-  \item an intersection curve passes exactly through a pole of a sphere or the apex of a cone,
-  \item an intersection curve runs along the seam of a closed surface.
+  \item an intersection curve passes exactly through the apex of a cone,
+  \item faces are tangent along a curve that is not a face boundary.
 \end{itemize}
-In such cases the result can depend on rounding. A known example (issue \#63 on GitHub) is a sphere minus a box whose
-corner lies exactly at the sphere's centre. The cut planes then contain the poles. The result
-is closed with Apple Clang but open with GCC and MSVC, probably because of different contraction
-of floating-point operations (FMA). Until this is fixed, avoid exact degeneracies. Extend tools
-slightly beyond the faces they cut (make a drill longer than the plate is thick), and move cuts a
-small distance away from poles and seams (in the example, a box corner at $(0.1, 0.2, 0.15)$
-instead of the origin gives the same closed result on all platforms).
+Curves through the poles of a sphere and along the seam of a closed surface are handled (a
+sphere minus a box with its corner at the centre is closed on all platforms; up to version
+0.9.0 it was open with GCC and MSVC, issue \#63). If a result is open nevertheless, avoid the
+exact degeneracy: extend tools slightly beyond the faces they cut (make a drill longer than
+the plate is thick) or move a cut a small distance.
 
 \begin{tip}[Checking Boolean results]
 After a Boolean, check \code{result.is_closed}, compare \code{result.volume()} with a rough

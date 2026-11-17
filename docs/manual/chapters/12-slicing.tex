@@ -369,11 +369,8 @@ hatch length) is a useful sanity check: here it matches the cap volume to 0.004\
 \end{description}
 
 \begin{tip}[Performance]
-\code{section} and \code{hatch} are const queries, so layers are independent. The Python
-binding of \code{hatch} releases the global interpreter lock while it computes, so hatching
-many layers in a \code{concurrent.futures.ThreadPoolExecutor} uses several cores;
-\code{section} currently keeps the lock, so to parallelise sectioning use a
-\code{ProcessPoolExecutor} (shells are rebuilt cheaply in each worker, or sent as STEP text
-with \code{to_step}/\code{from_step}). For extrusion bands (\code{is_extrusion_band}) compute
+\code{section} and \code{hatch} are const queries, so layers are independent. Both release
+the global interpreter lock while they compute, so sectioning and hatching many layers in a
+\code{concurrent.futures.ThreadPoolExecutor} uses several cores. For extrusion bands (\code{is_extrusion_band}) compute
 one section and reuse it for all layers in the band.
 \end{tip}

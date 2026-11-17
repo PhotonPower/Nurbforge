@@ -52,6 +52,8 @@ class Shell {
   static Shell sew(std::vector<TrimmedSurface> faces, double tolerance = 1e-6);
 
   [[nodiscard]] const std::vector<TrimmedSurface>& faces() const noexcept { return faces_; }
+  /// Sewing tolerance the shell was built with (Shell::sew).
+  [[nodiscard]] double tolerance() const noexcept { return tol_; }
   [[nodiscard]] const std::vector<Vec3>& vertices() const noexcept { return vertices_; }
   [[nodiscard]] const std::vector<ShellEdge>& edges() const noexcept { return edges_; }
 

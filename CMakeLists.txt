@@ -112,6 +112,16 @@ if(NOT SKBUILD)
           FILES_MATCHING PATTERN "*.hpp")
   install(FILES ${CMAKE_CURRENT_BINARY_DIR}/generated/nurbforge/version.hpp
           DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/nurbforge)
-  install(EXPORT NurbforgeTargets FILE NurbforgeConfig.cmake NAMESPACE Nurbforge::
-          DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/Nurbforge)
+  # find_package(Nurbforge): config file with the dependencies, version file and targets
+  include(CMakePackageConfigHelpers)
+  set(NF_CMAKE_DIR ${CMAKE_INSTALL_LIBDIR}/cmake/Nurbforge)
+  install(EXPORT NurbforgeTargets FILE NurbforgeTargets.cmake NAMESPACE Nurbforge::
+          DESTINATION ${NF_CMAKE_DIR})
+  configure_package_config_file(cmake/NurbforgeConfig.cmake.in
+    ${CMAKE_CURRENT_BINARY_DIR}/NurbforgeConfig.cmake INSTALL_DESTINATION ${NF_CMAKE_DIR})
+  write_basic_package_version_file(${CMAKE_CURRENT_BINARY_DIR}/NurbforgeConfigVersion.cmake
+    COMPATIBILITY SameMinorVersion)
+  install(FILES ${CMAKE_CURRENT_BINARY_DIR}/NurbforgeConfig.cmake
+                ${CMAKE_CURRENT_BINARY_DIR}/NurbforgeConfigVersion.cmake
+          DESTINATION ${NF_CMAKE_DIR})
 endif()

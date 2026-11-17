@@ -8,7 +8,7 @@ import nurbforge as nf
 
 | Class | Key members |
 |---|---|
-| `Vec3(x, y, z)` | `x, y, z`, `+ - *`, iterable; tuples/lists convert implicitly |
+| `Vec3(x, y, z)` | `x, y, z`, `+ - *`, iterable; tuples, lists and NumPy arrays of three numbers convert implicitly |
 | `NurbsCurve(degree, knots, control_points, weights=[])` | `evaluate(u)` / `c(u)`, `derivatives(u, order)`, `tangent(u)`, `sample(n) -> ndarray (n,3)`, `insert_knot(u, times)`, `refine_knots(X)`, `decompose_bezier()`, `elevate_degree(times)`, `reduce_degree(tolerance)`, `try_remove_knot(u, times, tolerance) -> (curve, removed)`, `remove_knot(u, times, tolerance)`, `split(u) -> (left, right)`, `sub_curve(u0, u1)`, `clamped()`, `is_clamped`, `reversed()`, `transformed(T)`, `domain`, `knots`, `weights`, `control_points`, `is_rational` |
 | `NurbsCurve.from_points(degree, pts)` | clamped uniform B-spline |
 | `NurbsSurface(du, dv, ku, kv, nu, nv, pts, weights=[])` | `evaluate(u,v)` / `s(u,v)`, `derivatives(u, v, order)`, `first_derivatives`, `normal` (limit normal at poles), `iso_curve_u/v`, `sample(nu,nv) -> ndarray (nu,nv,3)`, `refine_knots_u/v(X)`, `elevate_degree_u/v(times)`, `reduce_degree_u/v(tolerance)`, `remove_knot_u/v(u, times, tolerance)`, `try_remove_knot_u/v`, `split_u/v`, `sub_surface(u0, u1, v0, v1)`, `clamped()`, `decompose_bezier()`, `transformed`, `transposed` |

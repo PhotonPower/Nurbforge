@@ -39,6 +39,37 @@ std::vector<Vec3> from_numpy(
 
 }  // namespace
 
+namespace {
+
+// A planar region from Python: a PlanarSection, or a sequence whose items are SectionLoops,
+// closed curves, or sequences of curves forming one loop.
+nf::Region to_region(const py::object& obj) {
+  using namespace nf;
+  Region r;
+  if (py::isinstance<PlanarSection>(obj)) {
+    for (const auto& loop : obj.cast<const PlanarSection&>().loops) {
+      std::vector<NurbsCurve> l;
+      for (const auto& sc : loop.curves) l.push_back(sc.curve);
+      r.push_back(std::move(l));
+    }
+    return r;
+  }
+  for (const auto& item : obj) {
+    if (py::isinstance<SectionLoop>(item)) {
+      std::vector<NurbsCurve> l;
+      for (const auto& sc : item.cast<const SectionLoop&>().curves) l.push_back(sc.curve);
+      r.push_back(std::move(l));
+    } else if (py::isinstance<NurbsCurve>(item)) {
+      r.push_back({item.cast<NurbsCurve>()});
+    } else {
+      r.push_back(item.cast<std::vector<NurbsCurve>>());
+    }
+  }
+  return r;
+}
+
+}  // namespace
+
 PYBIND11_MODULE(_core, m) {
   m.doc() = "Nurbforge - headless NURBS CAD kernel (C++ core)";
   m.attr("__version__") = NURBFORGE_VERSION;
@@ -1057,6 +1088,38 @@ PYBIND11_MODULE(_core, m) {
         py::arg("tolerance") = 1e-6,
         "Hollow a smooth closed shell to a wall of the given thickness: an inner void, or - with "
         "open_labels - removing the faces with these labels and thickening the rest inwards.");
+  m.def("blend_curves", &blend_curves, py::call_guard<py::gil_scoped_release>(), py::arg("a"),
+        py::arg("end0"), py::arg("b"), py::arg("end1"), py::arg("continuity") = 2,
+        py::arg("tension") = 1.0,
+        "Smooth transition from an end of curve a to an end of curve b: G1 (cubic) or G2 "
+        "(quintic, same curvature vectors). The blend leaves a and enters b; |C'| at the ends is "
+        "tension x chord.");
+  py::class_<ProjectedCurve>(m, "ProjectedCurve", "A curve on a surface: 3D curve and p-curve.")
+      .def_readonly("curve", &ProjectedCurve::curve, "3D curve on the surface.")
+      .def_readonly("pcurve", &ProjectedCurve::pcurve,
+                    "(u, v, 0) in the surface's parameter domain (same parameter as curve).")
+      .def("__iter__",
+           [](const ProjectedCurve& p) { return py::iter(py::make_tuple(p.curve, p.pcurve)); });
+  m.def("project_curve", &project_curve, py::call_guard<py::gil_scoped_release>(), py::arg("curve"),
+        py::arg("surface"), py::arg("direction") = Vec3{0, 0, 0}, py::arg("tolerance") = 1e-6,
+        "Project a curve onto a surface along its normal (direction zero) or along `direction`; "
+        "returns ProjectedCurve(curve, pcurve) within `tolerance` of the exact projection.");
+  m.def(
+      "region_boolean",
+      [](const py::object& a, const py::object& b, BooleanOp op, double tolerance) {
+        const Region ra = to_region(a), rb = to_region(b);
+        py::gil_scoped_release release;
+        return region_boolean(ra, rb, op, tolerance);
+      },
+      py::arg("a"), py::arg("b"), py::arg("op"), py::arg("tolerance") = 1e-9,
+      "Union / intersection / difference of planar regions in the xy plane. A region is a "
+      "PlanarSection, or a list of loops: closed curves, lists of curves running head to tail, or "
+      "SectionLoops (nested loops: holes). Returns the result as a list of loops (lists of exact "
+      "curves; outer counter-clockwise, holes clockwise).");
+  m.def(
+      "region_area", [](const py::object& r) { return region_area(to_region(r)); },
+      py::arg("region"),
+      "Area of a planar region (outer loops minus holes; Green's theorem on the exact curves).");
   m.def("integrate", &integrate, py::arg("f"), py::arg("a"), py::arg("b"),
         py::arg("rel_tol") = kIntegrationRelTol, py::arg("breaks") = std::vector<double>{},
         py::arg("abs_tol") = 0.0, "Globally adaptive Gauss-Kronrod integral of f over [a, b].");

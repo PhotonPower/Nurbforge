@@ -15,6 +15,8 @@ GROUPS: list[tuple[str, list[str]]] = [
         "loft_parameters", "make_compatible", "sweep", "sweep2", "sweep_translational", "pipe_surface", "coons",
         "gordon", "reparametrize"]),
     ("Solid primitives", ["make_box", "make_sphere", "make_cylinder", "make_cone", "make_torus"]),
+    ("Planar regions and curve tools", ["region_boolean", "region_area", "blend_curves",
+                                        "project_curve"]),
     ("Joining, extension, offsets and fillets", [
         "join", "join_u", "join_v", "extend", "offset_curve", "offset_surface", "fillet_curves",
         "fillet_corners", "fillet_surfaces"]),
@@ -274,7 +276,7 @@ NOTES: dict[str, str] = {
     "TrimLoop.curves": r"The curves of the loop.",
     "TrimLoop.polyline": r"Sampled (u, v) points of the loop, \code{samples_per_span} per knot span.",
     "TrimLoop.reversed": r"The loop traversed in the opposite direction.",
-    "TrimLoop.signed_area": r"Signed area enclosed in parameter space (positive for counter-clockwise loops).",
+    "TrimLoop.signed_area": r"Signed area enclosed in parameter space, from the polyline (approximate; positive for counter-clockwise loops). For exact areas use \code{TrimmedSurface.area} or \code{region_area}.",
     "TrimmedSurface": r"A NURBS surface restricted to the region inside an outer trim loop and outside its holes (all in parameter space). Faces of shells are trimmed surfaces.",
     "TrimmedSurface.__init__": r"Untrimmed surface (the whole domain), or the surface with an outer loop and holes; the loops are checked against \code{tolerance}.",
     "TrimmedSurface.area": r"Area of the trimmed region (Green's theorem on the exact trim curves, adaptive to \code{rel_tol}).",

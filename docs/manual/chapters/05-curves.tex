@@ -435,6 +435,75 @@ circle by $+0.2$ is a circle of radius 0.8 within $2.4\cdot10^{-8}$, well inside
 $10^{-7}$; it needs 137 control points because the cubic fit is done per Bézier segment of the
 rational circle.
 
+\section{Blend curves}\label{sec:blend}
+
+\apiref{blend_curves} builds a smooth transition between the ends of two curves -- a lead-in
+into an arc, a connection between two profile segments:
+
+\begin{lstlisting}
+blend = nf.blend_curves(a, end0, b, end1, continuity=2, tension=1.0)
+\end{lstlisting}
+
+The blend leaves curve \code{a} at \code{end0} (\code{CurveEnd.End}: along its direction,
+\code{CurveEnd.Start}: against it) and enters curve \code{b} at \code{end1} towards its
+interior. With \code{continuity=1} it is a cubic Bézier curve with the same tangent
+\emph{directions} as the curves (G1); with \code{continuity=2} a quintic that also matches the
+\emph{curvature vectors} (G2), so a straight lead-in blends into an arc without a jump in
+curvature -- important for machining paths and for profiles that are swept. The speed
+$|C'|$ at both ends is \code{tension} times the distance between the ends; larger values give
+fuller, longer transitions. The blend is not joined to the curves; use \apiref{join} to make a
+single curve.
+
+\section{Projecting curves onto surfaces}\label{sec:project}
+
+\apiref{project_curve} maps a curve onto a surface, along the surface normal (closest points)
+or along a direction:
+
+\begin{lstlisting}
+curve, pcurve = nf.project_curve(curve, surface, direction=(0, 0, 0), tolerance=1e-6)
+\end{lstlisting}
+
+The result is a \code{ProjectedCurve} with the 3D curve on the surface and its p-curve
+$(u,v,0)$, both with the parameter of the input curve (it unpacks as a pair). Projected points
+are interpolated and refined until both curves are within \code{tolerance} of the exact
+projections. The p-curve is what trim loops are made of: an aperture outline projected onto an
+optical surface becomes a trim loop with \code{nf.TrimLoop([pcurve])} (\cref{ch:trimming}). The
+projection must not cross the seam of a closed surface (a revolved surface has one): split the
+curve there, or use a graph surface such as the Zernike and XY-polynomial surfaces
+(\cref{ch:optics}). \code{GeometryError} is raised if a ray misses the surface.
+
+\section{Planar regions and their Booleans}\label{sec:regions}
+
+2D cross-sections, gaskets, flanges and the domains of 2D meshes are \emph{planar regions}:
+closed loops of curves in the $xy$ plane, where nested loops are holes. A region is a list of
+loops; a loop is a closed curve or a list of curves running head to tail, and a
+\code{PlanarSection} of a solid (\cref{ch:slicing}) is accepted directly.
+\apiref{region_boolean} combines two regions, \apiref{region_area} measures one:
+
+\begin{lstlisting}
+result = nf.region_boolean(a, b, nf.BooleanOp.Union, tolerance=1e-9)  # or Intersection, Difference
+area = nf.region_area(result)
+\end{lstlisting}
+
+The curves stay exact: they are split at their intersections, and the pieces bounding the
+result are kept as they are (shared boundary pieces of touching regions cancel). The result is
+a list of loops oriented with the region on the left -- outer loops counter-clockwise, holes
+clockwise -- which can be extruded (\apiref{extrude}), revolved, hatched (\apiref{hatch}) or
+meshed. \code{region_area} integrates exactly with Green's theorem. Input loops may run either
+way; nesting decides what is a hole.
+
+\example{05_profiles.py}
+
+\begin{lstlisting}[style=text]
+flange: 4 loops, area 26.35619449 (exact 26.35619449)
+outer loop: 4 exact curves (lines and arcs)
+blend: degree 5, curvature at its ends 0.000000 (line: 0) and 1.000000 (arc: 1)
+projected point (-2.500000, 0.000000, 0.151205); sag there 0.151205
+\end{lstlisting}
+
+The flange outline consists of the two straight sides of the plate and the two outer arcs of
+the end circles, all exact; its area equals the analytic value to all digits shown.
+
 \section{Curve analysis}\label{sec:curve-analysis}
 
 \subsection{Differential properties}

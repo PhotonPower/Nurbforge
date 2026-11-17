@@ -428,6 +428,28 @@ def _build_tools() -> list[Tool]:
                     f"{res.volume(1e-7):.6g}, labels {sorted(set(res.face_labels))}")
         return f"stored {name}: shell with {len(res.free_edges())} free edges"
 
+    @add("blend", "Smooth transition curve from an end of curve a to an end of curve b (G1 or G2 "
+         "continuity). Ends are 'start' or 'end'.",
+         {"name": _NAME, "a": _NAME, "end_a": {"type": "string", "enum": ["start", "end"]},
+          "b": _NAME, "end_b": {"type": "string", "enum": ["start", "end"]},
+          "continuity": {"type": "integer", "enum": [1, 2]}},
+         ["name", "a", "end_a", "b", "end_b"])
+    def _(ws, name, a, end_a, b, end_b, continuity=2):
+        e = {"start": nf.CurveEnd.Start, "end": nf.CurveEnd.End}
+        return ws.put(name, nf.blend_curves(ws.get(a), e[end_a], ws.get(b), e[end_b], continuity))
+
+    @add("project", "Project a curve onto a surface, along the surface normal or along a "
+         "direction. Stores the 3D curve as name and its parameter-space curve as name + '_uv'.",
+         {"name": _NAME, "curve": _NAME, "surface": _NAME, "direction": _VEC},
+         ["name", "curve", "surface"])
+    def _(ws, name, curve, surface, direction=(0, 0, 0)):
+        s = ws.get(surface)
+        if isinstance(s, nf.TrimmedSurface):
+            s = s.surface
+        pr = nf.project_curve(ws.get(curve), s, direction)
+        ws.put(name + "_uv", pr.pcurve)
+        return ws.put(name, pr.curve)
+
     @add("split_solid", "Split a closed solid by a plane into the part below (opposite to the "
          "normal, stored as name + '_below') and above (name + '_above'). The new faces in the "
          "plane get the label cut_label (default 'cut'), e.g. for a symmetry condition.",

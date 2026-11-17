@@ -19,8 +19,10 @@ versioning: [SemVer](https://semver.org).
   `max_size` and deletes the faces of the removed features.
 - `hollow(shell, thickness, open_labels=[])`: hollows a smooth solid to a wall (inner void, or
   open at the faces with the given labels).
+- `merge_faces(shell)`: defeaturing - merges adjacent faces with the same label on the same
+  surface (pieces of a split face, coplanar planar faces) into one exactly trimmed face.
 - LLM tools for the solid operations: `split_solid`, `cap`, `thicken`, `hollow`, `pipe`,
-  `remove_holes`.
+  `remove_holes`, `merge_faces`.
 - User manual (LaTeX/PDF, `docs/manual`): installation, concepts and every part of the API in
   18 chapters with 40 tested example scripts, plus a command reference generated from the
   installed package (every class, method, property, enumeration and function of `nurbforge`,

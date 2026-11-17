@@ -26,7 +26,7 @@ GROUPS: list[tuple[str, list[str]]] = [
     ("Intersections and sections", ["intersect", "planar_section", "planar_sections"]),
     ("Trimming and splitting", ["rectangle_loop", "circle_loop", "polygon_loop", "split"]),
     ("Booleans and shells", ["boolean", "point_in_shell"]),
-    ("Solid operations", ["cap", "thicken", "hollow", "make_pipe", "remove_holes"]),
+    ("Solid operations", ["cap", "thicken", "hollow", "make_pipe", "remove_holes", "merge_faces"]),
     ("Slicing and hatching", ["section", "critical_heights", "is_extrusion_band", "hatch"]),
     ("Optical surfaces", ["asphere_surface", "asphere_profile", "zernike", "zernike_nm",
                           "zernike_surface", "xy_polynomial_surface", "sag_surface"]),

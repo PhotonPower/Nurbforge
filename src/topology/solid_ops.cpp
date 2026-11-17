@@ -3,6 +3,9 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <functional>
+#include <numeric>
+#include <optional>
 #include <vector>
 
 #include "nurbforge/analysis/closest_point.hpp"
@@ -90,6 +93,118 @@ bool inside(const std::vector<P2>& poly, const P2& q) {
                    (poly[i][0] - poly[j][0]) * (q[1] - poly[j][1]) / (poly[i][1] - poly[j][1]))
       in = !in;
   return in;
+}
+
+// A planar parallelogram patch S(u, v) = o + (u - u0) / du * e1 + (v - v0) / dv * e2.
+struct Parallelogram {
+  Vec3 o, e1, e2;
+  double u0{0.0}, du{1.0}, v0{0.0}, dv{1.0};
+};
+
+std::optional<Parallelogram> parallelogram(const NurbsSurface& s, double tol) {
+  if (s.degree_u() != 1 || s.degree_v() != 1 || s.num_u() != 2 || s.num_v() != 2) return {};
+  const auto& w = s.weights();
+  for (const double x : w)
+    if (std::abs(x - w.front()) > 1e-12 * std::abs(w.front())) return {};
+  const auto ku = s.knots_u(), kv = s.knots_v();
+  Parallelogram p;
+  p.o = s.control_point(0, 0);
+  p.e1 = s.control_point(1, 0) - p.o;
+  p.e2 = s.control_point(0, 1) - p.o;
+  if (distance(s.control_point(1, 1), p.o + p.e1 + p.e2) > tol) return {};
+  p.u0 = ku.front();
+  p.du = ku.back() - ku.front();
+  p.v0 = kv.front();
+  p.dv = kv.back() - kv.front();
+  return p;
+}
+
+bool same_surface(const NurbsSurface& a, const NurbsSurface& b) {
+  if (a.degree_u() != b.degree_u() || a.degree_v() != b.degree_v() || a.num_u() != b.num_u() ||
+      a.num_v() != b.num_v() || a.knots_u() != b.knots_u() || a.knots_v() != b.knots_v() ||
+      a.weights() != b.weights())
+    return false;
+  const auto &P = a.control_points(), &Q = b.control_points();
+  for (std::size_t k = 0; k < P.size(); ++k)
+    if (P[k].x != Q[k].x || P[k].y != Q[k].y || P[k].z != Q[k].z) return false;
+  return true;
+}
+
+NurbsCurve map_points(const NurbsCurve& c, const std::function<Vec3(const Vec3&)>& f) {
+  std::vector<Vec3> pts;
+  for (const auto& p : c.control_points()) pts.push_back(f(p));
+  return {c.degree(), c.knots(), std::move(pts), c.weights()};
+}
+
+Vec3 first(const NurbsCurve& c) { return c.evaluate(c.domain_start()); }
+Vec3 last(const NurbsCurve& c) { return c.evaluate(c.domain_end()); }
+
+// The region bounded by curves with the region on their left (outer loops counter-clockwise,
+// holes clockwise), all in one parameter plane: shared pieces (opposite directions) cancel, the
+// rest is chained into loops. Empty if the curves do not form closed loops.
+std::vector<TrimLoop> union_loops(std::vector<NurbsCurve> cs, double eps) {
+  // T-junctions: split every curve at the end points of other curves lying inside it
+  std::vector<NurbsCurve> pieces;
+  for (std::size_t i = 0; i < cs.size(); ++i) {
+    const NurbsCurve& c = cs[i];
+    const double a = c.domain_start(), b = c.domain_end();
+    std::vector<double> cut{a, b};
+    for (std::size_t j = 0; j < cs.size(); ++j) {
+      if (j == i) continue;
+      for (const Vec3& p : {first(cs[j]), last(cs[j])}) {
+        const CurvePoint cp = closest_point(c, p);
+        if (cp.distance <= eps && cp.u > a + 1e-9 * (b - a) && cp.u < b - 1e-9 * (b - a))
+          cut.push_back(cp.u);
+      }
+    }
+    std::sort(cut.begin(), cut.end());
+    for (std::size_t k = 0; k + 1 < cut.size(); ++k)
+      if (cut[k + 1] - cut[k] > 1e-9 * (b - a))
+        pieces.push_back(cut.size() == 2 ? c : c.sub_curve(cut[k], cut[k + 1]));
+  }
+  // cancel pairs running along each other in opposite directions
+  std::vector<bool> gone(pieces.size(), false);
+  for (std::size_t i = 0; i < pieces.size(); ++i)
+    for (std::size_t j = i + 1; j < pieces.size() && !gone[i]; ++j) {
+      if (gone[j] || distance(first(pieces[i]), last(pieces[j])) > eps ||
+          distance(last(pieces[i]), first(pieces[j])) > eps)
+        continue;
+      const NurbsCurve& c = pieces[i];
+      const Vec3 mid = c.evaluate(0.5 * (c.domain_start() + c.domain_end()));
+      if (closest_point(pieces[j], mid).distance <= eps) gone[i] = gone[j] = true;
+    }
+  std::vector<NurbsCurve> rest;
+  for (std::size_t i = 0; i < pieces.size(); ++i)
+    if (!gone[i]) rest.push_back(std::move(pieces[i]));
+  // chain into loops
+  std::vector<TrimLoop> loops;
+  std::vector<bool> used(rest.size(), false);
+  for (std::size_t s0 = 0; s0 < rest.size(); ++s0) {
+    if (used[s0]) continue;
+    TrimLoop loop;
+    used[s0] = true;
+    loop.curves.push_back(rest[s0]);
+    while (distance(last(loop.curves.back()), first(loop.curves.front())) > eps) {
+      std::size_t next = rest.size();
+      for (std::size_t j = 0; j < rest.size(); ++j)
+        if (!used[j] && distance(first(rest[j]), last(loop.curves.back())) <= eps) {
+          next = j;
+          break;
+        }
+      if (next == rest.size()) return {};  // open chain
+      used[next] = true;
+      loop.curves.push_back(rest[next]);
+    }
+    // make consecutive ends identical
+    for (std::size_t k = 0; k < loop.curves.size(); ++k) {
+      auto& nx = loop.curves[(k + 1) % loop.curves.size()];
+      auto pts = nx.control_points();
+      pts.front() = loop.curves[k].control_points().back();
+      nx = NurbsCurve(nx.degree(), nx.knots(), std::move(pts), nx.weights());
+    }
+    loops.push_back(std::move(loop));
+  }
+  return loops;
 }
 
 }  // namespace
@@ -346,6 +461,124 @@ Shell hollow(const Shell& shell, double thickness, const std::vector<std::string
         "hollow: the offset faces do not form a closed inner shell - the faces "
         "must join smoothly so that their offsets meet");
   return out.oriented();
+}
+
+Shell merge_faces(const Shell& shell, double tolerance) {
+  const auto& F = shell.faces();
+  const std::size_t n = F.size();
+  std::vector<std::optional<Parallelogram>> plane(n);
+  for (std::size_t i = 0; i < n; ++i) plane[i] = parallelogram(F[i].surface(), tolerance);
+  const auto compatible = [&](std::size_t i, std::size_t j) {
+    if (F[i].label() != F[j].label()) return false;
+    if (same_surface(F[i].surface(), F[j].surface())) return true;
+    if (!plane[i] || !plane[j]) return false;
+    const Vec3 ni = normalized(cross(plane[i]->e1, plane[i]->e2));
+    const Vec3 nj = normalized(cross(plane[j]->e1, plane[j]->e2));
+    return dot(ni, nj) > 1.0 - 1e-9 && std::abs(dot(plane[j]->o - plane[i]->o, ni)) <= tolerance;
+  };
+  // groups of compatible faces connected through shared edges (union-find)
+  std::vector<std::size_t> root(n);
+  std::iota(root.begin(), root.end(), 0);
+  const auto find = [&](std::size_t x) {
+    while (root[x] != x) x = root[x] = root[root[x]];
+    return x;
+  };
+  for (const auto& e : shell.edges())
+    if (e.uses.size() == 2 && e.uses[0].face != e.uses[1].face &&
+        compatible(e.uses[0].face, e.uses[1].face))
+      root[find(e.uses[0].face)] = find(e.uses[1].face);
+  std::vector<std::vector<std::size_t>> groups(n);
+  for (std::size_t i = 0; i < n; ++i) groups[find(i)].push_back(i);
+
+  std::vector<TrimmedSurface> out;
+  for (const auto& g : groups) {
+    if (g.empty()) continue;
+    if (g.size() == 1) {
+      out.push_back(F[g.front()]);
+      continue;
+    }
+    // carrier surface and the map of every member's trim curves into its parameter plane
+    NurbsSurface carrier = F[g.front()].surface();
+    std::function<Vec3(std::size_t, const Vec3&)> to_carrier = [](std::size_t, const Vec3& p) {
+      return p;
+    };
+    double eps = 1e-9;
+    bool all_same = true;
+    for (const auto i : g) all_same = all_same && same_surface(F[i].surface(), carrier);
+    if (all_same) {
+      const auto du = carrier.domain_u(), dv = carrier.domain_v();
+      eps = 1e-8 * std::max(du[1] - du[0], dv[1] - dv[0]);
+    } else {
+      const Parallelogram& p0 = *plane[g.front()];
+      const Vec3 nrm = normalized(cross(p0.e1, p0.e2));
+      const Vec3 sx = normalized(p0.e1), ty = cross(nrm, sx);
+      const auto world = [&](std::size_t i, const Vec3& q) {
+        const Parallelogram& p = *plane[i];
+        return p.o + ((q.x - p.u0) / p.du) * p.e1 + ((q.y - p.v0) / p.dv) * p.e2;
+      };
+      double s0 = 1e300, s1 = -1e300, t0 = 1e300, t1 = -1e300;
+      for (const auto i : g)
+        for (const auto& c : F[i].outer().curves)
+          for (const auto& q : c.control_points()) {
+            const Vec3 x = world(i, q) - p0.o;
+            s0 = std::min(s0, dot(x, sx)), s1 = std::max(s1, dot(x, sx));
+            t0 = std::min(t0, dot(x, ty)), t1 = std::max(t1, dot(x, ty));
+          }
+      const double W = s1 - s0, H = t1 - t0;
+      const Vec3 origin = p0.o + sx * s0 + ty * t0;
+      carrier = make_rectangle(origin, sx * W, ty * H);
+      to_carrier = [=](std::size_t i, const Vec3& q) {
+        const Vec3 x = world(i, q) - origin;
+        return Vec3{dot(x, sx) / W, dot(x, ty) / H, 0.0};
+      };
+      eps = tolerance / std::max(W, H);
+    }
+    std::vector<NurbsCurve> curves;
+    for (const auto i : g) {
+      const auto map = [&](const NurbsCurve& c) {
+        return map_points(c, [&](const Vec3& q) { return to_carrier(i, q); });
+      };
+      for (const auto& c : F[i].outer().curves) curves.push_back(map(c));
+      for (const auto& h : F[i].holes())
+        for (const auto& c : h.curves) curves.push_back(map(c));
+    }
+    std::vector<TrimmedSurface> merged;
+    try {
+      auto loops = union_loops(std::move(curves), eps);
+      std::vector<TrimLoop> outers, holes;
+      for (auto& l : loops) (l.signed_area() > 0.0 ? outers : holes).push_back(std::move(l));
+      if (outers.empty()) throw GeometryError("no outer loop");
+      std::vector<std::vector<TrimLoop>> inner(outers.size());
+      for (auto& h : holes) {
+        const auto q = h.polyline(4).front();
+        std::size_t best = outers.size();
+        double area = 1e300;
+        for (std::size_t k = 0; k < outers.size(); ++k) {
+          const auto poly = outers[k].polyline(8);
+          bool in = false;
+          for (std::size_t a = 0, b = poly.size() - 1; a < poly.size(); b = a++)
+            if ((poly[a][1] > q[1]) != (poly[b][1] > q[1]) &&
+                q[0] < poly[b][0] + (poly[a][0] - poly[b][0]) * (q[1] - poly[b][1]) /
+                                        (poly[a][1] - poly[b][1]))
+              in = !in;
+          if (in && outers[k].signed_area() < area) {
+            area = outers[k].signed_area();
+            best = k;
+          }
+        }
+        if (best == outers.size()) throw GeometryError("hole outside every outer loop");
+        inner[best].push_back(std::move(h));
+      }
+      for (std::size_t k = 0; k < outers.size(); ++k)
+        merged.push_back(TrimmedSurface(carrier, outers[k], std::move(inner[k]))
+                             .with_label(F[g.front()].label()));
+    } catch (const GeometryError&) {
+      merged.clear();
+      for (const auto i : g) merged.push_back(F[i]);  // leave the group as it is
+    }
+    for (auto& m : merged) out.push_back(std::move(m));
+  }
+  return Shell::sew(std::move(out), tolerance);
 }
 
 }  // namespace nf

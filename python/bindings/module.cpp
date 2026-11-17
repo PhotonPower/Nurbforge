@@ -910,6 +910,9 @@ PYBIND11_MODULE(_core, m) {
         py::arg("tolerance") = 1e-6,
         "Defeaturing: fill the holes (through or blind) of a closed shell whose loops are smaller "
         "than max_size across; the faces of the removed features are deleted.");
+  m.def("merge_faces", &merge_faces, py::arg("shell"), py::arg("tolerance") = 1e-6,
+        "Defeaturing: merge adjacent faces with the same label lying on the same surface (pieces "
+        "of one split face, or coplanar planar faces with the same normal) into one face.");
   m.def("hollow", &hollow, py::arg("shell"), py::arg("thickness"),
         py::arg("open_labels") = std::vector<std::string>{}, py::arg("tolerance") = 1e-6,
         "Hollow a smooth closed shell to a wall of the given thickness: an inner void, or - with "

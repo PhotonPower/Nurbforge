@@ -465,6 +465,12 @@ def _build_tools() -> list[Tool]:
     def _(ws, name, path, radius, end_radius=-1.0):
         return _report(ws, name, nf.make_pipe(ws.get(path), radius, end_radius))
 
+    @add("merge_faces", "Defeaturing: merge adjacent faces of a solid that lie on the same "
+         "surface and carry the same label (e.g. coplanar pieces left by a union).",
+         {"name": _NAME, "solid": _NAME}, ["name", "solid"])
+    def _(ws, name, solid):
+        return _report(ws, name, nf.merge_faces(ws.get(solid)))
+
     @add("remove_holes", "Defeaturing: fill the through and blind holes of a closed solid that "
          "are smaller than max_size across.",
          {"name": _NAME, "solid": _NAME, "max_size": {"type": "number"}},

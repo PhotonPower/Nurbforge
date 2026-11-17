@@ -61,4 +61,14 @@ namespace nf {
                            const std::vector<std::string>& open_labels = {},
                            double tolerance = 1e-6);
 
+/// Defeaturing: merges adjacent faces that lie on the same surface and carry the same label
+/// into one face – e.g. the coplanar pieces of the top faces after the union of two boxes.
+/// Faces qualify if they share an edge and either have the same surface (pieces of one split
+/// face) or are planar parallelograms in one plane with the same normal; the merged face is the
+/// common surface or a rectangle in that plane, trimmed by the union of the regions (shared
+/// boundary pieces cancel, T-junctions are resolved). Trim curves stay exact (affine maps
+/// between planar parametrisations). Groups whose boundary does not form valid loops are left
+/// as they are. The result is sewn and oriented like the input.
+[[nodiscard]] Shell merge_faces(const Shell& shell, double tolerance = 1e-6);
+
 }  // namespace nf

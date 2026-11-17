@@ -4,13 +4,6 @@ All notable changes are documented here. Format: [Keep a Changelog](https://keep
 versioning: [SemVer](https://semver.org).
 
 ## [Unreleased]
-
-## [0.9.0] – 2026-11-17
-Meshing for solvers: local mesh sizes by face label, curvature-based sizing and BEM-ready
-surface meshes (watertight, outward-oriented, as numpy arrays), plus a fix for the gmsh
-transfer of Boolean results with trimmed cylinders, cones, spheres and tori. Wheels for
-CPython 3.14. The API is not yet stable (0.x).
-
 ### Added
 - User manual (LaTeX/PDF, `docs/manual`): installation, concepts and every part of the API in
   18 chapters with 40 tested example scripts, plus a command reference generated from the
@@ -18,6 +11,12 @@ CPython 3.14. The API is not yet stable (0.x).
   `nurbforge.mesh` and `nurbforge.llm`, and all LLM tools). `python docs/manual/build.py` builds
   it; CI builds it for documentation changes and attaches `nurbforge-manual.pdf` to every
   release. A test runs all examples and fails if a public API entry has no description.
+
+## [0.9.0] – 2026-11-17
+Meshing for solvers: local mesh sizes by face label, curvature-based sizing and BEM-ready
+surface meshes (watertight, outward-oriented, as numpy arrays), plus a fix for the gmsh
+transfer of Boolean results with trimmed cylinders, cones, spheres and tori. Wheels for
+CPython 3.14. The API is not yet stable (0.x).
 
 ### Added
 - BEM-ready surface meshes: `nurbforge.mesh.bem_mesh(shell, size, order, curvature, refine, path)`

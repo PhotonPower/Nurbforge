@@ -65,6 +65,7 @@
 - Hollow a smooth solid (inner void, or open at labelled faces) ✅
 - Pipe along a path with constant, tapered or function radius, end faces labelled inlet/outlet ✅
 - Defeaturing: remove small through and blind holes ✅; merge faces on the same surface
+- LLM tools for all solid operations ✅
 
 ## Infrastructure
 - ✅ Wheels via cibuildwheel (manylinux_2_28 for AlmaLinux 10 compatibility, win_amd64, macOS arm64/x86_64)

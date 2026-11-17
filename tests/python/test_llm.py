@@ -356,3 +356,22 @@ def test_solve_tool_reports_infeasible_targets():
     out = call_tool(ws, "solve", {"recipe": recipe, "unknowns": {"r": {"start": 1, "min": 0.1, "max": 2}},
                                   "targets": [{"name": "c", "property": "length", "value": 100}]})
     assert out.startswith("NOT solved") and "c" not in ws.objects
+
+
+def test_solid_operation_tools():
+    ws = Workspace()
+    call_tool(ws, "solid", {"name": "b", "kind": "sphere", "point": [0, 0, 0], "radius": 1})
+    out = call_tool(ws, "split_solid", {"name": "h", "solid": "b", "point": [0, 0, 0],
+                                        "normal": [0, 0, 1], "cut_label": "sym"})
+    assert "h_below: closed shell" in out and "'sym'" in out
+    assert "volume 1.13516" in call_tool(ws, "hollow", {"name": "hb", "solid": "b",
+                                                        "thickness": 0.1})
+    call_tool(ws, "make_line", {"name": "l", "p0": [0, 0, 0], "p1": [0, 0, 3]})
+    assert "'inlet', 'outlet', 'wall'" in call_tool(ws, "pipe", {"name": "p", "path": "l",
+                                                                "radius": 0.5})
+    call_tool(ws, "make_rectangle", {"name": "r", "origin": [0, 0, 0], "edge_u": [2, 0, 0],
+                                     "edge_v": [0, 1, 0]})
+    assert "volume 0.4" in call_tool(ws, "thicken", {"name": "t", "shell": "r", "thickness": 0.2})
+    assert "closed shell" in call_tool(ws, "remove_holes", {"name": "x", "solid": "b",
+                                                             "max_size": 0.1})
+    assert "closed shell" in call_tool(ws, "cap", {"name": "c", "shell": "b"})  # closed: unchanged

@@ -8,6 +8,7 @@
 #include <string>
 
 #include "nurbforge/analysis/closest_point.hpp"
+#include "nurbforge/analysis/intersect.hpp"
 #include "nurbforge/analysis/properties.hpp"
 #include "nurbforge/analysis/surface_intersect.hpp"
 #include "nurbforge/core/error.hpp"
@@ -33,6 +34,14 @@ P2 end2(const NurbsCurve& c) {
   return {p.x, p.y};
 }
 double dist2(const P2& a, const P2& b) { return std::hypot(a[0] - b[0], a[1] - b[1]); }
+
+// bounding box {umin, vmin, umax, vmax} of the control polygon (contains the curve)
+std::array<double, 4> box2(const NurbsCurve& c) {
+  std::array<double, 4> b{1e300, 1e300, -1e300, -1e300};
+  for (const auto& q : c.control_points())
+    b = {std::min(b[0], q.x), std::min(b[1], q.y), std::max(b[2], q.x), std::max(b[3], q.y)};
+  return b;
+}
 
 // S(pc(t)) as an exact NURBS curve with the parametrisation of pc, where that is possible:
 // - S a planar parallelogram (bilinear, equal weights): S is affine, the image of pc is pc with
@@ -524,6 +533,19 @@ std::vector<TrimmedSurface> split(const NurbsSurface& surface, const std::vector
       throw GeometryError("split: curve ends inside the parameter domain (dangling curve)");
     }
   }
+
+  // Curves that cross or touch each other (also chords sharing an end point) need the general
+  // planar arrangement; the perimeter walk below handles disjoint curves only.
+  const double box_pad = eps;
+  for (std::size_t i = 0; i < pcurves.size(); ++i)
+    for (std::size_t j = i + 1; j < pcurves.size(); ++j) {
+      const auto bi = box2(pcurves[i]), bj = box2(pcurves[j]);
+      if (bi[0] > bj[2] + box_pad || bj[0] > bi[2] + box_pad || bi[1] > bj[3] + box_pad ||
+          bj[1] > bi[3] + box_pad)
+        continue;
+      if (!intersect(pcurves[i], pcurves[j], tol).empty())
+        return split(TrimmedSurface(surface), pcurves, tol);
+    }
 
   // regions of the domain cut by the chords (non-crossing chords: #chords + 1 regions)
   std::vector<TrimLoop> regions;

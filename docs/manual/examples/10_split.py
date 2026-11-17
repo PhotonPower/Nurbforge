@@ -38,3 +38,15 @@ ring = nf.split(square, [nf.make_circle((0.5, 0.5, 0), (0, 0, 1), 0.3)])  # clos
 print(f"closed curve: {len(ring)} regions, areas "
       f"{', '.join(f'{q.area():.6f}' for q in sorted(ring, key=lambda q: q.area()))} "
       f"(pi 0.09 = {math.pi * 0.09:.6f})")
+
+# crossing curves: a cross gives four quarters (general planar arrangement)
+cross = [nf.make_line((0.5, 0, 0), (0.5, 1, 0)), nf.make_line((0, 0.4, 0), (1, 0.4, 0))]
+quarters = nf.split(square, cross)
+print(f"cross: {len(quarters)} regions, areas "
+      f"{', '.join(f'{q.area():.4f}' for q in sorted(quarters, key=lambda q: q.area()))}")
+
+# a trimmed face: the cuts are clipped to it and may end on its trim loop
+disk = nf.TrimmedSurface(square, nf.circle_loop(0.5, 0.5, 0.4))
+pieces = nf.split(disk, cross)
+print(f"disk cut by the cross: {len(pieces)} pieces, areas "
+      f"{', '.join(f'{q.area():.4f}' for q in sorted(pieces, key=lambda q: q.area()))}")

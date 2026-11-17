@@ -11,6 +11,8 @@ versioning: [SemVer](https://semver.org).
   `nurbforge.mesh` and `nurbforge.llm`, and all LLM tools). `python docs/manual/build.py` builds
   it; CI builds it for documentation changes and attaches `nurbforge-manual.pdf` to every
   release. A test runs all examples and fails if a public API entry has no description.
+- Python: `split(face, cuts)` for trimmed faces (general planar arrangement: cuts clipped to the
+  face, may end on trim loops or other cuts and may cross).
 
 ### Fixed
 - Installed CMake package: `NurbforgeConfig.cmake` now finds its `Threads` dependency
@@ -24,6 +26,9 @@ versioning: [SemVer](https://semver.org).
   on the whole curve and took the one-sided derivative of the next span at the segment end. It
   now runs on the Bézier segment / patch itself. This also fixes `hatch(contours=...)` for
   loops made of single kinked curves, which failed with "contour ... does not close" (#69).
+- `split(surface, pcurves)` with curves that cross or touch each other (e.g. a cross, or
+  chords meeting at a corner) returned the unsplit surface; such cuts now go through the general
+  planar arrangement (#68).
 
 ## [0.9.0] – 2026-11-17
 Meshing for solvers: local mesh sizes by face label, curvature-based sizing and BEM-ready

@@ -118,21 +118,21 @@ jobs:
             gh release create "$TAG" dist/* --verify-tag --title "Nurbforge ${TAG#v}" --notes-file notes.md
           fi
 
-  # Publishing is intentionally disabled. To enable it, configure a PyPI "trusted publisher"
-  # for this repository/workflow (environment "pypi"), then uncomment the job below. No API
-  # token secrets are needed with trusted publishing.
-  #
-  # publish:
-  #   name: Publish to PyPI
-  #   needs: [wheels, sdist]
-  #   if: startsWith(github.ref, 'refs/tags/v')
-  #   runs-on: ubuntu-latest
-  #   environment: pypi
-  #   permissions:
-  #     id-token: write
-  #   steps:
-  #     - uses: actions/download-artifact@v5
-  #       with:
-  #         path: dist
-  #         merge-multiple: true
-  #     - uses: pypa/gh-action-pypi-publish@release/v1
+  # PyPI via trusted publishing (OIDC, no API token): the publisher is registered on PyPI for
+  # PhotonPower/Nurbforge, workflow wheels.yml, environment "pypi". Only tag pushes publish.
+  publish:
+    name: Publish to PyPI
+    needs: [wheels, sdist]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/p/nurbforge
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v5
+        with:
+          path: dist
+          merge-multiple: true
+      - uses: pypa/gh-action-pypi-publish@release/v1

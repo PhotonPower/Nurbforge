@@ -25,6 +25,8 @@ CPython 3.14. The API is not yet stable (0.x).
 - Wheels for CPython 3.14 (all platforms).
 
 ### Changed
+- Releases are published on PyPI (`pip install nurbforge`) via trusted publishing from the
+  wheels workflow, in addition to the GitHub release.
 - Wheels workflow: `actions/upload-artifact` v4 → v7 (runs on Node.js 24; Node.js 20 is
   deprecated on GitHub runners).
 

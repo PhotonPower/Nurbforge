@@ -54,7 +54,7 @@
 - macOS (Apple Silicon and Intel, macOS ≥ 14): CI and binary wheels ✅
 - Face labels through Booleans, transforms and STEP; gmsh physical groups ✅ (#18)
 
-## 0.9 – Meshing for solvers
+## 0.9 – Meshing for solvers ✅
 - Local mesh sizes by face label or surface tag, growth with distance, curvature-based sizes ✅
 - BEM-ready closed shells: watertight surface meshes with consistent outward orientation ✅
 

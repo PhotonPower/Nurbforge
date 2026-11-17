@@ -6,7 +6,7 @@ import pytest
 
 
 def test_version():
-    assert nf.__version__ == "0.8.0"
+    assert nf.__version__ == "0.9.0"
 
 
 def test_circle_exact():

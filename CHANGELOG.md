@@ -4,6 +4,13 @@ All notable changes are documented here. Format: [Keep a Changelog](https://keep
 versioning: [SemVer](https://semver.org).
 
 ## [Unreleased]
+
+## [0.9.0] – 2026-11-17
+Meshing for solvers: local mesh sizes by face label, curvature-based sizing and BEM-ready
+surface meshes (watertight, outward-oriented, as numpy arrays), plus a fix for the gmsh
+transfer of Boolean results with trimmed cylinders, cones, spheres and tori. Wheels for
+CPython 3.14. The API is not yet stable (0.x).
+
 ### Added
 - BEM-ready surface meshes: `nurbforge.mesh.bem_mesh(shell, size, order, curvature, refine, path)`
   and `GmshSession.surface_mesh()` return a `SurfaceMesh` (numpy nodes, linear or quadratic

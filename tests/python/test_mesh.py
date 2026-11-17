@@ -221,8 +221,11 @@ _TRIMMED_CLOSED = {
     "box with bore": lambda: nf.boolean(nf.make_box((-2, -2, 0), (4, 4, 2)),
                                         nf.make_cylinder((0, 0, -1), (0, 0, 1), 0.5, 4),
                                         _B.Difference),
-    "sphere minus octant": lambda: nf.boolean(nf.make_sphere((0, 0, 0), 1.0),
-                                              nf.make_box((0, 0, 0), (2, 2, 2)), _B.Difference),
+    # box corner off the centre: with the corner at the centre the cut planes contain the poles,
+    # a degenerate case whose Boolean result depends on the compiler (FMA contraction)
+    "sphere minus corner": lambda: nf.boolean(nf.make_sphere((0, 0, 0), 1.0),
+                                              nf.make_box((0.1, 0.2, 0.15), (2, 2, 2)),
+                                              _B.Difference),
     "torus minus corner": lambda: nf.boolean(nf.make_torus((0, 0, 0), (0, 0, 1), 2.0, 0.5),
                                              nf.make_box((1, 1, -1), (3, 3, 2)), _B.Difference),
     "cone with cross bore": lambda: nf.boolean(nf.make_cone((0, 0, 0), (0, 0, 1), 1.5, 0.5, 3.0),
@@ -277,14 +280,14 @@ def test_pipe_with_slot_physical_groups_and_mesh_volume():
 
 
 def test_open_shell_and_solid_false():
-    part = _TRIMMED_CLOSED["sphere minus octant"]()
+    part = _TRIMMED_CLOSED["sphere minus corner"]()
     open_shell = nf.Shell.sew(list(part.faces)[:-1])
     assert not open_shell.is_closed
     with GmshSession() as g:
         tags = g.add_shell(open_shell)
         assert len(tags) == len(open_shell.faces)          # no volume
         assert not gmsh.model.getEntities(3)
-        # shared edges: three faces of a sphere cut by an octant share their boundaries
+        # shared edges: the three remaining faces share their boundaries
         assert len(gmsh.model.getEntities(1)) < sum(
             len(gmsh.model.getBoundary([(2, t)])) for t in tags)
     with GmshSession() as g:

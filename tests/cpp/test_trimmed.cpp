@@ -131,6 +131,47 @@ TEST_CASE("split along chords and nested closed curves", "[trim]") {
   CHECK_THROWS_AS(split(s, std::vector<NurbsCurve>{make_line({0.2, 0.2, 0}, {0.5, 0.5, 0})}), GeometryError);
 }
 
+TEST_CASE("split along crossing curves uses the planar arrangement", "[trim][arrangement]") {
+  // regression: crossing chords silently returned the unsplit surface
+  const auto s = make_rectangle({0, 0, 0}, {1, 0, 0}, {0, 1, 0});  // x = u, y = v
+  const auto sorted_areas = [](const std::vector<TrimmedSurface>& parts) {
+    std::vector<double> a;
+    for (const auto& p : parts) a.push_back(p.area());
+    std::sort(a.begin(), a.end());
+    return a;
+  };
+  // a cross: x = 0.4 and y = 0.3 -> four rectangles
+  auto parts = split(s, std::vector<NurbsCurve>{make_line({0.4, 0, 0}, {0.4, 1, 0}),
+                                                make_line({0, 0.3, 0}, {1, 0.3, 0})});
+  REQUIRE(parts.size() == 4);
+  auto a = sorted_areas(parts);
+  CHECK(rel_close(a[0], 0.12, 1e-8));
+  CHECK(rel_close(a[1], 0.18, 1e-8));
+  CHECK(rel_close(a[2], 0.28, 1e-8));
+  CHECK(rel_close(a[3], 0.42, 1e-8));
+  // both diagonals (ending in the corners) -> four triangles of area 1/4
+  parts = split(s, std::vector<NurbsCurve>{make_line({0, 0, 0}, {1, 1, 0}),
+                                           make_line({0, 1, 0}, {1, 0, 0})});
+  REQUIRE(parts.size() == 4);
+  for (const double x : sorted_areas(parts)) CHECK(rel_close(x, 0.25, 1e-8));
+  // a chord through a circle -> outside left/right of the chord and two half disks
+  parts = split(s, std::vector<NurbsCurve>{make_line({0.5, 0, 0}, {0.5, 1, 0}),
+                                           make_circle({0.5, 0.5, 0}, {0, 0, 1}, 0.25)});
+  REQUIRE(parts.size() == 4);
+  a = sorted_areas(parts);
+  CHECK(rel_close(a[0], pi * 0.0625 / 2, 1e-6));
+  CHECK(rel_close(a[1], pi * 0.0625 / 2, 1e-6));
+  CHECK(rel_close(a[2], 0.5 - pi * 0.0625 / 2, 1e-6));
+  CHECK(rel_close(a[3], 0.5 - pi * 0.0625 / 2, 1e-6));
+  // chords meeting at a boundary corner: three wedges
+  parts = split(s, std::vector<NurbsCurve>{make_line({0, 0, 0}, {1, 0.5, 0}),
+                                           make_line({0, 0, 0}, {0.5, 1, 0})});
+  REQUIRE(parts.size() == 3);
+  double total = 0;
+  for (const double x : sorted_areas(parts)) total += x;
+  CHECK(rel_close(total, 1.0, 1e-8));
+}
+
 TEST_CASE("split a plate by a sphere and a sphere by a plane", "[trim][ssi]") {
   const double R = 2.0, h = 0.8;
   const auto big = make_rectangle({-3, -3, h}, {6, 0, 0}, {0, 6, 0});

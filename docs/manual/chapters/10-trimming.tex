@@ -223,14 +223,15 @@ faces automatically; see \cref{sec:face-labels} for working with labels on shell
 
 \section{Splitting surfaces}\label{sec:split}
 
-\apiref{split} cuts a surface into trimmed regions. It has two forms:
+\apiref{split} cuts a surface or a trimmed face into trimmed regions. It has three forms:
 
 \begin{lstlisting}
 nf.split(surface, cutter, tolerance=nf.Tolerance())   # along the intersection with a surface
 nf.split(surface, pcurves, tolerance=nf.Tolerance())  # along parameter-space curves
+nf.split(face, cuts, tolerance=nf.Tolerance())        # a TrimmedSurface along curves
 \end{lstlisting}
 
-Both return a list of \code{TrimmedSurface} objects that together cover the original surface
+All return a list of \code{TrimmedSurface} objects that together cover the original surface
 without overlap.
 
 \subsection{Splitting by a cutting surface}
@@ -254,15 +255,22 @@ If the surfaces do not intersect, the result is a single, untrimmed face.
 \code{split(surface, pcurves)} applies the same rules to curves you provide in the
 $(u,v,0)$ convention. Open curves must start and end exactly on the domain boundary
 (a curve that overshoots or stops short raises
-\code{GeometryError: split: curve ends inside the parameter domain (dangling curve)}) and
-should not cross each other.
+\code{GeometryError: split: curve ends inside the parameter domain (dangling curve)}).
+Curves may cross or touch each other: then the general planar arrangement described next is
+used, so a cross through a square gives four quarters.
 
-\begin{warning}
-For \code{split(surface, pcurves)} use non-crossing chords. In our tests two \emph{crossing}
-chords (a ``+'' through the square) did not produce four quarters but the unsplit face. The
-Boolean operations internally use a general planar arrangement that handles crossing cuts
-(\cref{sec:boolean-algorithm}), but that variant is not exposed in Python.
-\end{warning}
+\subsection{Splitting a trimmed face}
+
+\code{split(face, cuts)} splits a \code{TrimmedSurface} along parameter-space curves with a
+general planar arrangement -- the algorithm the Boolean operations use
+(\cref{sec:boolean-algorithm}). The cuts are clipped to the face, all curves are split at
+their mutual intersections, dangling pieces are removed, and the faces of the resulting graph
+become the regions; cuts may end on the trim loops or on other cuts and may cross each other.
+
+\begin{note}[Version 0.9.0 and older]
+There \code{split(surface, pcurves)} returned the unsplit face for crossing curves without an
+error, and \code{split(face, cuts)} was not available in Python.
+\end{note}
 
 \example{10_split.py}
 
@@ -274,6 +282,8 @@ sphere pieces: 2, areas 15.07964474 + 35.18583774; cap 2 pi R h = 15.07964474
 no intersection: 1 piece, untrimmed=True
 two chords: 3 regions, areas 0.2500, 0.2500, 0.5000
 closed curve: 2 regions, areas 0.282743, 0.717257 (pi 0.09 = 0.282743)
+cross: 4 regions, areas 0.2000, 0.2000, 0.3000, 0.3000
+disk cut by the cross: 4 pieces, areas 0.0861, 0.0861, 0.1652, 0.1652
 \end{lstlisting}
 
 The plane split by the sphere gives the disc inside (one loop) and the frame outside (outer

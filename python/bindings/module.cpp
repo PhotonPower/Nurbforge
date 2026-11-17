@@ -774,7 +774,13 @@ PYBIND11_MODULE(_core, m) {
   m.def("split",
         py::overload_cast<const NurbsSurface&, const std::vector<NurbsCurve>&, const Tolerance&>(&split),
         py::arg("surface"), py::arg("pcurves"), py::arg("tolerance") = Tolerance{},
-        "Split a surface into trimmed regions along parameter-space curves.");
+        "Split a surface into trimmed regions along parameter-space curves (u, v, 0). Closed curves "
+        "become holes and new regions; open curves run from boundary to boundary and may cross.");
+  m.def("split",
+        py::overload_cast<const TrimmedSurface&, const std::vector<NurbsCurve>&, const Tolerance&>(&split),
+        py::arg("face"), py::arg("cuts"), py::arg("tolerance") = Tolerance{},
+        "Split a trimmed face along parameter-space curves (general planar arrangement): cuts are "
+        "clipped to the face, may end on the trim loops or on other cuts and may cross each other.");
   m.def("integrate", &integrate, py::arg("f"), py::arg("a"), py::arg("b"),
         py::arg("rel_tol") = kIntegrationRelTol, py::arg("breaks") = std::vector<double>{},
         py::arg("abs_tol") = 0.0, "Globally adaptive Gauss-Kronrod integral of f over [a, b].");

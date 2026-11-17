@@ -475,3 +475,18 @@ def test_shell_components_and_voids():
     vs = 4 / 3 * math.pi * 0.125
     assert abs(hollow.volume(1e-8) - (8 - vs)) < 1e-6
     assert sorted(round(c.volume(1e-8), 6) for c in hollow.components()) == [round(-vs, 6), 8.0]
+
+
+def test_split_with_crossing_curves_and_trimmed_faces():
+    # regression (#68): crossing cuts returned the unsplit surface
+    square = nf.make_rectangle((0, 0, 0), (2, 0, 0), (0, 2, 0))
+    cross = [nf.make_line((0.5, 0, 0), (0.5, 1, 0)), nf.make_line((0, 0.25, 0), (1, 0.25, 0))]
+    parts = nf.split(square, cross)
+    assert sorted(round(p.area(), 9) for p in parts) == [0.5, 0.5, 1.5, 1.5]
+    # trimmed face: cuts clipped to the disk, four quarter disks
+    disk = nf.TrimmedSurface(square, nf.circle_loop(0.5, 0.5, 0.4))
+    cross = [nf.make_line((0.5, 0, 0), (0.5, 1, 0)), nf.make_line((0, 0.5, 0), (1, 0.5, 0))]
+    pieces = nf.split(disk, cross)
+    assert len(pieces) == 4
+    for p in pieces:
+        assert p.area() == pytest.approx(math.pi * 0.8**2 / 4, rel=1e-6)

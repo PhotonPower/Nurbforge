@@ -117,7 +117,7 @@ jobs:
         with:
           python-version: "3.12"
       - run: pip install ruff clang-format
-      - run: ruff check python tests examples
+      - run: ruff check python tests examples docs/manual
       - name: clang-format (report only)
         run: |
           find include src python/bindings tests/cpp examples/cpp -name '*.[ch]pp' \

@@ -1,0 +1,414 @@
+\chapter{Geometry from natural language (LLM interface)}\label{ch:llm}
+
+\NF{} can build geometry from requests in natural language, such as ``a box of
+$20\times10\times5$\,mm with a bore of diameter 4 through its centre''. A local large language
+model (LLM) served by \href{https://ollama.com}{Ollama} answers the request by calling geometry
+\emph{tools}. The subpackage \code{nurbforge.llm} provides:
+
+\begin{itemize}
+  \item a minimal HTTP client for Ollama (\apiref{llm.OllamaClient});
+  \item a whitelisted set of 40 geometry tools with JSON schemas (\code{nurbforge.llm.tools});
+  \item the tool-calling loop with automatic verification (\apiref{llm.GeometryAgent});
+  \item a measurement and checking layer (\code{nurbforge.llm.verify});
+  \item a constraint solver for dimensions given only indirectly
+    (\code{nurbforge.llm.constraints});
+  \item an interactive command line, \code{nurbforge-llm}.
+\end{itemize}
+
+Everything runs locally. No data leaves the machine, and no API key is needed.
+
+\section{Safety model}\label{sec:llm-safety}
+
+The model \textbf{never executes code}. It can only call the tools of a fixed list. Each tool
+has a JSON schema, and each operates on a named object store, the \apiref{llm.Workspace}. This
+has three consequences:
+
+\begin{itemize}
+  \item \textbf{Bounded effects.} A tool can create, copy or measure objects, and write or read
+    STEP and mesh files at paths the model chooses. Nothing else is possible. In particular
+    there is no \code{eval}, no shell and no Python import.
+  \item \textbf{Errors are text.} An invalid call, such as an unknown object, a wrong argument
+    or degenerate geometry, does not raise into the host program. It is returned to the model
+    as a message beginning with \code{ERROR:}, so the model can correct itself.
+  \item \textbf{Arithmetic without Python.} Even the constraint solver's expressions
+    (\cref{sec:llm-solve}) are evaluated by a small whitelist interpreter, not by Python.
+\end{itemize}
+
+This makes the interface usable in automated pipelines. The worst a confused model can do is
+create wrong geometry, and the verification layer is there to catch that.
+
+\begin{warning}[File paths]
+The tools \toolref{export_step} and \toolref{import_step} read and write the file paths that
+the model gives. Run the agent in a working directory where this is acceptable, or remove the
+tools from \code{TOOLS} if your application must not touch files.
+\end{warning}
+
+\section{Setting up Ollama}
+
+\begin{lstlisting}[style=shell]
+# install Ollama from https://ollama.com, then:
+ollama serve &                  # starts the server on http://localhost:11434
+ollama pull qwen2.5:14b         # any model with tool support
+nurbforge-llm --model qwen2.5:14b
+\end{lstlisting}
+
+The model must support \emph{tool calling}. Suitable model families include \code{qwen2.5}
+(\code{qwen2.5:14b} is the default), \code{llama3.1} and \code{mistral-nemo}. As a rule, larger
+models choose operations and arguments more reliably. The error messages and verification rounds
+help smaller models, but cannot fully make up for them. Requests are sent with temperature 0,
+so answers are largely reproducible.
+
+Two environment variables set the defaults:
+\begin{itemize}
+  \item \code{OLLAMA_HOST} (default \code{http://localhost:11434});
+  \item \code{NURBFORGE_LLM_MODEL} (default \code{qwen2.5:14b}).
+\end{itemize}
+
+\section{Using the agent from Python}
+
+\begin{lstlisting}[style=python]
+from nurbforge.llm import GeometryAgent, OllamaClient
+
+agent = GeometryAgent(OllamaClient(host="http://localhost:11434", model="qwen2.5:14b"))
+print(agent.ask("Revolve a semicircle of radius 5 about z into a sphere named ball"))
+ball = agent.workspace.get("ball")       # an ordinary nurbforge object
+\end{lstlisting}
+
+\subsection{\texttt{OllamaClient}}
+
+\code{OllamaClient(host=..., model=..., timeout=300.0)} is a thin wrapper around Ollama's REST
+API. It uses only the standard library (\code{urllib}).
+\begin{itemize}
+  \item A host without a scheme gets \code{http://} prepended.
+  \item \code{list_models()} returns the installed models (\code{/api/tags}).
+  \item \code{chat(messages, tools=None, temperature=0.0)} performs one non-streaming chat turn
+    (\code{/api/chat}) and returns the assistant message as a dictionary.
+  \item Network problems and server errors raise \apiref{llm.OllamaError}, a
+    \code{RuntimeError}.
+\end{itemize}
+Any object with a compatible \code{chat} method can replace the client. This is how the tests
+work, and how the scripted example below runs without a model.
+
+\subsection{\texttt{GeometryAgent}}
+
+\begin{longtable}{@{}>{\raggedright\arraybackslash}p{0.3\textwidth}p{0.64\textwidth}@{}}
+\toprule
+\textbf{Member} & \textbf{Meaning} \\
+\midrule\endhead
+\code{GeometryAgent(client, workspace, max_steps, verify_rounds)} &
+  All arguments are optional (defaults \code{None}, \code{None}, 20, 1). \code{client} defaults to \code{OllamaClient()}, and \code{workspace} to a new, empty
+  \code{Workspace}. Pass an existing workspace to let the model work on objects you created in
+  Python. \code{max_steps} limits the number of model turns per request phase. \\
+\code{ask(prompt)} & Sends a request, executes the tool calls and runs the verification rounds
+  (\cref{sec:llm-verify}). Returns the model's final answer. If the step limit is reached, the
+  answer is \code{"Stopped: maximum number of tool steps reached."}. \\
+\code{workspace} & The \code{Workspace} holding all objects. \\
+\code{messages} & The complete conversation: system prompt, requests, tool calls and results.
+  It persists across \code{ask} calls, so follow-up requests can refer to earlier objects. \\
+\code{log} & List of \code{(tool, arguments, result)} for every executed call. \\
+\code{verification} & The last verification report sent to the model, or \code{None}. \\
+\bottomrule
+\end{longtable}
+
+The system prompt tells the model:
+\begin{itemize}
+  \item to build geometry only with the tools;
+  \item that angles are given in degrees;
+  \item to name objects descriptively and reuse existing names;
+  \item to verify results with \code{inspect} and \code{check};
+  \item to use \code{solve} instead of guessing when a dimension is given only indirectly.
+\end{itemize}
+
+\section{The tools}
+
+\subsection{Overview}
+
+\begin{longtable}{@{}p{0.22\textwidth}p{0.72\textwidth}@{}}
+\toprule
+\textbf{Group} & \textbf{Tools} \\
+\midrule\endhead
+Curves & \toolref{make_line}, \toolref{make_circle}, \toolref{make_arc},
+  \toolref{make_polygon}, \toolref{make_helix}, \toolref{round_corners},
+  \toolref{interpolate_points} \\
+Surfaces & \toolref{make_rectangle}, \toolref{revolve}, \toolref{extrude}, \toolref{ruled},
+  \toolref{loft}, \toolref{sweep}, \toolref{coons}, \toolref{asphere} \\
+Modification & \toolref{extend}, \toolref{offset}, \toolref{fillet}, \toolref{trim_circle},
+  \toolref{split}, \toolref{section} \\
+Copies & \toolref{translate}, \toolref{rotate}, \toolref{mirror}, \toolref{linear_array},
+  \toolref{polar_array} \\
+Solids & \toolref{sew}, \toolref{solid} (box, sphere, cylinder, cone, torus),
+  \toolref{boolean}, \toolref{mass_properties} \\
+Queries & \toolref{list_objects}, \toolref{evaluate}, \toolref{closest_point},
+  \toolref{measure}, \toolref{intersect} \\
+Verification & \toolref{inspect}, \toolref{check}, \toolref{solve} \\
+Files & \toolref{export_step}, \toolref{import_step} \\
+\bottomrule
+\end{longtable}
+
+\Cref{app:llmtools} lists every tool with its description and all parameters, generated from
+the schemas the model actually receives.
+
+\subsection{Conventions at the tool level}
+
+\begin{itemize}
+  \item \textbf{Angles are in degrees.} Models handle degrees much more reliably than radians.
+    The Python and C++ API use radians, and the tools convert.
+  \item \textbf{Points and vectors} are lists of three numbers.
+  \item \textbf{Objects are referred to by name.} A tool that creates something takes a
+    \code{name}, and the object is stored under it, replacing an existing object of that name.
+    Tools that create several objects append suffixes: \code{name_0} \dots{} for arrays,
+    \code{name_1} \dots{} for \code{split}, \code{section} and \code{import_step}.
+  \item \textbf{Results are short texts}, for example
+    \code{stored part: closed shell, volume 20.8584}. They are designed to give the model the
+    information it needs for the next step.
+\end{itemize}
+
+\section{Using the tools without a model}
+
+The tool layer is useful on its own, for scripting, for testing, and for reproducing what a
+model did. \code{call_tool(workspace, name, arguments)} executes exactly what the agent would
+execute for a model's tool call, and \code{TOOLS} contains the tool definitions with their
+schemas.
+
+\example{16_llm_tools.py}
+
+\begin{lstlisting}[style=text]
+40 tools, e.g. make_line, make_circle, make_arc, make_polygon, make_helix, round_corners ...
+make_circle - Create a full circle (exact NURBS).
+  parameters: {"type": "number"} required: ['name', 'center', 'normal', 'radius']
+stored box: closed shell, volume 24
+stored rod: closed shell, volume 4.71239
+stored part: closed shell, volume 20.8584
+stored a: <NurbsCurve degree=2 n_ctrl=3 rational>
+length=3.141592654
+ERROR: KeyError: "unknown object 'nothing'. Known: ['a', 'box', 'part', 'rod']"
+ERROR: unknown tool 'no_such_tool'
+part: type=shell, faces=7, edges=17, free_edges=0, non_manifold_edges=0, closed=True,
+  consistently_oriented=True, area=62.99557432, volume=20.85840737,
+  bbox={min: [0, 0, -7.090971193e-17], max: [2, 3, 4]}
+PASS: volume = 24 (expected 24)
+FAIL: bbox.max = [2, 3, 4] (expected [2, 3, 5])
+stored plate: <NurbsSurface degree=(1,1) net=2x2>
+stored lid: open shell with 4 free edges
+lid: type=shell, faces=1, edges=4, free_edges=4, ..., closed=False, ...
+  ISSUES: shell is open (4 free edges) - not a solid
+a: type=curve, degree=2, control_points=3, rational=True, length=3.141592654, ...
+solved in 5 iterations: r=1.989436805, h=3.999999985 (max relative target error
+  4.63e-09); recipe executed
+PASS: area = 50.00000023 (expected 50)
+workspace: ['a', 'box', 'cyl', 'gen', 'lid', 'part', 'plate', 'rod']
+\end{lstlisting}
+
+The \code{Workspace} is a plain data class. Its \code{objects} attribute is a dictionary, and
+there are two methods:
+\begin{itemize}
+  \item \code{put(name, obj)} stores an object;
+  \item \code{get(name)} returns it, or raises \code{KeyError} listing the known names.
+\end{itemize}
+Objects created in Python can be put into the workspace before a request, and the model's
+results can be taken out afterwards. All of them are ordinary \code{NurbsCurve},
+\code{NurbsSurface}, \code{TrimmedSurface} and \code{Shell} objects.
+
+\section{Verification}\label{sec:llm-verify}
+
+Language models are good at choosing operations, and poor at noticing that a result is wrong:
+a shell that did not close, a radius off by a factor of two, a part in the wrong place. \NF{}
+gives the model \emph{measurements} instead of letting it believe its own plan.
+
+\subsection{The tools \texttt{inspect} and \texttt{check}}
+
+\toolref{inspect} reports the measured properties of an object:
+\begin{itemize}
+  \item \textbf{all objects:} the type and a bounding box from dense samples;
+  \item \textbf{curves:} degree, number of control points, whether the curve is rational,
+    length, start and end points, and whether it is closed;
+  \item \textbf{surfaces and trimmed surfaces:} degree, control net size, area, and the number
+    of holes;
+  \item \textbf{shells:} faces, edges, free and non-manifold edges, whether the shell is closed
+    and consistently oriented, area, and the volume if the shell is closed.
+\end{itemize}
+Problems are flagged explicitly after \code{ISSUES:}: a degenerate curve or surface (zero
+length or area), an empty shell, an open shell with its number of free edges, non-manifold
+edges, inconsistent orientation, or a negative volume (a shell oriented inwards).
+
+\toolref{check} compares one measured property with an expected value and answers \code{PASS}
+or \code{FAIL} with the measured value. Properties are addressed by path: \code{volume},
+\code{area}, \code{length}, \code{closed}, \code{faces}, \code{bbox.min}, \code{bbox.max},
+\code{bbox.max[2]}, \code{start}, \dots{}
+\begin{itemize}
+  \item Numbers and lists of numbers pass within the given absolute \code{tolerance}. By
+    default the tolerance is $10^{-6}$ relative, and at least $10^{-9}$ absolute.
+  \item Booleans and strings must be equal.
+\end{itemize}
+
+\begin{note}[Bounding boxes are sampled]
+Bounding boxes are computed from samples, a grid of points on every face. For trimmed faces
+only the samples inside the trim region are used. They are therefore slightly inside the true
+box for curved or trimmed geometry. In the example, the box of the open \code{lid} runs from
+$0.083$ to $0.917$ instead of from 0 to 1. Use a tolerance when checking bounding boxes of such
+objects, or check \code{area} and \code{volume} instead, which are integrated accurately.
+\end{note}
+
+\subsection{Verification rounds}
+
+After the model's final answer, \code{GeometryAgent.ask} starts up to \code{verify_rounds}
+verification rounds:
+\begin{enumerate}
+  \item The objects created or changed by this request are measured, and a report like that of
+    \code{inspect} is sent to the model, together with the instruction to compare it with the
+    request.
+  \item The model either repairs the geometry with further tool calls, or confirms with an
+    answer beginning with \code{VERIFIED}.
+  \item If the model made tool calls, the next round measures the objects again. The rounds
+    stop as soon as the model answers without calling a tool.
+\end{enumerate}
+The default is one round. \code{verify_rounds=0} disables verification. The last report is
+kept in \code{agent.verification}.
+
+The following script shows this loop without Ollama, using a scripted stand-in for the model.
+In its first answer the ``model'' only creates a flat plate. The verification report shows
+this, and the model adds a closed cube and checks its volume. A second round confirms the
+result.
+
+\example{16_llm_agent_scripted.py}
+
+\begin{lstlisting}[style=text]
+answer: VERIFIED: closed unit cube 'cube', volume 1.
+  [make_rectangle] -> stored floor: <NurbsSurface degree=(1,1) net=2x2>
+  [solid] -> stored cube: closed shell, volume 1
+  [check] -> PASS: volume = 1 (expected 1)
+last verification report sent to the model:
+floor: type=surface, degree=[1, 1], control_points=[2, 2], area=1,
+  bbox={min: [0, 0, 0], max: [1, 1, 0]}
+cube: type=shell, faces=6, edges=12, free_edges=0, non_manifold_edges=0, closed=True,
+  consistently_oriented=True, area=6, volume=1, bbox={min: [0, 0, 0], max: [1, 1, 1]}
+workspace: ['cube', 'floor']
+\end{lstlisting}
+
+\subsection{The verification functions in Python}
+
+The measuring code is in \code{nurbforge.llm.verify} and works without a model:
+\begin{center}
+\begin{tabularx}{\textwidth}{@{}lX@{}}
+\toprule
+Function & Result \\
+\midrule
+\code{inspect_object(obj)} & Dictionary of measured properties, as listed above. \\
+\code{issues(props)} & List of problems found in such a dictionary. \\
+\code{describe(name, obj)} & One line: properties and issues. A failing measurement is itself
+  reported. \\
+\code{report(objects)} & Report for a dictionary of named objects, one line per object. \\
+\code{check(obj, prop, expected, tolerance=None)} & \code{"PASS: ..."} or \code{"FAIL: ..."},
+  as with the tool. \\
+\bottomrule
+\end{tabularx}
+\end{center}
+These functions are handy in your own scripts too. One use is a quick plausibility report
+after a long chain of Booleans.
+
+\section{Constraint solving}\label{sec:llm-solve}
+
+Requests often fix a dimension only indirectly: ``a cylinder of height 4 with a lateral area of
+50'', ``a lens of volume 2\,cm$^3$'', ``a box whose top is at $z=10$''. Models guess such
+values badly. The tool \toolref{solve} lets them state the constraints instead, and computes
+the dimensions.
+
+\subsection{The three parts of a \texttt{solve} call}
+
+\begin{lstlisting}[style=json]
+{"recipe": [
+   {"tool": "make_line", "args": {"name": "gen", "p0": ["$r", 0, 0], "p1": ["$r", 0, "$h"]}},
+   {"tool": "revolve", "args": {"name": "cyl", "profile": "gen", "axis_point": [0, 0, 0],
+                                "axis_dir": [0, 0, 1], "angle_deg": 360}}],
+ "unknowns": {"r": {"start": 1, "min": 0.01, "max": 10},
+              "h": {"start": 1, "min": 0.01, "max": 10}},
+ "targets": [{"name": "cyl", "property": "area", "value": 50},
+             {"name": "cyl", "property": "bbox.max[2]", "value": 4}]}
+\end{lstlisting}
+
+\begin{description}[leftmargin=1.5em, style=nextline]
+  \item[recipe] A list of ordinary tool calls \code{{"tool": ..., "args": ...}}. Any numeric
+    argument, also inside lists, may be written as:
+    \begin{itemize}
+      \item \code{"$name"}, an unknown;
+      \item \code{"${expression}"}, an arithmetic expression over the unknowns.
+    \end{itemize}
+    Expressions may contain numbers, unknowns, \code{+ - * / **}, parentheses, \code{pi},
+    \code{sqrt}, \code{abs}, \code{min}, \code{max}, and \code{sin}, \code{cos}, \code{tan},
+    \code{asin}, \code{acos}, \code{atan} in degrees. Example: \code{"${2*r + 1}"}.
+  \item[unknowns] Maps each unknown to \code{{"start": ..., "min": ..., "max": ...}}. The bounds
+    are optional but strongly recommended. They keep the iteration away from degenerate
+    geometry, such as a negative radius.
+  \item[targets] Measured properties, as in \code{check}: \code{{"name", "property", "value"}},
+    optionally with a \code{weight}. Any property of \code{inspect} can be used.
+\end{description}
+
+\subsection{How it works}
+
+\begin{enumerate}
+  \item The recipe is executed in a \emph{scratch copy} of the workspace, with the current
+    values of the unknowns. The targets are then measured.
+  \item The relative target residuals are driven to zero by a bounded Levenberg--Marquardt
+    iteration. The Jacobian is computed by forward differences, stepping inwards at the bounds.
+    Trial steps that produce invalid geometry are rejected, and the damping is increased.
+  \item The solve has converged when the residual norm is below $10^{-8}$; up to $10^{-6}$ is
+    accepted. At most 40 iterations are made.
+  \item Only after convergence is the recipe executed in the real workspace. Otherwise nothing
+    is created, and the model is told the values reached and the remaining error. It can then
+    fix the bounds, the recipe or the targets.
+\end{enumerate}
+
+{\raggedright For the example above the result is
+\code{solved in 5 iterations: r=1.989436805, h=3.999999985}. The exact solution is
+$r = 50/(8\pi) = 1.9894368$.
+
+The solver is also available directly, as \code{nurbforge.llm.constraints.solve(ws, recipe,
+unknowns, targets, call_tool)}. Expressions can be evaluated with
+\code{constraints.evaluate(expr, variables)}.\par}
+
+\section{The command line: \texttt{nurbforge-llm}}
+
+\begin{lstlisting}[style=shell]
+nurbforge-llm --model qwen2.5:14b --out model.msh --mesh-size 0.5
+\end{lstlisting}
+
+The command starts an interactive loop:
+\begin{itemize}
+  \item every line typed is passed to \code{agent.ask};
+  \item after each answer, the last tool calls are printed with their results;
+  \item an empty line (or end of input) quits.
+\end{itemize}
+With \code{--out}, all surfaces in the workspace are meshed with gmsh on exit and written to
+that file. \Cref{app:cli} lists all options.
+
+\section{A session with a real model}
+
+\example{16_llm_ollama.py}
+
+The script needs a running \code{ollama serve}, so it is not executed by the test suite. A
+typical model first creates the box and the cylinder with \toolref{solid}, then subtracts them
+with \toolref{boolean}, and checks the volume with \toolref{check} or in the verification
+round. The expected value is $1000-4\pi\cdot5\approx937.17$.
+
+\section{Adding a tool}
+
+Tools are defined in \code{python/nurbforge/llm/tools.py}, inside \code{_build_tools()}. Each
+one is a function decorated with \code{@add(name, description, properties, required)}:
+
+\begin{lstlisting}[style=python]
+@add("make_line", "Create a straight line segment.",
+     {"name": _NAME, "p0": _VEC, "p1": _VEC}, ["name", "p0", "p1"])
+def _(ws, name, p0, p1):
+    return ws.put(name, nf.make_line(p0, p1))
+\end{lstlisting}
+
+\begin{itemize}
+  \item \code{properties} is a JSON schema per argument. \code{_VEC} is a list of three numbers,
+    and \code{_NAME} is an object name.
+  \item The function receives the workspace and the arguments, and returns a short text.
+  \item Exceptions are caught by \code{call_tool} and returned as \code{ERROR:} messages, so
+    the function may simply raise.
+  \item Keep descriptions short and precise. Small models depend on them.
+  \item Convert angles from degrees.
+  \item Add a test in \code{tests/python/test_llm.py}, using the scripted \code{FakeClient}.
+\end{itemize}

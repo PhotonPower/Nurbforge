@@ -1,0 +1,44 @@
+% Nurbforge user manual.
+% Build:  python docs/manual/build.py      (needs the installed nurbforge package and pdfLaTeX)
+% The command reference (appendix) is generated from the installed package by gen_reference.py.
+\documentclass[11pt,a4paper,openany]{report}
+\InputIfFileExists{generated/version.tex}{}{\newcommand{\NFVersion}{(development)}}
+\input{preamble}
+
+\title{\Huge\bfseries Nurbforge\\[0.4em]\LARGE User Manual}
+\author{Nurbforge contributors\\[0.3em]\normalsize\url{https://github.com/PhotonPower/Nurbforge}}
+\date{Version \NFVersion\\[0.2em]\small\today}
+
+\begin{document}
+\pagenumbering{roman}
+\maketitle
+\tableofcontents
+\clearpage
+\pagenumbering{arabic}
+
+\input{chapters/01-introduction}
+\input{chapters/02-installation}
+\input{chapters/03-quickstart}
+\input{chapters/04-concepts}
+\input{chapters/05-curves}
+\input{chapters/06-surfaces}
+\input{chapters/07-fitting}
+\input{chapters/08-optics}
+\input{chapters/09-intersections}
+\input{chapters/10-trimming}
+\input{chapters/11-solids}
+\input{chapters/12-slicing}
+\input{chapters/13-transforms}
+\input{chapters/14-step}
+\input{chapters/15-meshing}
+\input{chapters/16-llm}
+\input{chapters/17-cpp}
+\input{chapters/18-troubleshooting}
+
+\appendix
+\input{generated/reference}
+\input{generated/llm-tools}
+\input{chapters/appendix-cli}
+\input{chapters/appendix-tolerances}
+
+\end{document}

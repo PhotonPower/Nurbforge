@@ -96,6 +96,9 @@ pip install nurbforge            # no compiler needed; nurbforge[mesh] adds gmsh
 The documentation site – these pages plus the Python (autodoc) and C++ (Doxygen/Breathe) API
 references – is published at **<https://photonpower.github.io/Nurbforge/>**.
 
+- **User manual (PDF)** – the complete guide with a full command reference in the appendix;
+  attached to every [GitHub release](https://github.com/PhotonPower/Nurbforge/releases) as
+  `nurbforge-manual.pdf`, sources in [docs/manual](docs/manual/) (`python docs/manual/build.py`)
 - [Tutorial](docs/tutorial.md) – the main workflow, step by step with runnable examples
 - [Architecture](docs/architecture.md) – layers, modules, data flow
 - [NURBS fundamentals & conventions](docs/math/nurbs.md)

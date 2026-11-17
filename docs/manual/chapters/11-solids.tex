@@ -1,0 +1,432 @@
+\chapter{Shells, solids and Boolean operations}\label{ch:solids}
+
+\NF{} describes solids by their boundary (B-rep): a \apiref{Shell} is a set of trimmed faces
+(\cref{ch:trimming}) sewn together along shared edges. A shell that is closed and
+consistently oriented bounds a solid; it has a volume, a centroid and an inertia tensor, it
+can be combined with other solids by Boolean operations, sectioned into layers
+(\cref{ch:slicing}), written to STEP (\cref{ch:step}) and meshed (\cref{ch:meshing}).
+
+This chapter covers
+\begin{itemize}
+\item sewing faces into shells and the B-rep data structure (faces, edges, vertices, edge uses),
+\item closedness and orientation checks,
+\item area, volume and mass properties,
+\item the solid primitives (box, sphere, cylinder, cone and torus),
+\item Boolean union, intersection and difference, point classification,
+\item face labels that survive all these operations,
+\item bodies with several shells (voids, separate lumps), and
+\item the limitations of the Boolean operations.
+\end{itemize}
+
+\section{Sewing faces into a shell}\label{sec:sew}
+
+\begin{lstlisting}
+shell = nf.Shell.sew(faces, tolerance=1e-6)
+\end{lstlisting}
+
+\apiref{Shell.sew} takes a list of \code{TrimmedSurface} objects and finds their shared
+edges:
+
+\begin{enumerate}
+\item The boundary loops of every face are mapped to 3D. Where possible the exact image is
+used (straight edges of planar faces, iso-parameter curves such as the end circles and the
+seam of a cylinder); otherwise the image is fitted.
+\item Two boundary curves form the same \emph{edge} if each lies on the other within the
+sewing \code{tolerance} (checked at 7 samples by closest-point projection), in the same or the
+opposite direction. Closed curves may start at different points.
+\item Degenerate boundary pieces -- the poles of revolved surfaces such as a sphere, where a
+whole side of the parameter rectangle maps to one point -- are not edges.
+\item The seam of a closed surface (the line where $u=0$ and $u=1$ of a cylinder meet)
+becomes an edge used \emph{twice by the same face}.
+\item Curves that overlap only partially (T-junctions, e.g. a short edge lying on a long one)
+are split at the end points of the other curves.
+\end{enumerate}
+
+The tolerance is a model-space length. The default $10^{-6}$ suits faces built exactly in
+\NF{}; for imported or fitted faces whose edges disagree by more, increase it -- but keep it
+well below the smallest feature size, otherwise unrelated edges may be merged.
+
+\subsection{The B-rep structure}\label{sec:brep}
+
+\begin{center}
+\begin{tabularx}{\linewidth}{@{}lX@{}}
+\toprule
+Member & Meaning \\
+\midrule
+\code{faces} & list of \code{TrimmedSurface} (index = face number) \\
+\code{vertices} & list of \code{Vec3}: end points of the edges \\
+\code{edges} & list of \code{ShellEdge} \\
+\code{ShellEdge.curve} & the 3D edge curve (from the first face that uses it) \\
+\code{ShellEdge.v0}, \code{v1} & start and end vertex index (equal for closed edges such as
+circles) \\
+\code{ShellEdge.uses} & list of \code{Coedge}: the uses of the edge by face loops \\
+\code{Coedge.face} & face index \\
+\code{Coedge.loop} & 0 for the outer loop, $k>0$ for hole $k-1$ \\
+\code{Coedge.index} & position of the trim curve in the loop \\
+\code{Coedge.reversed} & \code{True} if the loop runs against the direction of the edge curve \\
+\code{free_edges()} & indices of edges used by only one loop (holes in the shell) \\
+\code{non_manifold_edges()} & indices of edges used more than twice \\
+\code{components()} & connected components as separate shells \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+In a \emph{closed}, manifold shell every edge has exactly two uses. In a consistently
+oriented shell the two uses traverse the edge in opposite directions (one of them has
+\code{reversed=True}): neighbouring faces then have normals pointing to the same side.
+
+\subsection{Example: a cylinder from three faces}
+
+\example{11_shells.py}
+
+\begin{lstlisting}[style=text]
+sewn: 3 faces, 3 edges, 2 vertices, closed=True, consistently oriented=False
+oriented: consistently oriented=True, volume 6.2831853072 (pi r^2 h = 6.2831853072)
+edge 0: closed, length 6.283185, used by [face 0 loop 0, face 1 loop 0 rev]
+edge 1: open, length 2.000000, used by [face 0 loop 0, face 0 loop 0 rev]
+edge 2: closed, length 6.283185, used by [face 0 loop 0, face 2 loop 0 rev]
+cup: closed=False, free edges [2], non-manifold edges [], area 15.70796327
+volume of an open shell: GeometryError: shell: volume requires a closed shell
+volume 6.28318531, centroid (0.000000, -0.000000, 1.000000)
+inertia about the centroid (unit density):
+     3.665191    0.000000    0.000000
+     0.000000    3.665191   -0.000000
+     0.000000   -0.000000    3.141593
+analytic: Ixx = m (3 r^2 + h^2) / 12 = 3.665191, Izz = m r^2 / 2 = 3.141593
+principal moments (3.141593, 3.665191, 3.665191)
+rotated volume 6.28318531, mirrored volume 6.28318531
+\end{lstlisting}
+
+The topology is exactly what one expects of a cylinder: the side face (face 0) shares a
+closed circular edge with each lid, and its seam (edge 1, from the bottom vertex to the top
+vertex) is used twice by the side face itself, once in each direction. Leaving out the top
+lid gives an open ``cup'' with one free edge.
+
+\section{Closedness and orientation}\label{sec:shell-orientation}
+
+\begin{center}
+\begin{tabularx}{\linewidth}{@{}lX@{}}
+\toprule
+Query & Meaning \\
+\midrule
+\code{is_closed} & watertight: every edge used exactly twice \\
+\code{is_consistently_oriented} & every edge used twice is traversed in opposite directions
+by its two uses \\
+\code{oriented()} & a copy with faces flipped so that the orientation is consistent and
+closed components point outwards \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\code{Shell.sew} keeps the faces as they are; their normals are whatever the surface
+parametrisations give. In the cylinder example the side face (an extruded circle) happens to
+point outwards while both lids point up, so the raw shell is not consistently oriented.
+\code{oriented()} fixes this in two steps:
+
+\begin{enumerate}
+\item Within every connected component, faces are flipped by breadth-first propagation over
+shared edges until all neighbours agree. A non-orientable configuration (a Möbius-like
+arrangement) raises \code{GeometryError}.
+\item Closed components are then oriented by \emph{nesting depth}: a component that lies
+inside an even number of other closed components is an outer boundary and gets outward
+normals (positive volume); one inside an odd number bounds a void and gets normals pointing
+into the void (negative volume). See \cref{sec:voids}.
+\end{enumerate}
+
+\begin{tip}
+Call \code{.oriented()} on every shell you sew yourself. The solid primitives and the results
+of Boolean operations are already oriented.
+\end{tip}
+
+\section{Area, volume and mass properties}\label{sec:mass}
+
+\begin{center}
+\begin{tabularx}{\linewidth}{@{}lX@{}}
+\toprule
+Method & Meaning \\
+\midrule
+\code{area(rel_tol=1e-8)} & total area of all faces (also for open shells) \\
+\code{volume(rel_tol=1e-8)} & enclosed volume; requires a closed, consistently oriented
+shell; positive for outward normals \\
+\code{mass_properties(rel_tol=1e-8)} & \apiref{MassProperties} for unit density \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+The volume is computed with the divergence theorem,
+\[
+V = \tfrac13 \sum_{\text{faces}} \iint S\cdot(S_u\times S_v)\,du\,dv ,
+\]
+where each face integral is evaluated over the trimmed region with the same Green's theorem
+integration as the trimmed area (\cref{sec:trim-area}). \code{rel_tol} is the relative
+accuracy target of the integration. For a closed shell that is not consistently oriented, or
+an open shell, \code{volume()} raises \code{GeometryError}.
+
+\apiref{MassProperties} contains
+
+\begin{center}
+\begin{tabularx}{\linewidth}{@{}lX@{}}
+\toprule
+Field & Meaning \\
+\midrule
+\code{volume} & volume (= mass for unit density) \\
+\code{centroid} & centre of mass \\
+\code{inertia} & $3\times3$ NumPy array, inertia tensor about the centroid,
+$I_{ij} = \int (|r|^2\delta_{ij} - r_i r_j)\,dV$ with $r$ measured from the centroid
+(diagonal: moments of inertia; off-diagonal: products of inertia with the minus sign
+included) \\
+\code{principal_moments} & eigenvalues of \code{inertia}, ascending \\
+\code{principal_axes} & $3\times3$ NumPy array of the corresponding unit axes \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+For a material of density $\rho$ multiply \code{volume} and \code{inertia} by $\rho$. The
+integrals are evaluated relative to the centre of the bounding box and combined with the
+parallel-axis theorem, which keeps them accurate for parts far from the origin. Voids are
+subtracted automatically. \code{mass_properties()} raises \code{GeometryError} if the volume
+is not positive (e.g. a shell oriented inside out).
+
+\subsection{Transforming shells}
+
+\code{shell.transformed(T)} (or \code{T * shell}) maps every face surface with the affine
+transform \code{T} (trim loops are unchanged, since they live in parameter space) and sews the
+faces again. Orientation-reversing maps -- mirrors and negative scale factors -- would turn the
+normals inwards; \code{transformed} flips the faces in that case, so outward normals stay
+outward and the volume stays positive (see the last line of the example output).
+Transforms are described in \cref{ch:transforms}.
+
+\section{Solid primitives}\label{sec:primitives}
+
+Five functions create closed, outward-oriented shells with exact NURBS faces:
+
+\begin{center}
+\begin{tabularx}{\linewidth}{@{}>{\raggedright\arraybackslash}p{0.33\linewidth}
+  >{\raggedright\arraybackslash}X >{\raggedright\arraybackslash}p{0.2\linewidth}@{}}
+\toprule
+Function & Shape & Face labels \\
+\midrule
+\apiref{make_box}\code{(corner, size)} & axis-aligned box, edge lengths \code{size.x},
+\code{size.y}, \code{size.z} $>0$; six planar faces & \code{bottom}, \code{top} ($z$),
+\code{front}, \code{back} ($y$), \code{left}, \code{right} ($x$) \\
+\apiref{make_sphere}\code{(center, radius)} & one revolved face (semicircle about an axis
+parallel to $z$), poles at \code{center} $\pm$ radius $\hat z$ & \code{surface} \\
+\apiref{make_cylinder}\code{(base, axis, radius, height)} & extruded circle plus two planar
+lids trimmed by exact circles; base disc centred at \code{base} & \code{side},
+\code{bottom}, \code{top} \\
+\apiref{make_cone}\code{(base, axis, r0, r1, height)} & frustum with radius \code{r0} at the
+base and \code{r1} at the top; one radius may be 0 (apex as a pole, no lid there) &
+\code{side}, \code{bottom}, \code{top} \\
+\apiref{make_torus}\code{(center, axis, major_radius, minor_radius)} & one doubly periodic
+revolved face; $0 < r < R$ & \code{surface} \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+Axes are normalised internally. Primitives in other orientations are made with a
+non-axis-aligned \code{axis} argument or by transforming the result; a rotated box, for
+example, is
+
+\begin{lstlisting}
+box = nf.make_box((0, 0, 0), (2, 1, 1)).transformed(
+    nf.Transform.rotation((0, 0, 0), (0, 0, 1), math.radians(30)))
+\end{lstlisting}
+
+\section{Boolean operations}\label{sec:booleans}
+
+\begin{lstlisting}
+result = nf.boolean(a, b, op, tolerance=1e-6)
+\end{lstlisting}
+
+\apiref{boolean} combines two closed shells; \code{op} is a \apiref{BooleanOp}:
+
+\begin{center}
+\begin{tabularx}{\linewidth}{@{}lX@{}}
+\toprule
+Operation & Result \\
+\midrule
+\code{BooleanOp.Union} & $A\cup B$: the parts of $A$ outside $B$ and of $B$ outside $A$ \\
+\code{BooleanOp.Intersection} & $A\cap B$: the parts of $A$ inside $B$ and of $B$ inside $A$ \\
+\code{BooleanOp.Difference} & $A\setminus B$: the parts of $A$ outside $B$ and of $B$ inside
+$A$ (flipped) \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+The result is again a closed, oriented shell -- possibly with several components (a
+difference that cuts a body in two, a union of disjoint bodies, a body with a void), and
+possibly empty (the intersection of disjoint bodies, the difference of identical bodies).
+The inputs are oriented outwards first, so they do not have to be oriented by the caller.
+\code{tolerance} is the length below which overlaps count as contacts (see
+\cref{sec:boolean-algorithm}).
+
+\example{11_booleans.py}
+
+\begin{lstlisting}[style=text]
+box     : 6 faces ['bottom', 'top', 'front', 'back', 'left', 'right'], volume 24.0000000000 (exact 24.0000000000)
+sphere  : 1 faces ['surface'], volume 4.1887902048 (exact 4.1887902048)
+cylinder: 3 faces ['side', 'bottom', 'top'], volume 6.2831853072 (exact 6.2831853072)
+cone    : 2 faces ['side', 'bottom'], volume 3.1415926536 (exact 3.1415926536)
+frustum : 3 faces ['side', 'bottom', 'top'], volume 3.6651914292 (exact 3.6651914292)
+torus   : 1 faces ['surface'], volume 9.8696044011 (exact 9.8696044011)
+block - bore: 7 faces, closed=True, volume 30.4292036749 (32 - 2 pi 0.25 = 30.4292036732)
+labels after the Boolean: ['bottom', 'top', 'front', 'back', 'left', 'right', 'side']
+faces labelled 'side' (the bore wall): [6]
+spheres Union       : volume 7.068583464, exact 7.068583471, rel. error 9.5e-10
+spheres Intersection: volume 1.308996945, exact 1.308996939, rel. error 4.9e-09
+spheres Difference  : volume 2.879793259, exact 2.879793266, rel. error 2.2e-09
+point_in_shell(drilled, (0, 0, 1)) = False
+point_in_shell(drilled, (1.5, 1.5, 1)) = True
+point_in_shell(drilled, (0, 0, 3)) = False
+slotted pipe: 7 faces, faces per label {'wall': 1, 'inlet': 1, 'outlet': 1, 'slot': 4}
+hollow box: 2 components, volumes +64.000000, -4.188790, total 59.811210 (64 - 4/3 pi = 59.811210)
+centre inside the solid? False
+\end{lstlisting}
+
+The volumes of the primitives are exact to the integration accuracy. Results of Booleans
+between curved faces are accurate to about $10^{-9}$ relative: the cut edges are fitted
+intersection curves (\cref{sec:isect-ss}), whose fit tolerance limits the accuracy of the
+trimmed faces. For the drilled block the volume error is $1.7\times10^{-9}$ in absolute terms.
+
+\subsection{Point classification}
+
+\apiref{point_in_shell}\code{(shell, point, tolerance=1e-6)} returns \code{True} if the
+point lies inside the closed shell. It casts rays from the point and counts their crossings
+with the trimmed faces; rays that hit a face boundary or graze a face are discarded, and the
+answer is the majority of several valid rays. Points within the tolerance of the boundary may
+be classified either way. Voids are respected: the centre of the hollow box in the example is
+outside the solid.
+
+\subsection{How Booleans work}\label{sec:boolean-algorithm}
+
+\begin{enumerate}
+\item \textbf{Intersect.} Every pair of faces with overlapping bounding boxes is intersected
+(surface/surface intersection). Each intersection curve is clipped to the parameter intervals
+on which both p-curves lie inside their trimmed faces.
+\item \textbf{Split.} Every face is split along its cuts by a \emph{planar arrangement} in its
+parameter domain: cuts are clipped to the face, all curves are split at their mutual
+intersections, dangling pieces are removed and the faces of the resulting graph are traced.
+Cuts may end on loops or on other cuts and may cross each other.
+\item \textbf{Classify.} Each piece is classified as inside or outside the other shell by
+\code{point_in_shell} at an interior point of the piece.
+\item \textbf{Select and sew} the pieces according to the operation; pieces of $B$ in a
+difference are flipped. The pieces keep the orientation of their outward-oriented shells, so
+voids stay voids.
+\end{enumerate}
+
+Several special situations are handled explicitly:
+
+\begin{itemize}
+\item \textbf{Coincident faces} (two boxes sharing a face, identical solids) are detected by
+sampling before the surface/surface intersection. Each face is cut along the other face's
+loops; the common part is classified ``on'' with the same or the opposite normal and kept or
+dropped according to the following table. So two boxes sharing a face fuse into one solid,
+identical solids give themselves (union, intersection) or nothing (difference).
+
+\begin{center}
+\begin{tabular}{@{}llll@{}}
+\toprule
+piece & union & intersection & difference $A-B$ \\
+\midrule
+$A$, on, same normal & keep & keep & drop \\
+$A$, on, opposite normal & drop & drop & keep \\
+$B$, on (either) & drop & drop & drop \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\item \textbf{Tangential contacts} -- spheres touching at a point, a cylinder touching a box
+face along a line -- are not cut; touching faces are classified as a whole. The touching lumps
+of a union stay separate components.
+\item \textbf{Overlaps thinner than the tolerance} count as contacts: two spheres overlapping
+by $10^{-7}$ give two touching lumps and an empty intersection. Thicker slivers are cut and
+kept, e.g. circle segments of $10^{-5}$.
+\end{itemize}
+
+\subsection{Limitations}\label{sec:boolean-limits}
+
+\begin{warning}[Degenerate configurations]
+Booleans are numerically sensitive where the inputs meet in degenerate ways. Known cases:
+\begin{itemize}
+\item \textbf{Cut planes through the poles of a sphere.} Subtracting a box whose corner lies
+exactly at the centre of a sphere (so that two cutting planes contain the poles) yields a
+closed shell with one compiler (Apple Clang) but an open shell with others (GCC, MSVC); the
+result depends on rounding in the last bits (GitHub issue \#63). Moving the box corner
+slightly off the centre, e.g. to $(0.1, 0.2, 0.15)$, gives the same closed result everywhere.
+\item \textbf{Coincident faces whose common part crosses the seam} of a closed surface are
+not handled (the projected loop would jump in the parameter domain).
+\end{itemize}
+Always check \code{result.is_closed} (and, if in doubt, the volume) after a Boolean whose
+inputs share poles, seams or tangent faces exactly. Shifting one input by a small, physically
+irrelevant amount is usually the simplest remedy.
+\end{warning}
+
+Run time grows with the number of face pairs whose boxes overlap and with the complexity of
+the intersection curves. Booleans of primitives take fractions of a second to a few seconds;
+chains of many operations on complex parts take correspondingly longer. The face pairs are
+independent, but the operation runs single-threaded (parallelisation was measured and not
+adopted, see the benchmarks page of the online documentation).
+
+\section{Face labels}\label{sec:face-labels}
+
+Labels give faces stable names across operations -- for boundary conditions, physical groups
+in meshes (\cref{ch:meshing}) or named regions in STEP files (\cref{ch:step}).
+
+\begin{center}
+\begin{tabularx}{\linewidth}{@{}lX@{}}
+\toprule
+Member & Meaning \\
+\midrule
+\code{shell.face_labels} & list with the label of every face (\code{""} for none) \\
+\code{shell.with_face_labels(labels)} & a copy with face $f$ labelled \code{labels[f]} (one
+label per face) \\
+\code{shell.faces_labeled(label)} & indices of the faces with this label \\
+\code{face.label}, \code{face.with_label(text)} & label of a single \code{TrimmedSurface} \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+Labels survive Booleans (every piece of a split face inherits the label of the face it came
+from, and new faces from the other operand bring their own labels), transforms,
+\code{oriented()}, \code{flipped()}, splitting and the STEP round trip. In the example, the
+pipe is labelled \code{wall}, \code{inlet}, \code{outlet} before the slot is cut; after the
+Boolean and a translation, the four slot faces carry the label \code{slot} and the original
+faces their original names. Because the primitives label their faces automatically, the bore
+wall of the drilled block can be found as \code{faces_labeled("side")}.
+
+\begin{tip}
+Label faces \emph{before} the operation that creates the final part. The order of faces in a
+Boolean result is not specified, but the labels are.
+\end{tip}
+
+\section{Bodies with several shells}\label{sec:voids}
+
+A \code{Shell} may consist of several connected components. \code{components()} returns them
+as separate shells. Typical cases:
+
+\begin{itemize}
+\item \textbf{Voids.} A box minus a sphere lying completely inside it has two components:
+the outer box with outward normals (positive volume) and the sphere with normals pointing
+into the void (negative volume). The total \code{volume()} is the solid volume,
+$64 - \tfrac43\pi$ in the example.
+\item \textbf{Separate lumps.} A difference that cuts a body in two, or the union of two
+bodies that do not touch, gives several outward-oriented components.
+\item \textbf{Touching lumps.} Bodies touching at a point or along a line stay separate
+components of the union.
+\end{itemize}
+
+The orientation is decided by nesting depth (\cref{sec:shell-orientation}), so hollow
+bodies keep their voids through \code{oriented()} and \code{transformed()}, Booleans accept
+hollow inputs, \code{mass_properties()} subtracts voids, and the STEP writer exports them as
+\code{BREP_WITH_VOIDS}.
+
+\section{Checklist}\label{sec:solids-checklist}
+
+\begin{itemize}
+\item After sewing: \code{is_closed}, \code{free_edges()}, \code{non_manifold_edges()}; then
+\code{oriented()}.
+\item Before measuring: closed and consistently oriented, otherwise \code{volume()} raises.
+\item After a Boolean: \code{is_closed}, plausibility of \code{volume()}; beware degenerate
+contacts at poles and seams.
+\item Use labels to find faces again; do not rely on face indices.
+\end{itemize}

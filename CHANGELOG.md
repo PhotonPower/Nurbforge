@@ -12,6 +12,14 @@ transfer of Boolean results with trimmed cylinders, cones, spheres and tori. Whe
 CPython 3.14. The API is not yet stable (0.x).
 
 ### Added
+- User manual (LaTeX/PDF, `docs/manual`): installation, concepts and every part of the API in
+  18 chapters with 40 tested example scripts, plus a command reference generated from the
+  installed package (every class, method, property, enumeration and function of `nurbforge`,
+  `nurbforge.mesh` and `nurbforge.llm`, and all LLM tools). `python docs/manual/build.py` builds
+  it; CI builds it for documentation changes and attaches `nurbforge-manual.pdf` to every
+  release. A test runs all examples and fails if a public API entry has no description.
+
+### Added
 - BEM-ready surface meshes: `nurbforge.mesh.bem_mesh(shell, size, order, curvature, refine, path)`
   and `GmshSession.surface_mesh()` return a `SurfaceMesh` (numpy nodes, linear or quadratic
   triangles, groups per face label, normals, areas, volume) that is checked to be watertight

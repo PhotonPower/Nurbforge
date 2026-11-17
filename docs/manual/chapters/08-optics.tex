@@ -1,0 +1,251 @@
+\chapter{Optical surfaces}\label{ch:optics}
+
+Lens and mirror surfaces are specified by their \emph{sag}: the height $z$ of the surface above
+the tangent plane at the vertex as a function of the lateral position. \NF{} turns the standard
+sag descriptions of optical design -- conics, even and odd aspheres, Zernike polynomials and XY
+polynomials, as well as arbitrary sag functions -- into NURBS surfaces that can be trimmed to an
+aperture, combined into solids, exported to STEP and meshed for wave-optical or thermal
+simulations. Conics are represented exactly; all other sags are fitted to a tolerance that is
+verified at dense check points.
+
+\section{Conventions}\label{sec:optics-conventions}
+
+\begin{itemize}
+\item The optical axis is $z$, the vertex lies at the origin, and the sag $z(x,y)$ is measured
+  along $+z$. Place a surface elsewhere with a \code{Transform} (\cref{ch:transforms}).
+\item The curvature is $c = 1/R$. $R > 0$ puts the centre of curvature on the $+z$ side: the
+  surface opens towards $+z$ and the sag is positive.
+\item The conic constant $k$ selects the conic: $k = 0$ sphere, $k = -1$ paraboloid, $k < -1$
+  hyperboloid, $-1 < k < 0$ prolate ellipsoid, $k > 0$ oblate ellipsoid.
+\item Lengths are in model units (usually millimetres); all coefficients refer to these units.
+\end{itemize}
+
+\section{Rotationally symmetric surfaces}\label{sec:aspheres}
+
+\subsection{The Asphere sag}
+
+\begin{lstlisting}[style=text]
+Asphere(curvature=0.0, conic=0.0, even=[], odd=[])
+\end{lstlisting}
+
+An \apiref{Asphere} describes the sag
+\[
+  z(r) = \frac{c\,r^2}{1 + \sqrt{1 - (1+k)\,c^2 r^2}}
+         + \sum_{i} A_{2i+4}\, r^{2i+4} + \sum_i B_{i+1}\, r^{i+1},
+\]
+with \code{even} $= [A_4, A_6, A_8, \dots]$ (coefficients of $r^4, r^6, \dots$) and \code{odd}
+$= [B_1, B_2, B_3, \dots]$ (coefficients of $r, r^2, r^3, \dots$). Its members:
+
+\begin{tabularx}{\linewidth}{@{}l>{\raggedright\arraybackslash}X@{}}
+\toprule
+Member & Meaning \\
+\midrule
+\code{curvature}, \code{conic}, \code{even}, \code{odd} & the parameters (read/write) \\
+\code{sag(r)} & $z(r)$ \\
+\code{max_radius()} & the largest $r$ for which the conic term is defined:
+  $1/(|c|\sqrt{1+k})$ for $k > -1$, infinite for $k \le -1$ or $c = 0$ \\
+\code{is_conic} & \code{True} if there are no polynomial terms (exact representation possible) \\
+\bottomrule
+\end{tabularx}
+
+\subsection{Profiles and surfaces}
+
+\begin{lstlisting}[style=text]
+asphere_profile(asphere, r_max, tolerance=1e-7) -> NurbsCurve
+asphere_surface(asphere, r_max, tolerance=1e-7) -> NurbsSurface
+\end{lstlisting}
+
+\apiref{asphere_profile} returns the meridian $(r, 0, z(r))$ for $0 \le r \le r_\text{max}$ in the
+$xz$ plane; \apiref{asphere_surface} revolves it about the $z$ axis ($u$: azimuth, $v$: radius).
+
+\begin{itemize}
+\item \textbf{Pure conics} (\code{is_conic}) are exact: the profile is a piecewise rational
+  quadratic (each piece turns the tangent by at most $45^\circ$), and the revolved surface is the
+  exact sphere, ellipsoid, paraboloid or hyperboloid -- including hemispheres with a vertical rim
+  tangent. Both parameter domains are $[0,1]$.
+\item \textbf{Aspheres with polynomial terms} are approximated by a cubic spline profile. The
+  profile keeps $x(t) = r$ exactly linear -- the parameter \emph{is} the radius, so the
+  $v$ domain of the surface is $[0, r_\text{max}]$ -- and the error is a pure sag error. Knots
+  are inserted adaptively until $|\Delta z| \le$ \code{tolerance} at 8 check points per knot
+  span; the fit is symmetric, so the slope at the vertex is exactly zero.
+\end{itemize}
+
+$r_\text{max}$ must not exceed \code{max_radius()}; beyond it the conic term has no real value.
+
+\example{08_aspheres.py}
+
+Output:
+
+\begin{lstlisting}[style=text]
+sphere: is_conic=True, max_radius=40.0, sag(10) = 1.270166537926 (exact 1.270166537926)
+  surface: degrees (2, 2), rational, distance from the centre - R: 0.0e+00
+conic k = -1.0: max_radius      inf, sag error 1.3e-15
+conic k = -0.5: max_radius   28.284, sag error 3.8e-15
+conic k =  0.5: max_radius   16.330, sag error 1.8e-15
+asphere: is_conic=False, sag(15) = 2.860402219
+  profile tol 1e-06: degree 3, 14 ctrl, max distance to the sag 5.8e-07
+  profile tol 1e-09: degree 3, 62 ctrl, max distance to the sag 8.6e-10
+  surface domains u [0.0, 1.0], v [0.0, 15.0] (v = r for fitted profiles)
+  rim point Vec3(12.207391, 8.716629, 2.860402), r = 15.000000000, z - sag(15) = 0.0e+00
+  sphere surface domains u [0.0, 1.0], v [0.0, 1.0] (exact conic)
+odd asphere sag(10) = 0.100000
+\end{lstlisting}
+
+The conic surfaces reproduce the sag to rounding error ($\sim10^{-15}$). For the even asphere a
+tolerance of $10^{-6}$ needs 14 control points in the profile, $10^{-9}$ needs 62 -- the number
+grows slowly because the cubic spline converges with the fourth power of the knot spacing.
+
+\section{Freeform surfaces}\label{sec:freeform-optics}
+
+\subsection{Zernike polynomials}
+
+\NF{} supports two orderings of the Zernike polynomials $Z_j(\rho, \theta)$, $j \ge 1$, selected
+by \apiref{ZernikeIndexing}:
+
+\begin{tabularx}{\linewidth}{@{}l>{\raggedright\arraybackslash}X@{}}
+\toprule
+Indexing & Definition \\
+\midrule
+\code{Fringe} & Fringe / University of Arizona ordering, \emph{unnormalised}:
+  $Z_4 = 2\rho^2 - 1$ (defocus), $Z_9 = 6\rho^4 - 6\rho^2 + 1$ (primary spherical), $Z_{16}$
+  secondary spherical. Common in interferometry. \\
+\code{Noll} & Noll ordering, normalised to unit RMS over the unit disc ($Z_4 =
+  \sqrt3\,(2\rho^2-1)$). Common in optical design and atmospheric optics. \\
+\bottomrule
+\end{tabularx}
+
+\apiref{zernike}\code{(j, indexing, rho, theta)} evaluates $Z_j$;
+\apiref{zernike_nm}\code{(j, indexing)} returns the radial order $n$ and the azimuthal frequency
+$m$ ($m < 0$ denotes a sine term).
+
+\begin{lstlisting}[style=text]
+ZernikeSag(base=Asphere(), norm_radius=1.0, indexing=ZernikeIndexing.Fringe, coeffs=[])
+zernike_surface(zernike, half_width=0.0, tolerance=1e-7) -> NurbsSurface
+\end{lstlisting}
+
+A \apiref{ZernikeSag} adds Zernike terms to a base asphere:
+$z(x,y) = z_\text{base}(r) + \sum_j \text{coeffs}[j-1]\, Z_j(r/\text{norm\_radius}, \theta)$.
+\code{coeffs[0]} is the coefficient of $Z_1$ (piston), \code{coeffs[3]} that of $Z_4$, and so
+on. \code{sag(x, y)} evaluates it. \apiref{zernike_surface} fits the graph $(x, y, z(x,y))$ over
+the square $[-h, h]^2$ with $h$ = \code{half_width}, by default \code{norm_radius}.
+
+\subsection{XY polynomials}
+
+\begin{lstlisting}[style=text]
+XYPolynomialSag(base=Asphere(), norm_radius=1.0, terms=[])
+xy_polynomial_surface(poly, half_width=0.0, tolerance=1e-7) -> NurbsSurface
+\end{lstlisting}
+
+An \apiref{XYPolynomialSag} adds $\sum c\,(x/\text{norm})^i (y/\text{norm})^j$ to a base
+asphere; \code{terms} is a list of triples \code{(i, j, c)}. \apiref{xy_polynomial_surface}
+fits it over a square like \code{zernike_surface}.
+
+\subsection{Arbitrary sag functions}
+
+\begin{lstlisting}[style=text]
+sag_surface(f, x0, x1, y0, y1, degree=3, tolerance=1e-7, max_spans=256) -> NurbsSurface
+\end{lstlisting}
+
+\apiref{sag_surface} fits the graph of any Python function \code{f(x, y)} over the rectangle
+$[x_0,x_1]\times[y_0,y_1]$: diffractive structures, measured deformations given as a function,
+or sags from another program. The result is a tensor-product spline of the given degree whose
+$x$ and $y$ are exactly linear in $u$ and $v$, so \textbf{$u = x$ and $v = y$}. Knots are
+inserted adaptively until $|S_z - f| \le$ \code{tolerance} at $8\times8$ check points per knot
+rectangle; polynomials of degree $\le$ \code{degree} are reproduced exactly. \code{GeometryError}
+is raised if \code{f} returns a non-finite value (e.g.\ outside the domain of a steep conic) or
+more than \code{max_spans} spans per direction would be needed. Zernike and XY surfaces use the
+same machinery.
+
+\subsection{Apertures}
+
+Zernike, XY and sag surfaces are graphs over a square. A circular clear aperture is a trimmed
+surface with a circular trim loop in the parameter plane -- since $u = x$ and $v = y$ the loop
+is simply the aperture circle:
+
+\begin{lstlisting}
+aperture = nf.TrimmedSurface(z_surf, nf.circle_loop(0.0, 0.0, 9.0))
+\end{lstlisting}
+
+Trimmed surfaces are explained in \cref{ch:trimming}; they are passed exactly to gmsh and to
+STEP. For the rotationally symmetric \code{asphere_surface} no trimming is needed -- its rim is
+the circle $r = r_\text{max}$.
+
+\subsection{Example}
+
+\example{08_freeform_optics.py}
+
+Output:
+
+\begin{lstlisting}[style=text]
+Z1  Fringe (n, m) = (0,  0), Noll (n, m) = (0,  0)
+Z4  Fringe (n, m) = (2,  0), Noll (n, m) = (2,  0)
+Z9  Fringe (n, m) = (4,  0), Noll (n, m) = (3, -3)
+Z11 Fringe (n, m) = (3, -3), Noll (n, m) = (4,  0)
+Fringe Z4(rho=1) = 1.0, Noll Z4(rho=1) = 1.732051 (sqrt 3)
+zernike surface: domain [-10.0, 10.0] x [-10.0, 10.0], net 35 x 35, degree 3
+  max |S_z - sag| at 400 random points: 5.5e-09 (tolerance 1e-8)
+xy polynomial: domain [-4.0, 4.0], net 5 x 5, S(2, 1).z = 0.000896000000, sag(2, 1) = 0.000896000000
+sag_surface: net 115 x 115, max error 7.6e-07 (tolerance 1e-6)
+aperture contains (8, 4): True, (8, 5): False
+aperture area 255.290267 (flat disc pi 9^2 = 254.469005)
+curvature at the vertex: k1 = 0.01249924, k2 = 0.01249924 (1/80 = 0.01250000)
+\end{lstlisting}
+
+The table shows why the indexing must always be stated: $Z_9$ is primary spherical aberration in
+Fringe ordering but trefoil in Noll ordering. The XY polynomial with a flat base is a cubic
+polynomial and therefore reproduced exactly by the bicubic spline ($5\times5$ control points).
+The aperture area is slightly larger than the flat disc because the surface is curved.
+
+The last line shows a limit of fitted surfaces: points are within the tolerance, but derivatives
+are less accurate. The curvature at the vertex of the fitted sphere ($R = 80$, default tolerance
+$10^{-7}$) is correct to about $6\cdot10^{-5}$ relative. If curvatures matter, fit with a smaller
+tolerance -- or use \code{asphere_surface}, which is exact for conics.
+
+\section{Accuracy}\label{sec:optics-accuracy}
+
+\begin{table}[htbp]
+\centering\small
+\begin{tabularx}{\linewidth}{@{}>{\raggedright\arraybackslash}p{3.6cm}>{\raggedright\arraybackslash}X>{\raggedright\arraybackslash}p{3.8cm}@{}}
+\toprule
+Surface & Representation & Accuracy \\
+\midrule
+Sphere, ellipsoid, paraboloid, hyperboloid (\code{Asphere} without terms) & revolved exact
+  conic: piecewise rational quadratic profile ($\le 45^\circ$ tangent turn per piece) & exact up
+  to rounding (residual $\sim10^{-13}$) \\
+Even/odd asphere & cubic spline profile $z(r)$, revolved exactly; $x = r$ exactly linear;
+  slope 0 at the vertex & $|\Delta z| \le$ tolerance at 8 check points per span \\
+Zernike, XY polynomial, \code{sag_surface} & tensor-product spline graph, $x$, $y$ exactly
+  linear; polynomials of degree $\le$ \code{degree} exact & $|\Delta z| \le$ tolerance at
+  $8\times8$ check points per knot rectangle \\
+\bottomrule
+\end{tabularx}
+\caption{Representations of optical surfaces.}
+\end{table}
+
+The tolerance is \emph{verified at dense check points}, not proven between them. In the test
+suite, evaluations at additional random points find errors within 1.5--2 times the tolerance. For
+a strict bound, request a smaller tolerance. For steep conic bases, the corners of the square of
+a Zernike or XY surface may lie outside the conic's domain (\code{max_radius}); the fit then
+reports the undefined sag -- reduce \code{half_width}.
+
+\section{A complete lens}\label{sec:lens}
+
+A lens consists of a front surface, a back surface and the cylindrical edge between their rims.
+The following script builds a biconvex lens with an aspheric front and a spherical back surface
+and meshes it with gmsh (\cref{ch:meshing}). For a closed solid suitable for Booleans or STEP
+export the faces would be sewn into a shell (\cref{ch:solids}).
+
+\example{08_lens_mesh.py}
+
+Output:
+
+\begin{lstlisting}[style=text]
+rim heights: front 1.822938, back 5.398492, edge thickness 3.575555
+areas: front 462.747309, back 453.526006, edge 269.590472
+wrote lens.msh with 1506 nodes
+\end{lstlisting}
+
+The back surface has $R = -120$: its centre of curvature lies on the $-z$ side, so after moving
+it to $z = 6$ it bulges towards $+z$ and the lens is biconvex. Its rim is lower than its vertex
+($5.398 < 6$), the front rim lies at the sag $z(12) = 1.823$, and the edge cylinder connects the
+two rims exactly.

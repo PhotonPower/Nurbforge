@@ -1,0 +1,437 @@
+\chapter{Surfaces}\label{ch:surfaces}
+
+Surfaces are the faces of every model: lens surfaces, the walls of a channel, the faces of a
+solid. Like curves, all surfaces in \NF{} are instances of a single class,
+\apiref{NurbsSurface}, a tensor-product NURBS. This chapter covers the exact constructions
+(planar patches, extrusion, revolution, ruled surfaces), the free-form constructions through
+curves (loft, sweeps, Coons and Gordon surfaces), the \code{NurbsSurface} class with all its
+members, and the operations and analyses on surfaces (extension, offsets, fillets, curvature,
+area). Surfaces carry no boundary of their own beyond their parameter rectangle; trimmed faces
+are the subject of \cref{ch:trimming}, closed solids of \cref{ch:solids}.
+
+\section{Definition and conventions}\label{sec:surface-def}
+
+A NURBS surface of degrees $(p, q)$ with an $(n+1)\times(m+1)$ net of control points $\mathbf
+P_{ij}$, weights $w_{ij} > 0$ and knot vectors $U$ (size $n+p+2$) and $V$ (size $m+q+2$) is
+\[
+  \mathbf S(u,v) = \frac{\sum_{i=0}^{n}\sum_{j=0}^{m} N_{i,p}(u)\,N_{j,q}(v)\,w_{ij}\,\mathbf P_{ij}}
+                        {\sum_{i=0}^{n}\sum_{j=0}^{m} N_{i,p}(u)\,N_{j,q}(v)\,w_{ij}} .
+\]
+The index $i$ runs along $u$, $j$ along $v$. The net is stored \emph{row-major}: control point
+$\mathbf P_{ij}$ has the flat index $i\cdot(m+1)+j$, i.e.\ $j$ (the $v$ index) varies fastest.
+
+The orientation of a surface is given by its parametrisation: the (unnormalised) normal is
+$\mathbf S_u \times \mathbf S_v$. Many operations depend on it -- offsets, fillets, the outward
+direction of solid faces -- so it is worth knowing which way each construction points.
+\Cref{tab:surface-params} summarises the parametrisations of the constructions in this chapter.
+
+\begin{table}[htbp]
+\centering\small
+\begin{tabularx}{\linewidth}{@{}l>{\raggedright\arraybackslash}X>{\raggedright\arraybackslash}X@{}}
+\toprule
+Construction & $u$ & $v$ \\
+\midrule
+\code{make_rectangle(o, eu, ev)} & along \code{eu}, degree 1 & along \code{ev}, degree 1 \\
+\code{make_bilinear(p00, p10, p01, p11)} & from \code{p00} to \code{p10} & from \code{p00} to \code{p01} \\
+\code{extrude(profile, d)} & the profile & along \code{d}, degree 1 \\
+\code{revolve(profile, ...)} & around the axis, rational degree 2 & the profile \\
+\code{ruled(c0, c1)} & the curves (made compatible) & from \code{c0} ($v=0$) to \code{c1} ($v=1$), degree 1 \\
+\code{loft(sections)} & along the sections & across the sections \\
+\code{sweep}, \code{sweep2} & the profile, on $[0,1]$ & the trajectory (its domain) \\
+\code{sweep_translational} & the profile & the trajectory \\
+\code{coons(c0, c1, d0, d1)} & along \code{c0}, \code{c1} & along \code{d0}, \code{d1} \\
+\bottomrule
+\end{tabularx}
+\caption{Parametrisation of the surface constructions.}
+\label{tab:surface-params}
+\end{table}
+
+\section{Exact constructions}\label{sec:exact-surfaces}
+
+\begin{description}[style=nextline]
+\item[\apiref{make_rectangle}\code{(origin, edge_u, edge_v)}]
+  The planar patch $\mathbf S(u,v) = \mathbf o + u\,\mathbf e_u + v\,\mathbf e_v$ on $[0,1]^2$,
+  bilinear with $2\times2$ control points. Its normal is $\mathbf e_u \times \mathbf e_v$. The
+  edges need not be perpendicular (any parallelogram). Rectangles are the usual carriers of
+  planar faces: a disc is a square trimmed by a circle (\cref{ch:trimming}).
+\item[\apiref{make_bilinear}\code{(p00, p10, p01, p11)}]
+  The bilinear patch through four corners; with non-coplanar corners it is a hyperbolic
+  paraboloid (a ``saddle''). \code{p10} is the corner at $(u,v)=(1,0)$, \code{p01} the one at
+  $(0,1)$.
+\item[\apiref{extrude}\code{(profile, direction)}]
+  The general cylinder obtained by moving the profile along the vector \code{direction}.
+  Exact for any profile, including rational ones; a circle extruded gives an exact cylinder.
+\item[\apiref{revolve}\code{(profile, axis_point, axis_dir, angle)}]
+  The surface of revolution (Piegl \& Tiller A8.1): the profile is rotated by \code{angle}
+  (radians, $0 < \text{angle} \le 2\pi$) about the axis through \code{axis_point} with direction
+  \code{axis_dir}, counter-clockwise by the right-hand rule. $u$ runs around the axis (rational
+  quadratic, $\le 90^\circ$ per segment), $v$ follows the profile. A semicircle gives an exact
+  sphere, a circle off the axis an exact torus, a line an exact cone or cylinder.
+\item[\apiref{ruled}\code{(c0, c1)}]
+  The ruled surface (linear loft) between two curves: straight lines connect points of equal
+  parameter. The curves are made compatible automatically (\apiref{make_compatible}), so their
+  parametrisations should correspond -- two circles should start at corresponding points and
+  run in the same direction, otherwise the surface is twisted.
+\end{description}
+
+\begin{note}[Poles]
+A profile point on the axis of revolution (the end points of the semicircle that makes a sphere)
+produces a \emph{pole}: a whole row of the control net collapses into one point. There
+$\mathbf S_u = 0$ and the usual normal $\mathbf S_u\times\mathbf S_v$ is undefined.
+\code{normal()} then returns the \emph{limit normal}, computed from the mixed derivative, with
+the sign chosen to agree with the neighbourhood. The example prints $(0,0,-1)$ at the south pole
+of the sphere -- the outward normal, as on the rest of the sphere.
+\end{note}
+
+\example{06_basic_surfaces.py}
+
+Output:
+
+\begin{lstlisting}[style=text]
+rectangle: degrees (1, 1), net 2 x 2, S(0.5, 0.5) = Vec3(1.000000, 0.500000, 0.000000), normal Vec3(0.000000, 0.000000, 1.000000), area 2.0000000000
+bilinear: S(0.5, 0.5) = Vec3(0.500000, 0.500000, 0.250000), area 1.2807892753
+extrude: degrees (2, 1), net 9 x 2, area 12.5663706144 (4 pi = 12.5663706144)
+revolve: degrees (2, 2), net 9 x 5, area 12.5663706144 (4 pi)
+  normal at the pole (limit normal): Vec3(-0.000000, 0.000000, -1.000000)
+  normal at the equator: Vec3(1.000000, -0.000000, 0.000000)
+torus area 39.47841760 (4 pi^2 R r = 39.47841760)
+ruled: S(u, 1) radius 0.500000000000, area 5.26861105 (pi (r0 + r1) s = 5.26861105)
+\end{lstlisting}
+
+All areas agree with the analytic values to the printed digits -- the constructions are exact
+and \apiref{area} integrates to a relative accuracy of $10^{-10}$.
+
+\section{Free-form surfaces through curves}\label{sec:freeform-surfaces}
+
+\subsection{Loft (skinning)}
+
+\begin{lstlisting}[style=text]
+loft(sections, degree_v=3, method=Parametrization.Centripetal) -> NurbsSurface
+loft(sections, degree_v, v_params) -> NurbsSurface
+loft_parameters(sections, method=Parametrization.Centripetal) -> list[float]
+\end{lstlisting}
+
+\apiref{loft} creates the surface through a sequence of section curves (Piegl \& Tiller,
+section~10.3). The sections are first made compatible -- clamped, domain $[0,1]$, common
+(highest) degree and the union of all knots -- and every column of control points is then
+interpolated across the sections with degree $\min(\text{degree\_v}, K-1)$ for $K$ sections.
+$u$ runs along the sections, $v$ across them, and $\mathbf S(u, v_k) = \mathbf C_k(u)$ exactly
+for the section parameters $v_k$.
+
+The section parameters are computed by \apiref{loft_parameters} from the distances between the
+control polygons, averaged over all columns (\code{Centripetal} by default, \code{ChordLength}
+or \code{Uniform} on request; see \cref{ch:fitting}). The first is 0 and the last 1. Alternatively
+pass the parameters explicitly as a strictly increasing list \code{v_params}; the $v$ domain
+then is $[v_0, v_{K-1}]$. Explicit parameters are useful when the sections belong to known
+heights or times.
+
+Rational sections (circles) are interpolated in homogeneous space. Linear data are reproduced
+exactly: equal circles give a cylinder, linearly growing circles a cone. A loft needs at least
+two sections; a non-positive weight in the interpolated net raises \code{GeometryError}.
+
+\begin{warning}[Corresponding sections]
+The sections must be parametrised alike: same start point (seam) and same direction. Two circles
+created with \code{make_circle} and parallel normals do correspond. Mixing a circle with a
+polygon, or circles with opposite normals, produces a twisted surface. Use
+\code{make_arc} with explicit axes or \apiref{reparametrize}/\code{reversed} to align sections.
+\end{warning}
+
+\subsection{Sweeps}
+
+\begin{lstlisting}[style=text]
+sweep(profile, trajectory, options=SweepOptions()) -> NurbsSurface
+sweep2(profile, rail1, rail2, options=SweepOptions()) -> NurbsSurface
+sweep_translational(profile, trajectory) -> NurbsSurface
+SweepOptions(frame=SweepFrame.RotationMinimizing, twist=0.0, tolerance=1e-6, max_sections=1025)
+\end{lstlisting}
+
+\apiref{sweep} moves a profile along a trajectory. The profile is given \emph{in world
+coordinates at the start of the trajectory}; at the trajectory parameter $v$ it is translated to
+$\mathbf T(v)$ and rotated by the change of the moving frame from $\mathbf T(v_0)$ to
+$\mathbf T(v)$. The \apiref{SweepOptions} control the result:
+
+\begin{tabularx}{\linewidth}{@{}l l >{\raggedright\arraybackslash}X@{}}
+\toprule
+Field & Default & Meaning \\
+\midrule
+\code{frame} & \code{RotationMinimizing} & \code{SweepFrame.RotationMinimizing}: rotation-minimising
+  frame (double reflection method of Wang, Jüttler, Zheng and Liu); no spurious twist, defined
+  on straight parts and at inflections. \code{SweepFrame.Fixed}: pure translation without rotation. \\
+\code{twist} & 0 & additional rotation about the tangent at the end of the trajectory (radians),
+  growing linearly with the trajectory parameter \\
+\code{tolerance} & $10^{-6}$ & allowed deviation from the ideal swept surface (model units) \\
+\code{max_sections} & 1025 & upper limit of placed profile copies \\
+\bottomrule
+\end{tabularx}
+
+The swept surface is not exactly a NURBS in general. \NF{} places exact copies of the profile
+along the trajectory and skins them with \code{loft}, piecewise between the knots of the
+trajectory; the number of copies is doubled until the deviation from the ideal sweep, measured
+between the copies, is below the tolerance. \code{GeometryError} is raised if
+\code{max_sections} is not enough or the trajectory has a vanishing tangent. With
+\code{SweepFrame.Fixed} and no twist the exact translational sweep is returned.
+
+\apiref{sweep2} is the two-rail sweep: the profile, given at the starts of both rails, is moved,
+rotated and \emph{uniformly scaled} so that its points on \code{rail1} and \code{rail2} follow
+the rails. \code{rail2} is linearly reparametrised to the domain of \code{rail1}; the rotation
+about the rail-to-rail axis follows the tangent of \code{rail1}. In the example the arch between
+two diverging lines doubles its span and its height.
+
+\apiref{sweep_translational} is exact: $\mathbf S(u,v) = \mathbf C(u) + \mathbf T(v) -
+\mathbf T(v_0)$, a tensor product of the two curves (rational curves are allowed).
+
+\subsection{Coons patches and Gordon surfaces}
+
+\begin{lstlisting}[style=text]
+coons(c0, c1, d0, d1, tolerance=1e-7) -> NurbsSurface
+gordon(u_curves, v_curves, tolerance=1e-7) -> NurbsSurface
+\end{lstlisting}
+
+A \apiref{coons} patch fills a closed loop of four boundary curves: $\mathbf S(u,0) =
+\mathbf c_0$, $\mathbf S(u,1) = \mathbf c_1$, $\mathbf S(0,v) = \mathbf d_0$, $\mathbf S(1,v) =
+\mathbf d_1$. The curves must meet at the four corners; their directions are fixed
+automatically. The interior is the bilinearly blended Boolean sum of the two ruled surfaces minus
+the bilinear corner patch.
+
+A \apiref{gordon} surface interpolates a whole \emph{network} of curves: a family of
+$u$-curves and a family of $v$-curves that intersect each other. The network must be
+\emph{consistent}: every $u$-curve must intersect every $v$-curve, and all intersection points of
+one $u$-curve must lie at the same $v$-curve parameters as on the others. The intersection
+parameters are determined and checked internally. The Gordon surface is again a Boolean sum
+$L_1 + L_2 - T$ of two lofts and a tensor-product interpolant of the intersection points.
+
+The Boolean sum is exact only for non-rational curves, so rational input (arcs, circles) is
+first replaced by cubic interpolants within \code{tolerance}.
+
+\subsection{Example}
+
+\example{06_freeform_surfaces.py}
+
+Output:
+
+\begin{lstlisting}[style=text]
+loft: net 9 x 4, degree_v 3, section parameters [0.0, 0.3172, 0.6987, 1.0]
+  surface passes through the sections: max radius error 2.2e-16
+  explicit v_params: domain_v [0.0, 3.0], S(0, 2) = Vec3(0.000000, 0.800000, 2.500000)
+sweep: net 9 x 65, max deviation from tube radius 1.4e-08
+  area 24.674011 (torus section 2 pi r * R pi/2 = 24.674011)
+twisted sweep: corner at the top Vec3(0.500000, -0.500000, 3.000000)
+translational sweep: degrees (3, 2), S(0, 1) - S(0, 0) = Vec3(0.000000, -0.244835, 0.958851)
+sweep2: span at the start 1.000000, at the end 2.000000, top at the end 1.000000
+coons: S(0.5, 0) = Vec3(1.000000, 0.000000, 1.000000), S(0.5, 0.5) = Vec3(1.000000, 1.000000, 0.500000), S(0.5, 1) = Vec3(1.000000, 2.000000, 0.000000)
+gordon: net 9 x 3, network -> surface distance 3.2e-13
+\end{lstlisting}
+
+The bent tube lies within $1.4\cdot10^{-8}$ of radius 0.5 around its path, and its area agrees
+with the analytic value of the quarter torus. The twisted square's first corner, which starts at
+$(-0.5,-0.5,0)$, ends rotated by $90^\circ$ at $(0.5,-0.5,3)$.
+
+\section{The NurbsSurface class}\label{sec:nurbssurface}
+
+\subsection{Construction and properties}
+
+\begin{lstlisting}[style=text]
+NurbsSurface(degree_u, degree_v, knots_u, knots_v, num_u, num_v, control_points, weights=[])
+\end{lstlisting}
+
+\code{control_points} is an array of shape $(\text{num\_u}\cdot\text{num\_v}, 3)$ in row-major
+order (index $i\cdot\text{num\_v}+j$, $i$ along $u$); \code{weights} has the same order. The
+constructor validates sizes, knot vectors and weights.
+
+\begin{tabularx}{\linewidth}{@{}l>{\raggedright\arraybackslash}X@{}}
+\toprule
+Property & Meaning \\
+\midrule
+\code{degree_u}, \code{degree_v} & degrees $p$ and $q$ \\
+\code{knots_u}, \code{knots_v} & knot vectors \\
+\code{num_u}, \code{num_v} & size of the control net \\
+\code{control_points} & array of shape $(\text{num\_u}\cdot\text{num\_v}, 3)$ \\
+\code{weights} & list of weights in the same order \\
+\code{domain_u}, \code{domain_v} & parameter ranges as two-element lists \\
+\bottomrule
+\end{tabularx}
+
+\subsection{Evaluation}
+
+\begin{description}[style=nextline]
+\item[\code{s.evaluate(u, v)} or \code{s(u, v)}] the point $\mathbf S(u,v)$.
+\item[\code{s.first_derivatives(u, v)}] the list $[\mathbf S, \mathbf S_u, \mathbf S_v]$ (fast path).
+\item[\code{s.derivatives(u, v, order=1)}] the nested list \code{D} with
+  \code{D[k][l]} $= \partial^{k+l}\mathbf S/\partial u^k\partial v^l$ for $k+l \le
+  \text{order}$ (Piegl \& Tiller A3.6 and A4.4, any order, rational quotient rule included).
+\item[\code{s.normal(u, v)}] the unit normal $\widehat{\mathbf S_u\times\mathbf S_v}$, the
+  limit normal at poles; raises \code{GeometryError} if both partial derivatives vanish.
+\item[\code{s.iso_curve_u(u)}, \code{s.iso_curve_v(v)}] the iso-parametric curves as
+  \code{NurbsCurve}s: \code{iso_curve_u(u)} is the curve $v \mapsto \mathbf S(u,v)$ at fixed
+  $u$, \code{iso_curve_v(v)} the curve $u \mapsto \mathbf S(u,v)$. They are exact.
+\item[\code{s.sample(nu=20, nv=20)}] a NumPy array of shape $(\text{nu}, \text{nv}, 3)$ at equally
+  spaced parameters including the boundaries -- ready for \code{plot_surface} in Matplotlib.
+\end{description}
+
+\subsection{Shape-preserving operations}
+
+Every curve operation of \cref{sec:nurbscurve} has a surface counterpart per direction:
+
+\begin{tabularx}{\linewidth}{@{}l>{\raggedright\arraybackslash}X@{}}
+\toprule
+Method & Effect \\
+\midrule
+\code{refine_knots_u(knots)}, \code{refine_knots_v} & insert knots (A5.5) \\
+\code{try_remove_knot_u(u, times=1, tolerance=1e-10)}, \code{..._v} & remove a knot as often as
+  possible within tolerance; returns \code{(surface, removed)}. The same number of removals is
+  applied to all rows. \\
+\code{remove_knot_u(u, times=1, tolerance=1e-10)}, \code{..._v} & as above, raising
+  \code{GeometryError} if not possible \\
+\code{elevate_degree_u(times=1)}, \code{..._v} & degree elevation (A5.10) \\
+\code{reduce_degree_u(tolerance=1e-10)}, \code{..._v} & degree reduction by one, verified \\
+\code{split_u(u)}, \code{split_v(v)} & two surfaces keeping their parameter intervals \\
+\code{sub_surface(u0, u1, v0, v1)} & the piece over a parameter rectangle \\
+\code{clamped()} & clamped knot vectors in both directions \\
+\code{decompose_bezier()} & Bézier patches, row-major ($u$ span outer), on their original
+  parameter rectangles \\
+\code{transposed()} & swaps $u$ and $v$: $\mathbf T(v,u) = \mathbf S(u,v)$; this reverses the
+  normal \\
+\code{transformed(transform)} & affine image (\cref{ch:transforms}) \\
+\bottomrule
+\end{tabularx}
+
+\apiref{join_u}\code{(a, b, tolerance=1e-10)} appends surface \code{b} to \code{a} across
+\code{a}'s $u = u_{\max}$ boundary, \apiref{join_v} across $v = v_{\max}$. The boundary rows
+must agree \emph{as control rows}, i.e.\ both surfaces must share the parametrisation of the
+common boundary and not only its geometry; the $v$ degrees and knots are made compatible.
+\code{join_u(*s.split_u(u))} reproduces the surface.
+
+\subsection{Example}
+
+\example{06_nurbs_surface.py}
+
+Output:
+
+\begin{lstlisting}[style=text]
+degrees (3, 3), net 4 x 4, domain [0.0, 1.0] x [0.0, 1.0]
+S(0.5, 0.5) = Vec3(1.500000, 1.000000, 0.562500)
+S_u = Vec3(3.000000, 0.000000, 1.125000)  S_v = Vec3(0.000000, 2.000000, 0.000000)
+S_uv = Vec3(0.000000, 0.000000, 0.000000)  S_vv = Vec3(0.000000, 0.000000, -3.375000)
+unit normal Vec3(-0.351123, 0.000000, 0.936329)
+sample shape (5, 3, 3) corner [3. 2. 0.]
+iso_curve_u(0.5)(0.5) = Vec3(1.500000, 1.000000, 0.562500), iso_curve_v(0.5)(0.5) = Vec3(1.500000, 1.000000, 0.562500)
+refined/elevated: net 7 x 5, degree_v 4, deviation 9.2e-16
+knot u = 0.5 removed 1 time(s); degree_v back to 3
+split_u domains [0.0, 0.4] [0.4, 1.0]
+sub_surface domain [0.1, 0.9]
+Bezier patches of the refined surface: 4
+transposed: T(v, u) == S(u, v): True
+join_u of the halves: deviation 4.4e-16
+sphere r = 2: K = 0.2500000000, H = -0.5000000000, k1 = -0.4999999947, k2 = -0.5000000053
+area of the upper half: 25.1327412287 (8 pi = 25.1327412287)
+closest point: (u, v) = (0.000000, 0.792893), point Vec3(1.200000, 0.000000, 1.600000), distance 3.000000
+integral of sin over [0, pi] = 2.0000000000000004
+integral of sqrt(|x|) over [-1, 1] with a break at 0 = 1.333333333337871
+\end{lstlisting}
+
+\section{Analysis}\label{sec:surface-analysis}
+
+\begin{description}[style=nextline]
+\item[\apiref{surface_curvature}\code{(surface, u, v)}] returns a \apiref{SurfaceCurvature} with
+  the Gaussian curvature \code{gaussian} $K$, the mean curvature \code{mean} $H$, the principal
+  curvatures \code{k1}, \code{k2}, the principal directions \code{dir1}, \code{dir2} and the unit
+  \code{normal}. The values come from the first and second fundamental forms with $\mathbf n =
+  \widehat{\mathbf S_u\times\mathbf S_v}$; the signs of $H$, $k_1$, $k_2$ follow this
+  orientation (negative for a sphere with outward normal: the surface bends away from the
+  normal). At poles the values are extrapolated from nearby regular points. At umbilic points
+  (sphere, plane) the principal directions are arbitrary and $k_1$, $k_2$ are slightly noisy,
+  as the example shows.
+\item[\apiref{area}\code{(surface, rel_tol=1e-10)}] the area of the whole parameter rectangle;
+  \code{area(surface, u0, u1, v0, v1, rel_tol)} that of a sub-rectangle. Adaptive tensor
+  Gauss--Kronrod quadrature per knot rectangle. For trimmed faces use
+  \code{TrimmedSurface.area()} (\cref{ch:trimming}).
+\item[\apiref{closest_point}\code{(surface, point)}] and
+  \apiref{closest_point_local}\code{(surface, point, u0, v0)} as for curves; they return a
+  \apiref{SurfacePoint} with \code{u}, \code{v}, \code{point} and \code{distance}.
+\item[\apiref{integrate}\code{(f, a, b, rel_tol=1e-10, breaks=[], abs_tol=0.0)}] the globally
+  adaptive Gauss--Kronrod quadrature used internally, available for any Python function of one
+  variable. \code{breaks} lists interior points where the integrand is not smooth (kinks,
+  jumps); the interval is split there.
+\end{description}
+
+\section{Extending surfaces}\label{sec:surface-extend}
+
+\begin{lstlisting}[style=text]
+extend(surface, side, length, type=Extension.Natural) -> NurbsSurface
+\end{lstlisting}
+
+\apiref{extend} extends a surface across one of its four sides, \code{SurfaceSide.UMin},
+\code{UMax}, \code{VMin} or \code{VMax}, by an arc length measured along the middle iso-curve.
+The original parameters are kept. \code{Extension.Natural} continues the surface polynomially
+(quadrics stay quadrics -- a cylinder band extended around its axis stays on the cylinder);
+\code{Extension.Linear} continues along the tangent planes, which requires constant weights along
+the iso-curves across the side.
+
+\section{Offset surfaces}\label{sec:offset-surface}
+
+\begin{lstlisting}[style=text]
+offset_surface(surface, distance, tolerance=1e-7) -> NurbsSurface
+\end{lstlisting}
+
+\apiref{offset_surface} returns $\mathbf O(u,v) = \mathbf S(u,v) + d\,\mathbf N(u,v)$ with the
+unit normal $\mathbf N$ (the limit normal at poles), i.e.\ positive distances go along
+$\mathbf S_u\times\mathbf S_v$. Check the direction with \code{surface.normal(u, v)} before
+offsetting. The result is a non-rational degree-5 tensor-product spline fitted to the tolerance;
+the parametrisation is kept. \code{GeometryError} is raised where $d$ reaches a principal radius
+of curvature (the offset would degenerate) and at creases (normal discontinuities across knot
+lines) that would open a gap. Global self-intersections are not detected.
+
+\section{Rolling-ball fillets}\label{sec:surface-fillet}
+
+\begin{lstlisting}[style=text]
+fillet_surfaces(s1, s2, radius, side1=1, side2=1, tolerance=1e-6,
+                offset_tolerance=0.0, max_sections=1025) -> SurfaceFillet
+\end{lstlisting}
+
+\apiref{fillet_surfaces} computes the constant-radius fillet that a ball of the given radius
+traces when it rolls in contact with both surfaces. \code{side1 = +1} places the ball on the side
+of the normal $\mathbf S_u\times\mathbf S_v$ of \code{s1}, \code{-1} on the other side; likewise
+\code{side2}. Spine points are solved exactly; the sections are exact circular arcs skinned
+cubically, and intervals are bisected until the fillet, the spine and the contact curves are
+within \code{tolerance} of the exact sections. \code{offset_tolerance} controls the fit of the
+offset surfaces used for the start values (0 = automatic) and \code{max_sections} limits the
+number of sections.
+
+The result \apiref{SurfaceFillet} contains:
+
+\begin{tabularx}{\linewidth}{@{}l>{\raggedright\arraybackslash}X@{}}
+\toprule
+Field & Meaning \\
+\midrule
+\code{surface} & the fillet surface; $u$ runs across the fillet from contact 1 to contact 2, $v$
+  along the spine \\
+\code{spine} & the curve of ball centres \\
+\code{contact1}, \code{contact2} & the contact curves on \code{s1} and \code{s2} (3D) \\
+\code{pcurve1}, \code{pcurve2} & the contact curves in the parameter spaces of \code{s1} and
+  \code{s2}, as curves $(u_i(t), v_i(t), 0)$ -- ready to trim the input surfaces (\cref{ch:trimming}) \\
+\bottomrule
+\end{tabularx}
+
+Not handled: variable radii, several spine branches (the longest intersection curve of the
+offsets is used), vertex blends where several fillets meet. The input surfaces are not trimmed
+automatically.
+
+\example{06_surface_operations.py}
+
+Output:
+
+\begin{lstlisting}[style=text]
+extend UMax: domain_u [0.0, 1.4038182881544163], end point Vec3(-0.479426, 0.877583, 0.500000), radius 1.000000000000
+extend VMax: domain_v [0.0, 1.5], top z = 1.500000
+sphere normal at the equator Vec3(0.813826, 0.581109, -0.000000) (points outward)
+offset +0.5: degrees (5, 5), net 49 x 25, radius 1.5 within 1.3e-07
+offset -1.2 refused: offset_surface: |distance| = 1.200000 reaches the radius of curvature  ...
+fillet: net 3 x 9, spine at mid Vec3(0.500000, 1.500000, 0.500000)
+  contact on floor Vec3(0.500000, 1.500000, 0.000000), on wall Vec3(-0.000000, 1.500000, 0.500000)
+  p-curve on the floor (u, v) = (0.300000, 0.500000) -> Vec3(0.500000, 1.500000, 0.000000)
+  fillet surface is the quarter cylinder r = 0.5 within 3.3e-16
+\end{lstlisting}
+
+The fillet between the floor $z=0$ and the wall $x=0$ is the exact quarter cylinder of radius
+0.5 around the line $x = z = 0.5$; the p-curve on the floor gives the parameters $(0.3, 0.5)$,
+which map back to the contact point.

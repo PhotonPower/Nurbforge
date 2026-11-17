@@ -1,0 +1,443 @@
+\chapter{Intersections and sections}\label{ch:intersections}
+
+Intersections are the bridge between free-form geometry and topology. Trimming
+(\cref{ch:trimming}), sewing and Boolean operations (\cref{ch:solids}) and the slicing of
+solids (\cref{ch:slicing}) are all built on the queries described in this chapter. \NF{}
+offers four intersection problems behind a single overloaded function \apiref{intersect}:
+
+\begin{center}
+\begin{tabularx}{\linewidth}{@{}lXl@{}}
+\toprule
+Call & Problem & Result \\
+\midrule
+\code{intersect(a, b)} & curve / curve & \code{list[CurveCurveIntersection]} \\
+\code{intersect(c, s)} & curve / surface & \code{list[CurveSurfaceIntersection]} \\
+\code{intersect(c, plane)} & curve / infinite plane & \code{list[CurveSurfaceIntersection]} \\
+\code{intersect(s1, s2[, options])} & surface / surface & \code{SurfaceIntersection} \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+Python selects the overload from the argument types: a \code{NurbsCurve} and a
+\code{NurbsSurface} give the curve/surface variant, a \code{Plane} as second argument the
+curve/plane variant. In addition, \apiref{planar_section} and \apiref{planar_sections} slice a
+single \emph{surface} with planes, and \apiref{closest_point} /
+\apiref{closest_point_local} project points onto curves and surfaces. Sections of whole
+\emph{solids} (closed shells) are a separate topic and are covered in \cref{ch:slicing}.
+
+All intersection functions are pure queries: they never modify their inputs, they may be
+called concurrently from several threads on shared objects, and they report what they found
+together with the residual gap, so that the caller can judge the quality of every result.
+
+\section{Tolerances}\label{sec:isect-tolerances}
+
+Every intersection routine takes a tolerance. Curve/curve, curve/surface and curve/plane
+intersections take a \apiref{Tolerance} directly. The surface/surface intersection takes an
+options object,
+\apiref{SurfaceIntersectionOptions}, which contains a \code{Tolerance} plus two accuracy
+parameters for the traced curves.
+
+\begin{center}
+\begin{tabularx}{\linewidth}{@{}llX@{}}
+\toprule
+Field & Default & Meaning \\
+\midrule
+\code{Tolerance.length} & $10^{-10}$ & Model-space distance below which two points count as
+coincident. An intersection point is reported when the two objects come within this
+distance. \\
+\code{Tolerance.parametric} & $10^{-10}$ & Parameter differences below which two parameter
+values are equal (merging of duplicates at Bézier piece boundaries). \\
+\code{Tolerance.angular} & $10^{-9}$ & Angles (radians) below which directions are parallel. \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+The defaults are deliberately tight because \NF{} geometry is usually exact: lines, circles,
+planes, cylinders and spheres are represented exactly, so their intersections can be computed
+to rounding accuracy. The printed representation of a default \code{Tolerance()} object shows
+\code{length=0.000000}, which is merely the six-digit formatting of $10^{-10}$.
+
+\begin{tip}[When to increase the tolerance]
+Increase \code{Tolerance.length} when the inputs themselves are approximations, e.g. fitted
+measurement data, STEP imports from other systems, or curves produced by an earlier
+intersection with a fit tolerance of $10^{-7}$. A tolerance smaller than the error of the
+inputs makes tangential contacts disappear (the curves miss each other by more than the
+tolerance) or splits a single crossing into several near-duplicate points.
+\end{tip}
+
+The tolerance model as a whole -- which operations are exact and which approximate, how
+tolerances propagate -- is summarised in \cref{ch:concepts} and \cref{app:tolerances}.
+
+\section{Curve/curve intersections}\label{sec:isect-cc}
+
+\code{intersect(a, b, tolerance=Tolerance())} returns all points where the curves $a(s)$ and
+$b(t)$ come within \code{tolerance.length} of each other, sorted by the parameter $s$ on the
+first curve. Each result is a \apiref{CurveCurveIntersection} with four fields:
+
+\begin{center}
+\begin{tabularx}{\linewidth}{@{}lX@{}}
+\toprule
+Field & Meaning \\
+\midrule
+\code{s} & parameter on the first curve \code{a} \\
+\code{t} & parameter on the second curve \code{b} \\
+\code{point} & midpoint of $a(s)$ and $b(t)$ (a \code{Vec3}) \\
+\code{distance} & the remaining gap $|a(s)-b(t)|$, at most \code{tolerance.length} \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+The curves are genuinely three-dimensional: two skew lines that cross in a projection but
+miss each other in space have no intersection. The following example intersects a line with
+a circle, a tangent line with the same circle, and two skew lines; it then turns to
+curve/surface and curve/plane intersections, which are described in the next sections.
+
+\example{09_curve_intersections.py}
+
+Running the script prints
+
+\begin{lstlisting}[style=text]
+line/circle: s = 0.211325, t = 0.164730, point = (-1.732051, +1.000000), gap 0.0e+00
+line/circle: s = 0.788675, t = 0.835270, point = (+1.732051, +1.000000), gap 5.0e-16
+expected x = +-sqrt(3) = +-1.732051
+tangent line: 1 contact point(s)
+skew lines: 0 intersections
+\end{lstlisting}
+
+Note that the parameter $t$ on the circle is \emph{not} proportional to the angle: circles
+and arcs are rational quadratic NURBS (\cref{ch:curves}), whose parametrisation is not
+arc-length. Use \code{arc_length} or \code{closest_point} if you need angles or lengths.
+
+\subsection{How it works}
+
+The curves are decomposed into Bézier pieces, and pairs of pieces whose bounding boxes
+overlap are subdivided recursively. A pair becomes a \emph{leaf} when it can contain at most
+one intersection: the cones containing all tangent directions of the two pieces are
+separated (also against the reversed orientation). A second intersection would require the
+chord between the two points to lie in both cones, which is impossible. Within each leaf a
+box-constrained Gauss--Newton iteration solves $a(s)-b(t)=0$, which converges quadratically
+for transversal intersections. Candidates found in neighbouring leaves (at piece boundaries)
+are merged when they are close or when the curve point at their parameter midpoint is still
+within tolerance.
+
+Tangential contacts never separate the tangent cones. There the subdivision stops at a size
+limit ($10^{-6}$ of the model size) and the Gauss--Newton iteration finds the point of
+closest approach; it is reported if the gap is within \code{tolerance.length}. That is why
+the tangent line in the example yields exactly one contact point.
+
+\begin{warning}[Overlapping curves]
+Coincident (overlapping) curve portions -- two lines along the same segment, an arc lying on
+a circle -- are not detected as overlaps. The result then consists of sample points along
+the common part. Test for overlaps yourself, e.g. with \code{closest_point} at a few points
+of one curve, before relying on the intersection points.
+\end{warning}
+
+\section{Curve/surface intersections}\label{sec:isect-cs}
+
+The call \code{intersect(curve, surface)}, with an optional \code{tolerance} as third
+argument, returns a list of intersection records, sorted by the curve parameter. Each one is a
+\apiref{CurveSurfaceIntersection}:
+
+\begin{center}
+\begin{tabularx}{\linewidth}{@{}lX@{}}
+\toprule
+Field & Meaning \\
+\midrule
+\code{t} & parameter on the curve \\
+\code{u}, \code{v} & parameters on the surface \\
+\code{point} & midpoint of $c(t)$ and $S(u,v)$ \\
+\code{distance} & the gap $|c(t)-S(u,v)|$, at most \code{tolerance.length} \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+The algorithm is the same as for two curves: subdivision of the curve and the surface into
+Bézier pieces with bounding-box rejection, until the height of the curve piece over the
+surface piece is monotone -- the angle between all curve tangents and all surface normals
+stays below $90^\circ - (\alpha+\beta)$, where $\alpha,\beta$ are the opening angles of the
+tangent and normal cones. Gauss--Newton on $c(t) - S(u,v) = 0$ then refines each candidate.
+
+In the example above, a helix with three turns (pitch 1, radius 1) pierces a tilted
+rectangular patch $z = 0.75\,(y+2)$:
+
+\begin{lstlisting}[style=text]
+helix/tilted plane: 5 points
+  t = 0.750000 turns, (u, v) = (0.500000, 0.250000), z = 0.750000
+  t = 0.818603 turns, (u, v) = (0.604455, 0.272868), z = 0.818603
+  t = 1.500000 turns, (u, v) = (0.250000, 0.500000), z = 1.500000
+  t = 2.181397 turns, (u, v) = (0.604455, 0.727132), z = 2.181397
+  t = 2.250000 turns, (u, v) = (0.500000, 0.750000), z = 2.250000
+\end{lstlisting}
+
+The surface parameters $(u,v)$ refer to the patch's own parametrisation. For a patch made
+with \code{make_rectangle(origin, edge_u, edge_v)} they are the fractions along the two
+edges.
+
+\begin{note}
+Curve portions lying \emph{in} the surface (an edge lying in a plane) are not detected as
+such by the plain curve/surface intersection. The Boolean operations handle this case
+separately (\cref{sec:boolean-algorithm}); if you need it yourself, check a few points of the
+curve with \code{closest_point}.
+\end{note}
+
+\section{Curve/plane intersections and the Plane type}\label{sec:isect-plane}
+
+\apiref{Plane} is an infinite plane, \code{Plane(point, normal=(0, 0, 1))}. The normal is
+normalised internally; \code{plane.point} and \code{plane.normal} return the defining data,
+and \code{plane.distance(p)} the \emph{signed} distance of a point (positive on the side the
+normal points to).
+
+\code{intersect(curve, plane)} needs no surface patch: the curve is intersected with the
+infinite plane. The results are again \code{CurveSurfaceIntersection} objects; their
+\code{u}, \code{v} fields are the coordinates of the intersection point along two orthonormal
+in-plane axes with the origin at \code{plane.point}. The axes are chosen automatically, so use
+\code{point} if you need the position in model coordinates and \code{u}, \code{v} only for
+distances within the plane (the example prints the in-plane radius
+$\sqrt{u^2+v^2} = 1$ of the helix point $(0, 1, 1.25)$):
+
+\begin{lstlisting}[style=text]
+helix/plane z = 1.25: t = 1.250000 (expected 1.25), point (+0.000000, +1.000000, +1.250000), in-plane radius 1.000000
+signed distance of the origin from the plane: -1.250
+\end{lstlisting}
+
+The helix is a C2 quintic approximation of the true helix within $10^{-7}$
+(\cref{ch:curves}), so its parameter is ``turns'' only to that accuracy.
+
+\section{Surface/surface intersections}\label{sec:isect-ss}
+
+\code{intersect(s1, s2, options=SurfaceIntersectionOptions())} computes the intersection
+\emph{curves} of two surfaces together with isolated touching points. It returns a
+\apiref{SurfaceIntersection}:
+
+\begin{center}
+\begin{tabularx}{\linewidth}{@{}lX@{}}
+\toprule
+Member & Meaning \\
+\midrule
+\code{curves} & list of \apiref{IntersectionCurve} \\
+\code{points} & list of \apiref{SurfaceSurfacePoint}: isolated points where the surfaces only
+touch \\
+\midrule
+\code{IntersectionCurve.curve} & the intersection curve in 3D (a \code{NurbsCurve}) \\
+\code{IntersectionCurve.pcurve1} & the same curve in the parameter plane of \code{s1}:
+points $(u_1, v_1, 0)$, \emph{same parameter} as \code{curve} \\
+\code{IntersectionCurve.pcurve2} & the same in the parameter plane of \code{s2} \\
+\code{IntersectionCurve.closed} & \code{True} for a closed loop \\
+\code{IntersectionCurve.points} & the traced points (\code{SurfaceSurfacePoint}) from which the
+curves were fitted \\
+\midrule
+\code{SurfaceSurfacePoint.point} & 3D point \\
+\code{SurfaceSurfacePoint.u1}, \code{v1}, \code{u2}, \code{v2} & parameters on both surfaces \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+The three curves of an \code{IntersectionCurve} share their parameter, which is what makes
+them useful for trimming: for every $t$, $s_1(\mathrm{pcurve1}(t))$,
+$s_2(\mathrm{pcurve2}(t))$ and $\mathrm{curve}(t)$ are the same point within the fit
+tolerance. A p-curve is a \code{NurbsCurve} with $z=0$ whose $x$ and $y$ coordinates are the
+surface parameters $u$ and $v$; this is the same convention that trim loops use
+(\cref{ch:trimming}).
+
+\subsection{Options}
+
+\begin{center}
+\begin{tabularx}{\linewidth}{@{}llX@{}}
+\toprule
+Option & Default & Meaning \\
+\midrule
+\code{tolerance} & \code{Tolerance()} & coincidence tolerances (seeds, ends on the domain
+boundary, merging) \\
+\code{chord_tolerance} & $0$ & maximal deviation of the traced polyline from the true curve
+in model units; controls the marching step. $0$ means $10^{-4}$ of the model size. \\
+\code{fit_tolerance} & $0$ & accuracy of the fitted curves: $|S_i(\mathrm{pcurve}_i(t)) -
+\mathrm{curve}(t)|$ is verified between all fit points and exact points are inserted where
+needed. $0$ means $10^{-7}$ of the model size. \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+The options are set by keyword in the constructor or as attributes afterwards:
+
+\begin{lstlisting}
+opts = nf.SurfaceIntersectionOptions(chord_tolerance=1e-6, fit_tolerance=1e-10)
+opts.tolerance = nf.Tolerance(length=1e-8)
+res = nf.intersect(s1, s2, opts)
+\end{lstlisting}
+
+``Model size'' is the extent of the two surfaces' control nets, so the defaults scale with
+the model: a part measured in micrometres and the same part in metres give the same relative
+accuracy.
+
+\subsection{Example: sphere and cylinder}
+
+A sphere of radius 2 and a cylinder of radius 1 about the same axis intersect in two circles
+of radius 1 at $z=\pm\sqrt{3}$:
+
+\example{09_surface_intersections.py}
+
+The output shows how the circles come back:
+
+\begin{lstlisting}[style=text]
+sphere/cylinder: 4 curves, 0 touching points
+  z = -1.732051, length 4.712389, closed=False, 119 traced points, p-curve residual 8.2e-09
+  z = -1.732051, length 1.570796, closed=False, 39 traced points, p-curve residual 6.9e-08
+  z = +1.732051, length 4.712389, closed=False, 119 traced points, p-curve residual 8.2e-09
+  z = +1.732051, length 1.570796, closed=False, 39 traced points, p-curve residual 6.9e-08
+total length 12.5663705982, exact 2 * 2 pi = 12.5663706144
+chord 1e-6: 8910 traced points (default: 316)
+\end{lstlisting}
+
+Each circle consists of two open pieces of lengths $3\pi/2$ and $\pi/2$. The reason is the
+\emph{seam}: the sphere and the cylinder are closed surfaces whose parameter domains have a
+start and an end ($u=0$ and $u=1$) at the same 3D location. Intersection curves are split
+where they cross the boundary of either parameter domain, because a p-curve cannot jump from
+$u=1$ back to $u=0$. The two seams lie at different angles, hence two pieces per circle. If
+you need the full circle, chain the pieces by their end points or use
+\apiref{join} (\cref{ch:curves}). The residuals of the p-curves (below $10^{-7}$) are within
+the default fit tolerance of $10^{-7}$ of the model size; the total length agrees with
+$4\pi$ to $1.6\times10^{-8}$.
+
+Tightening the chord tolerance from the default ($10^{-4}$ of the model size) to $10^{-6}$
+increases the number of traced points from 316 to 8910. The chord tolerance mainly affects
+robustness (small loops and sharp turns are not skipped) and run time; the accuracy of the
+fitted curves is governed by \code{fit_tolerance}.
+
+\subsection{Tangential contacts}
+
+Where two surfaces only touch, the intersection is not transversal and cannot be traced by
+marching. Isolated touching points are returned in \code{points}. Surfaces touching along a
+whole curve are not traced as curves either; for two cylinders lying side by side the example
+reports
+
+\begin{lstlisting}[style=text]
+touching cylinders: 0 curves, 131 points
+\end{lstlisting}
+
+i.e. the contact line is represented by points only. The Boolean operations treat such
+contacts specially (\cref{sec:boolean-algorithm}); if you use the raw intersection,
+check \code{points} as well as \code{curves}.
+
+\subsection{Algorithm}
+
+The surface/surface intersection proceeds in seven steps (details in the developer
+documentation \code{docs/math/nurbs.md}):
+
+\begin{enumerate}
+\item \textbf{Seeds.} Pairs of Bézier patches with overlapping boxes are subdivided. When
+their normal cones are separated, the pair cannot contain a closed loop (Sederberg's
+criterion), so every intersection curve crosses the boundary of the pair: the boundary
+iso-curves of each patch are intersected with the other patch by the curve/surface
+intersection. Tangential regions stop at a size limit and are seeded by a minimum-norm
+Gauss--Newton iteration.
+\item \textbf{Marching} along $n_1\times n_2$ (limit normals at poles) with a predictor in
+parameter space and a corrector onto both surfaces. The step size is controlled by the chord
+tolerance in 3D \emph{and} in both parameter spaces. Branches end exactly on the domain
+boundary, close into loops, or stop at tangential points.
+\item \textbf{Knot lines.} Points are inserted exactly where a step crosses a knot line of
+either surface, so that the fitted curves follow the C1 breaks of, e.g., rational circles.
+\item \textbf{Verified fit.} The curve and both p-curves are interpolated piecewise; the
+deviation is checked between all fit points against \code{fit_tolerance} and exact points
+are added where needed (near poles the p-curves vary quickly).
+\item \textbf{Duplicate seeds} on an already traced curve are skipped (compared in 3D and in
+weighted parameter distance, so seams and poles are handled).
+\item \textbf{Tangential contacts}: very short curves with parallel normals are reported as
+points; curves with nearly parallel normals everywhere are tested for crossing versus
+touching.
+\item \textbf{Domain boundaries}: curves that touch a domain edge tangentially are continued
+from another seed, and open curves ending at coinciding boundary points are joined.
+\end{enumerate}
+
+\section{Planar sections of surfaces}\label{sec:planar-section}
+
+\apiref{planar_section} intersects one surface with an infinite plane:
+
+\begin{lstlisting}
+res = nf.planar_section(surface, nf.Plane(point, normal), options=nf.SurfaceIntersectionOptions())
+\end{lstlisting}
+
+Internally the plane is represented by a rectangle that covers the projection of the
+surface's control points (plus a margin), so no section curve is missed, and the ordinary
+surface/surface intersection is used. The result is a \code{SurfaceIntersection} like above,
+with one difference: \code{pcurve2} (and \code{u2}, \code{v2} of the points) are expressed
+in the plane's own orthonormal coordinates $(s,t)$ with the origin at \code{plane.point} --
+the same in-plane coordinates as for \code{intersect(curve, plane)}. \code{pcurve1} is the
+p-curve on the surface, as usual.
+
+\apiref{planar_sections} slices a surface with \code{count} parallel planes,
+\code{plane.point + k * spacing * normal} for $k = 0,\dots,\mathrm{count}-1$, and returns
+one \code{SurfaceIntersection} per plane:
+
+\begin{lstlisting}[style=text]
+section z = 1: 1 curve(s), length 10.88279617 (2 pi sqrt 3 = 10.88279619), first point in plane coords radius 1.73205081
+z = -1.5: 8.31187287 (exact 8.31187288)
+z = -0.5: 12.16733602 (exact 12.16733603)
+z = +0.5: 12.16733602 (exact 12.16733603)
+z = +1.5: 8.31187287 (exact 8.31187288)
+\end{lstlisting}
+
+\begin{note}[Surfaces versus solids]
+\code{planar_section} works on a single, untrimmed surface and returns unordered curve
+pieces. To section a \emph{solid} -- with trimmed faces, closed and oriented loops, holes and
+islands -- use \apiref{section} on a \code{Shell}, described in \cref{ch:slicing}.
+\end{note}
+
+\section{Closest points}\label{sec:closest-point}
+
+Point projection (``inversion'') answers the question: which parameter of a curve or surface
+lies closest to a given point? \NF{} provides a global and a local variant for both curves
+and surfaces.
+
+\begin{center}
+\begin{tabularx}{\linewidth}{@{}lX@{}}
+\toprule
+Call & Result \\
+\midrule
+\code{closest_point(curve, p, tolerance=Tolerance())} & \apiref{CurvePoint}: \code{u},
+\code{point}, \code{distance} \\
+\code{closest_point(surface, p, tolerance=Tolerance())} & \apiref{SurfacePoint}: \code{u},
+\code{v}, \code{point}, \code{distance} \\
+\code{closest_point_local(curve, p, u0, tolerance)} & \code{CurvePoint}, Newton iteration
+from \code{u0} \\
+\code{closest_point_local(surface, p, u0, v0, tolerance)} & \code{SurfacePoint}, Newton
+iteration from $(u_0,v_0)$ \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+The global variant subdivides the object into Bézier pieces, discards pieces whose bounding
+box is farther away than the best candidate so far, and refines the remaining candidates by
+Newton's method; it always returns the global minimum of the distance (up to ties). The
+local variant only runs the Newton iteration from the given start parameter and is much
+faster; use it when you already know a good starting point, e.g. while tracking a moving
+point along a curve.
+
+\example{09_closest_points.py}
+
+\begin{lstlisting}[style=text]
+circle: u = 0.896447, point (1.200000, 1.600000), distance 3.000000 (expected 5 - 2 = 3)
+line, local from u0 = 0.5: u = 0.750000, distance 1.000000
+sphere: (u, v) = (0.250000, 0.750000), distance 3.242641 (expected 3 sqrt 2 - 1 = 3.242641)
+on the axis: distance 4.000000, point z = 1.000000
+\end{lstlisting}
+
+When the minimum is not unique -- a point on the axis of a sphere is equally close to a
+whole parallel circle, the centre of a circle to every point of it -- one of the minimisers
+is returned. The distance is correct in any case.
+
+\section{Performance and robustness notes}\label{sec:isect-notes}
+
+\begin{itemize}
+\item \textbf{Degree and knot count.} The subdivision works on Bézier pieces; curves and
+surfaces with many knot spans produce many pieces. Run time scales roughly with the number of
+overlapping piece pairs. Simplify inputs with \code{remove_knot} or approximate them if they
+are heavily over-refined (\cref{ch:curves}).
+\item \textbf{Parallel seeds.} The seed search of the surface/surface intersection is
+parallelised internally; the rest of the algorithm runs on one thread. Several independent
+intersections can be run in parallel from Python threads, since all objects are immutable.
+\item \textbf{Units.} All defaults that depend on the ``model size'' scale with the inputs;
+the absolute \code{Tolerance} fields do not. Very large models (kilometres) or very small ones
+(nanometres) may need an explicit \code{Tolerance(length=...)}.
+\item \textbf{Errors.} Invalid inputs raise \code{GeometryError}. An empty list, or a
+result without curves and points, means that nothing was found within the tolerance.
+\end{itemize}

@@ -1,0 +1,131 @@
+\chapter{Transforms and patterns}\label{ch:transforms}
+
+Geometry is usually built in a convenient local position -- a lens with its vertex at the origin,
+a hole at the $x$ axis -- and then moved into place. \NF{} uses affine transforms for this:
+translations, rotations, scalings, mirrors and any composition of them. Patterns are lists of
+transforms that create regular arrays of copies.
+
+\section{The Transform class}\label{sec:transform}
+
+An \apiref{Transform} is an affine map $\mathbf x \mapsto A\mathbf x + \mathbf t$, stored as a
+$3\times4$ matrix $[A \mid \mathbf t]$ in row-major order. Transforms are immutable values, like
+all geometry.
+
+\subsection{Creating transforms}
+
+\begin{tabularx}{\linewidth}{@{}l>{\raggedright\arraybackslash}X@{}}
+\toprule
+Constructor & Map \\
+\midrule
+\code{Transform()} & the identity \\
+\code{Transform(matrix)} & from 12 numbers, the $3\times4$ matrix row by row:
+  $[a_{11}, a_{12}, a_{13}, t_1, a_{21}, \dots, t_3]$ \\
+\code{Transform.translation(d)} & $\mathbf x + \mathbf d$ \\
+\code{Transform.rotation(origin, axis, angle)} & rotation by \code{angle} (radians) about the
+  axis through \code{origin} with direction \code{axis}, counter-clockwise when looking against
+  the axis direction (right-hand rule) \\
+\code{Transform.scaling(center, factor)} & uniform scaling about \code{center} \\
+\code{Transform.scaling(center, factors)} & scaling by \code{factors} $= (s_x, s_y, s_z)$ along
+  the coordinate axes about \code{center} \\
+\code{Transform.mirror(point, normal)} & reflection in the plane through \code{point} with the
+  given normal \\
+\bottomrule
+\end{tabularx}
+
+\subsection{Applying and composing}
+
+\begin{description}[style=nextline]
+\item[\code{t.apply(p)}] the image of the point \code{p}: $A\mathbf p + \mathbf t$.
+\item[\code{t.apply_vector(v)}] the image of a direction vector: $A\mathbf v$ (no translation).
+  Note that normals of surfaces do \emph{not} transform like vectors under non-uniform scaling;
+  recompute them from the transformed geometry.
+\item[\code{t.matrix()}] the 12 matrix entries, row-major.
+\item[\code{t1 * t2}] the composition: \code{(t1 * t2).apply(p) == t1.apply(t2.apply(p))}, i.e.\
+  the \emph{right} factor is applied first -- as with matrices.
+\end{description}
+
+\subsection{Transforming geometry}
+
+\code{NurbsCurve}, \code{NurbsSurface} and \code{Shell} have a method
+\code{transformed(transform)}; for shells the operator form \code{transform * shell} is available
+as well. A \code{TrimmedSurface} has no \code{transformed} method: transform its carrier surface
+and trim it again with the same loops,
+\code{nf.TrimmedSurface(face.surface.transformed(t), face.outer, face.holes)}, or sew it into a
+shell and transform the shell. NURBS are \emph{affinely invariant}: the image of the curve is the curve of the
+transformed control points with unchanged weights and knots. Transforms are therefore exact --
+the image of a circle under a rigid motion is the same exact circle, and under a non-uniform
+scaling it becomes an exact ellipse.
+
+Trim loops live in the parameter space and are not affected by a transform, so the faces of a
+transformed shell keep their loops; shells also keep their topology and face labels. A \textbf{mirror} reverses the orientation of
+space; \code{Shell.transformed} compensates for it by flipping the faces, so the normals of a
+mirrored solid still point outwards and its volume stays positive. Projective maps are not
+supported (they would need to change the weights).
+
+\section{Patterns}\label{sec:patterns}
+
+The pattern functions return \emph{lists of transforms}. The function
+\apiref{apply_pattern}\code{(geometry, transforms)} returns one transformed copy of any geometry
+per transform; it simply calls \code{geometry.transformed(t)}, so it works for curves, surfaces
+and shells.
+It lives in \code{nurbforge.patterns} and is re-exported as \code{nf.apply_pattern}.
+
+\begin{tabularx}{\linewidth}{@{}l>{\raggedright\arraybackslash}X@{}}
+\toprule
+Function & Transforms \\
+\midrule
+\apiref{linear_pattern}\code{(step, count)} & translations by $k\cdot$\code{step},
+  $k = 0,\dots,\text{count}-1$ (the first is the identity) \\
+\apiref{grid_pattern}\code{(step_a, count_a, step_b, count_b)} & translations by
+  $i\cdot\text{step\_a} + j\cdot\text{step\_b}$; the $b$ index varies fastest \\
+\apiref{polar_pattern}\code{(axis_point, axis_dir, count, total_angle)} & rotations about the
+  axis. For a full turn ($2\pi$) the copies are spaced by $2\pi/\text{count}$; for a partial angle
+  the first and the last copy lie at $0$ and \code{total_angle}, spaced by
+  $\text{total\_angle}/(\text{count}-1)$ \\
+\bottomrule
+\end{tabularx}
+
+The copies are independent objects. To combine copied solids into one body, unite them with
+\code{boolean} (\cref{ch:solids}); for meshing or STEP export the list can be passed directly.
+
+\section{Example}\label{sec:transform-example}
+
+\example{13_transforms.py}
+
+Output:
+
+\begin{lstlisting}[style=text]
+T p = Vec3(11.000000, 0.000000, 0.000000)  R p = Vec3(0.000000, 1.000000, 0.000000)  S p = Vec3(2.000000, 0.000000, 0.000000)
+A (1,1,1) = Vec3(1.000000, 2.000000, 3.000000)  M (2,3,4) = Vec3(-2.000000, 3.000000, 4.000000)
+(T * R) p = Vec3(10.000000, 1.000000, 0.000000)  (R * T) p = Vec3(0.000000, 11.000000, 0.000000)
+T.apply_vector((1,0,0)) = Vec3(1.000000, 0.000000, 0.000000)
+matrix of T * R (3 x 4, row-major): [0.0, -1.0, 0.0, 10.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0]
+hand-made matrix gives Vec3(10.000000, 1.000000, 0.000000)
+circle moved: centre Vec3(10.000000, -0.000000, 0.000000), length 6.283185307180
+non-uniform scaling turns the circle into an ellipse: length 9.68844822
+box translated: volume   6.0000, oriented True
+box rotated   : volume   6.0000, oriented True
+box scaled x2 : volume  48.0000, oriented True
+box mirrored  : volume   6.0000, oriented True
+polar 8 x 360 deg: centres at angles [0, 45, 90, 135, 180, -135, -90, -45]
+polar 3 x 90 deg: angles [0, 45, 90]
+linear 4 x 5: [0.0, 5.0, 10.0, 15.0]
+grid 3 x 2: [(0.0, 0.0), (0.0, 5.0), (5.0, 0.0), (5.0, 5.0), (10.0, 0.0), (10.0, 5.0)]
+6 pillars, total volume 75.398224 (6 * 4 pi = 75.398224)
+\end{lstlisting}
+
+The order of composition matters: \code{T * R} first rotates $(1,0,0)$ to $(0,1,0)$ and then
+translates it to $(10,1,0)$, whereas \code{R * T} first translates to $(11,0,0)$ and then
+rotates to $(0,11,0)$. The mirrored box keeps a positive volume and consistent orientation.
+
+\begin{tip}[Placing a part]
+Build a part around the origin with its axis along $z$, then move it with one composed transform
+\code{Transform.translation(position) * Transform.rotation((0,0,0), axis, angle)} -- rotation
+first, translation second. This keeps the construction code simple and the placement explicit.
+\end{tip}
+
+\begin{note}[LLM tools]
+The LLM interface (\cref{ch:llm}) offers the same operations as the tools
+\toolref{translate}, \toolref{rotate}, \toolref{mirror}, \toolref{linear_array} and
+\toolref{polar_array}; there, angles are given in degrees.
+\end{note}

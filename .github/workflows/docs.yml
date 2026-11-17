@@ -1,7 +1,7 @@
 name: Docs
 
 # Builds the documentation site (Doxygen XML -> Breathe, Markdown via MyST, Python autodoc)
-# and deploys it to GitHub Pages from main. Warnings are reported but not fatal yet.
+# and deploys it to GitHub Pages from main; builds the PDF user manual (docs/manual) as an artifact. Warnings are reported but not fatal yet.
 # One-time repository setting: Settings -> Pages -> Source: "GitHub Actions".
 
 on:
@@ -62,6 +62,29 @@ jobs:
       - uses: actions/upload-pages-artifact@v4
         with:
           path: build/sphinx/html
+
+  manual:
+    name: User manual (PDF)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: TeX Live
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends latexmk lmodern texlive-latex-recommended \
+            texlive-latex-extra texlive-fonts-recommended
+      - name: Python package (the command reference is generated from it)
+        run: python -m pip install ".[mesh]"
+      - name: Build the manual
+        run: python docs/manual/build.py
+      - uses: actions/upload-artifact@v7
+        with:
+          name: manual
+          path: docs/manual/build/nurbforge-manual.pdf
+          if-no-files-found: error
 
   deploy:
     name: Deploy to GitHub Pages

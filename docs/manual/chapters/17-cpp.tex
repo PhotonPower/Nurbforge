@@ -1,0 +1,243 @@
+\chapter{The C++ interface}\label{ch:cpp}
+
+The Python package is a thin layer over a C++20 library. Solvers and other C++ programs can link
+this library directly, with no Python interpreter and no third-party runtime dependencies. This
+chapter shows how to include and link it, walks through the shipped C++ examples and explains
+how Python names map to C++.
+
+\section{Library layout}\label{sec:cpp-layout}
+
+All declarations live in the namespace \code{nf}. Headers are under \code{include/nurbforge/},
+grouped by area, and mirror the layers of \cref{sec:intro-architecture}:
+
+\begin{longtable}{@{}p{0.34\textwidth}p{0.60\textwidth}@{}}
+\toprule
+\textbf{Header} & \textbf{Contents} \\
+\midrule
+\endhead
+\code{nurbforge/nurbforge.hpp} & Umbrella header: includes everything below. \\
+\code{core/vec.hpp}, \code{core/tolerance.hpp}, \code{core/error.hpp} & \code{Vec3}, \code{Vec4},
+  \code{Tolerance} and the constants \code{nf::tol::kLength}, \code{kParametric},
+  \code{kAngular}; \code{GeometryError}, \code{NotImplementedError}. \\
+\code{nurbs/knot_vector.hpp}, \code{basis.hpp}, \code{curve.hpp}, \code{surface.hpp},
+  \code{join.hpp} & Knot vectors, basis functions (\code{find_span}, \code{basis_functions},
+  \code{basis_function_derivatives}), \code{NurbsCurve}, \code{NurbsSurface}, joining. \\
+\code{geometry/primitives.hpp}, \code{transform.hpp} & Lines, arcs, circles, polygons, helices,
+  patches; \code{Transform}. \\
+\code{modeling/*.hpp} & \code{construct} (extrude, revolve, ruled), \code{loft}, \code{sweep},
+  \code{gordon} (Coons, Gordon), \code{extend}, \code{offset}, \code{fillet}, \code{pattern}. \\
+\code{fitting/fit.hpp} & Interpolation and approximation. \\
+\code{analysis/*.hpp} & \code{closest_point}, \code{properties} (curvature, length, area,
+  integration), \code{intersect}, \code{surface_intersect}, \code{section},
+  \code{shell_section}, \code{hatch}. \\
+\code{optics/surfaces.hpp} & Aspheres, Zernike and XY-polynomial surfaces, sag surfaces. \\
+\code{topology/*.hpp} & \code{TrimmedSurface}, \code{Shell}, \code{solids} (primitives),
+  \code{boolean}. \\
+\code{io/step.hpp} & STEP writer and reader. \\
+\code{nurbforge/version.hpp} & Generated: \code{NURBFORGE_VERSION} (a string) and
+  \code{NURBFORGE_VERSION_MAJOR}, \code{_MINOR}, \code{_PATCH}. \\
+\bottomrule
+\end{longtable}
+
+Including the umbrella header is the simplest choice. Including individual headers shortens
+compile times in large projects.
+
+\section{Using the library from CMake}\label{sec:cpp-cmake}
+
+The library target is \code{Nurbforge::core}: a static library with position-independent
+code that propagates its include directories and its dependency on the system thread
+library. There are two ways to use it.
+
+\subsection{As a subproject}
+Add the source tree with \code{add_subdirectory} (for example as a Git submodule) or fetch it
+with \code{FetchContent}. Switch off what you do not need:
+
+\begin{lstlisting}[style=cmake]
+set(NF_BUILD_PYTHON OFF CACHE BOOL "" FORCE)
+set(NF_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+set(NF_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+add_subdirectory(external/Nurbforge)
+
+add_executable(my_solver main.cpp)
+target_link_libraries(my_solver PRIVATE Nurbforge::core)
+\end{lstlisting}
+
+With \code{FetchContent}:
+
+\begin{lstlisting}[style=cmake]
+include(FetchContent)
+FetchContent_Declare(nurbforge
+  GIT_REPOSITORY https://github.com/PhotonPower/Nurbforge.git
+  GIT_TAG        v0.9.0)
+set(NF_BUILD_PYTHON OFF CACHE BOOL "" FORCE)
+set(NF_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+set(NF_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+FetchContent_MakeAvailable(nurbforge)
+target_link_libraries(my_solver PRIVATE Nurbforge::core)
+\end{lstlisting}
+
+\subsection{As an installed package}
+Build and install \NF{} once:
+
+\begin{lstlisting}[style=shell]
+cmake --preset release -DNF_BUILD_PYTHON=OFF
+cmake --build --preset release
+cmake --install build/release --prefix /opt/nurbforge
+\end{lstlisting}
+
+This installs \code{lib/libnurbforge_core.a} (Windows: \code{nurbforge_core.lib}), the headers
+and the CMake package files in \code{lib/cmake/Nurbforge}. A consuming project then uses
+\code{find_package}. Point CMake to the prefix with \code{-DCMAKE_PREFIX_PATH=/opt/nurbforge}:
+
+\begin{lstlisting}[style=cmake]
+cmake_minimum_required(VERSION 3.24)
+project(my_solver LANGUAGES CXX)
+set(CMAKE_CXX_STANDARD 20)
+find_package(Threads REQUIRED)   # needed before Nurbforge (see the note below)
+find_package(Nurbforge REQUIRED)
+add_executable(my_solver main.cpp)
+target_link_libraries(my_solver PRIVATE Nurbforge::core)
+\end{lstlisting}
+
+\begin{warning}[Threads dependency]
+In version \NFVersion{} the installed package configuration does not look up its dependency on
+the system thread library. Without a preceding \code{find_package(Threads REQUIRED)},
+\code{find_package(Nurbforge)} fails with ``The link interface of target Nurbforge::core
+contains: Threads::Threads but the target was not found''. Calling
+\code{find_package(Threads REQUIRED)} first, as above, avoids this.
+\end{warning}
+
+A minimal program:
+
+\begin{lstlisting}[style=cpp]
+#include <iostream>
+#include <nurbforge/nurbforge.hpp>
+
+int main() {
+  const nf::Shell part = nf::boolean(nf::make_box({-2, -2, 0}, {4, 4, 1}),
+                                     nf::make_cylinder({0, 0, -1}, {0, 0, 1}, 1.0, 3.0),
+                                     nf::BooleanOp::Difference);
+  const nf::MassProperties mp = part.mass_properties();
+  std::cout << "faces " << part.faces().size() << ", volume " << mp.volume
+            << ", centroid " << mp.centroid << '\n';
+  nf::write_step("part.step", {part});
+}
+\end{lstlisting}
+
+Built against an installed \NF{} with the \code{CMakeLists.txt} above, it prints
+\begin{lstlisting}[style=text]
+faces 7, volume 12.8584, centroid (9.23212e-17, -4.9056e-16, 0.5)
+\end{lstlisting}
+and writes \code{part.step}. The volume is $16-\pi$.
+
+\paragraph{Compiler requirements.} The headers need C++20 (the examples also use
+\code{std::numbers} and designated initialisers). On MSVC the target defines
+\code{_USE_MATH_DEFINES} and \code{NOMINMAX} for its users. On macOS the deployment target
+must be at least 13.3 (\cref{sec:install-macos}).
+
+\section{The C++ examples}\label{sec:cpp-examples}
+
+The repository contains two C++ examples in \code{examples/cpp/}. With the option
+\code{NF_BUILD_EXAMPLES} (default on) they are built as the programs
+\code{nf_example_lens_surface} and \code{nf_example_booleans}.
+
+\subsection{A spherical lens cap}
+\lstinputlisting[style=cpp,title={\small\texttt{examples/cpp/lens\_surface.cpp}}]{../../examples/cpp/lens_surface.cpp}
+
+The program revolves a meridional arc into a spherical cap of radius of curvature 50\,mm and
+semi-aperture 12.5\,mm and checks that sample points have distance 50 from the centre of
+curvature:
+
+\begin{lstlisting}[style=text]
+control net: 9 x 3
+S(0.125, 0) = (0, 0, 0)  |p - c| = 50
+S(0.125, 0.5) = (4.45492, 4.45492, -0.398515)  |p - c| = 50
+S(0.125, 1) = (8.83883, 8.83883, -1.58771)  |p - c| = 50
+\end{lstlisting}
+
+Note the brace initialisation of points (\code{{0, 0, -R}} is a \code{Vec3}) and that all
+functions return values. Nothing is modified in place.
+
+\subsection{Boolean operations}
+\lstinputlisting[style=cpp,title={\small\texttt{examples/cpp/booleans.cpp}}]{../../examples/cpp/booleans.cpp}
+
+The example builds shells by sewing trimmed faces, which is the general way to create solids
+the primitives do not cover. It then compares Boolean results with analytic volumes:
+
+\begin{lstlisting}[style=text]
+spheres: union        2 faces, closed, volume 7.068583506 (analytic 7.068583471, rel. error 5e-09)
+spheres: intersection 3 faces, closed, volume 1.308996794 (analytic 1.308996939, rel. error 1.1e-07)
+spheres: difference   2 faces, closed, volume 2.879793411 (analytic 2.879793266, rel. error 5e-08)
+drilled cube          7 faces, closed, volume 7.434513328 (analytic 7.434513322, rel. error 7.4e-10)
+origin inside the drilled cube: false, (0.5, 0.5, 0) inside: true
+\end{lstlisting}
+
+The remaining errors come from the intersection curves, which are fitted to the default tolerance,
+and from the integration tolerance \code{volume(1e-7)}.
+
+\section{Mapping between Python and C++}\label{sec:cpp-mapping}
+
+The bindings expose the kernel almost one to one. Names of types, functions, methods and enum
+values are identical. The differences are systematic:
+
+\begin{longtable}{@{}p{0.30\textwidth}p{0.64\textwidth}@{}}
+\toprule
+\textbf{Python} & \textbf{C++} \\
+\midrule
+\endhead
+\code{import nurbforge as nf}; \code{nf.make_box} & \texttt{\#include <nurbforge/nurbforge.hpp>};
+  \code{nf::make_box} \\
+Points as tuples, lists, NumPy rows & \code{nf::Vec3}, usually brace-initialised:
+  \code{{0, 0, 1}} \\
+NumPy arrays $(n,3)$ for point lists & \code{std::vector<nf::Vec3>} \\
+Point grids $(n_u, n_v, 3)$ (fitting) & A flat \code{std::vector<nf::Vec3>} plus the sizes
+  \code{num_u}, \code{num_v} (row-major, $i$ along $u$) \\
+\code{c(u)}, \code{s(u, v)} & \code{c.evaluate(u)}, \code{s.evaluate(u, v)} \\
+Properties \code{c.degree}, \code{c.knots}, \code{shell.is_closed} & Accessor functions
+  \code{c.degree()}, \code{c.knots()}, \code{shell.is_closed()} \\
+Keyword arguments, e.g.\ \code{fillet_curves(a, b, r, side_a=1)} & An options struct with
+  designated initialisers: \code{fillet_curves(a, b, r, {0, 0, 1}, {.side_a = 1})}; likewise
+  \code{SweepOptions}, \code{SurfaceFilletOptions}, \code{HatchOptions}, \code{SectionOptions},
+  \code{SurfaceIntersectionOptions}, \code{StepOptions}, \code{StepReadOptions} \\
+\code{unit="mm"} (STEP) & \code{nf::StepLengthUnit::Millimetre} \\
+Tuples as results, e.g.\ \code{c.split(u)} & \code{std::pair} or result structs \\
+\code{hatch(...)} returns \code{(segments, contours)} & \code{nf::Hatching} with members
+  \code{segments} and \code{contours} \\
+\code{nf.GeometryError} (a \code{ValueError}) & \code{nf::GeometryError} (derived from
+  \code{std::runtime_error}) \\
+Warnings of \code{read_step} with \code{skip_unsupported=True} (as \code{UserWarning}) &
+  \code{StepReadOptions::warnings}, a pointer to a \code{std::vector<std::string>} \\
+\code{nurbforge.mesh}, \code{nurbforge.llm} & Python only \\
+\bottomrule
+\end{longtable}
+
+The STEP functions illustrate the options-struct style:
+
+\begin{lstlisting}[style=cpp]
+#include "nurbforge/io/step.hpp"
+nf::write_step("drilled_cube.step", {drilled});
+std::string text = nf::to_step({drilled}, {.unit = nf::StepLengthUnit::Metre});
+
+std::vector<std::string> warnings;
+auto shells = nf::from_step(text, {.unit = nf::StepLengthUnit::Metre,
+                                   .skip_unsupported = true, .warnings = &warnings});
+\end{lstlisting}
+
+\section{Error handling and threads in C++}\label{sec:cpp-errors}
+
+Invalid input throws \code{nf::GeometryError}. Its \code{what()} contains the same message the
+Python exception shows. Objects are immutable values with regular copy and move semantics, and
+all \code{const} member functions and free query functions may be called concurrently on shared
+objects (\cref{sec:concepts-threads}). The surface/surface intersection starts its own worker
+threads (\code{std::thread}) for the seed search, which is why the library links
+\code{Threads::Threads}.
+
+\section{Reference documentation}\label{sec:cpp-reference}
+
+Every public declaration has a Doxygen comment. The rendered C++ reference is part of the online
+documentation at \url{https://photonpower.github.io/Nurbforge/}. Locally, build it with
+\begin{lstlisting}[style=shell]
+doxygen docs/Doxyfile          # writes build/docs/html/index.html
+\end{lstlisting}
+The Python command reference in \cref{app:reference} documents the same functions with their
+Python signatures. The mapping rules above translate them to C++.

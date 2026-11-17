@@ -1,0 +1,522 @@
+\chapter{Curves}\label{ch:curves}
+
+Curves are the starting point of almost every model: they are the profiles that are revolved,
+extruded and swept into surfaces, the sections of lofts, the boundaries of Coons patches and the
+trim loops of faces. In \NF{} every curve -- a straight line as much as a fitted free-form curve
+-- is an instance of one class, \apiref{NurbsCurve}: a non-uniform rational B-spline in
+three-dimensional space. This chapter first presents the functions that create the common curve
+types exactly, then the \code{NurbsCurve} class with all its members, and finally the operations
+that build new curves from existing ones (joining, extension, offsets, fillets) and the analysis
+functions (curvature, arc length, closest points).
+
+All curve functions return \emph{new} objects; a curve is never modified in place
+(\cref{ch:concepts}). Angles are in radians throughout the Python and C++ API.
+
+\section{Curve primitives}\label{sec:curve-primitives}
+
+\Cref{tab:curve-primitives} lists the functions that construct curves from a few geometric
+parameters. Lines, polylines, polygons, rectangles, arcs and circles are \emph{exact}: the NURBS
+represents the geometric object up to floating-point rounding. Helices and spirals are not
+representable as NURBS and are approximated to a tolerance.
+
+\begin{table}[htbp]
+\centering\small
+\begin{tabularx}{\linewidth}{@{}l>{\raggedright\arraybackslash}Xll@{}}
+\toprule
+Function & Result & Degree & Rational \\
+\midrule
+\apiref{make_line}\code{(p0, p1)} & segment from \code{p0} to \code{p1} & 1 & no \\
+\apiref{make_polyline}\code{(points)} & open polyline through the points, chord-length knots & 1 & no \\
+\apiref{make_polygon}\code{(center, normal, radius, n, x_axis)} & closed regular $n$-gon inscribed in a circle & 1 & no \\
+\apiref{make_rectangle_curve}\code{(origin, edge_u, edge_v)} & closed parallelogram outline & 1 & no \\
+\apiref{make_arc}\code{(center, x_axis, y_axis, radius, start, end)} & circular arc between two angles & 2 & yes \\
+\apiref{make_arc_3pt}\code{(p0, p1, p2)} & arc from \code{p0} through \code{p1} to \code{p2} & 2 & yes \\
+\apiref{make_circle}\code{(center, normal, radius)} & full circle & 2 & yes \\
+\apiref{make_circle_3pt}\code{(p0, p1, p2)} & full circle through three points & 2 & yes \\
+\apiref{make_helix}\code{(axis_point, axis, start, pitch, turns, ...)} & cylindrical or conical helix, planar spiral & 5 & no \\
+\bottomrule
+\end{tabularx}
+\caption{Curve primitives. All points and vectors accept \code{Vec3} objects, tuples or lists.}
+\label{tab:curve-primitives}
+\end{table}
+
+The following script creates one curve of each kind and prints its degree, number of control
+points, whether it is rational, its parameter domain and its length:
+
+\example{05_curve_primitives.py}
+
+Output:
+
+\begin{lstlisting}[style=text]
+line         degree=1 n_ctrl= 2 rational=False domain=(0.0, 1.0) length=10.000000
+polyline     degree=1 n_ctrl= 4 rational=False domain=(0.0, 1.0) length=11.000000
+arc 120 deg  degree=2 n_ctrl= 5 rational=True  domain=(0.0, 1.0) length=10.471976
+arc 3 pt     degree=2 n_ctrl= 5 rational=True  domain=(0.0, 1.0) length=15.707963
+circle       degree=2 n_ctrl= 9 rational=True  domain=(0.0, 1.0) length=31.415927
+circle 3 pt  degree=2 n_ctrl= 9 rational=True  domain=(0.0, 1.0) length=6.283185
+hexagon      degree=1 n_ctrl= 7 rational=False domain=(0.0, 1.0) length=12.000000
+rectangle    degree=1 n_ctrl= 5 rational=False domain=(0.0, 1.0) length=12.000000
+circle radius error: 1.8e-15
+helix: domain=(0.0, 3.0), end point=Vec3(1.000000, -0.000000, 6.000000), length=19.781449
+exact helix length 3*sqrt((2 pi)^2 + 2^2) = 19.781450
+conical helix end=Vec3(0.250000, -0.000000, 6.000000), spiral end=Vec3(3.000000, -0.000000, 0.000000)
+\end{lstlisting}
+
+\subsection{Lines, polylines, polygons and rectangles}
+
+\code{make_line(p0, p1)} returns the degree-1 B-spline with the two control points \code{p0} and
+\code{p1} on the domain $[0,1]$; the parameter is proportional to the distance from \code{p0}.
+
+\code{make_polyline(points)} connects two or more points by straight segments. The knots are
+chosen by \emph{chord length}: the polyline through $(0,0,0)$, $(4,0,0)$, $(4,3,0)$, $(0,3,0)$
+(segment lengths 4, 3 and 4) has the knot vector $\{0, 0, \tfrac{4}{11}, \tfrac{7}{11}, 1,
+1\}$, so the parameter is proportional to arc length along the whole polyline. The interior
+vertices are corners (the curve is only $C^0$ there); they can be rounded with
+\apiref{fillet_corners} (\cref{sec:curve-fillets}).
+
+\code{make_polygon(center, normal, radius, n, x_axis)} creates a closed regular polygon with
+$n$ vertices on the circle of the given radius in the plane through \code{center} perpendicular
+to \code{normal}. The first vertex lies in the direction \code{x_axis} (projected into the
+plane). If \code{x_axis} is omitted (the default is the zero vector), an arbitrary but
+deterministic perpendicular direction is used -- for the normal $(0,0,1)$ this is the $+y$
+axis, so the first vertex of a hexagon of radius 2 is $(0,2,0)$. Pass \code{x_axis} whenever
+the orientation of the polygon matters. The polygon has $n+1$ control points; the last equals
+the first.
+
+\code{make_rectangle_curve(origin, edge_u, edge_v)} is the closed outline through the four
+corners $\mathbf o$, $\mathbf o+\mathbf e_u$, $\mathbf o+\mathbf e_u+\mathbf e_v$,
+$\mathbf o+\mathbf e_v$ and back to $\mathbf o$ (with $\mathbf o$ = \code{origin}, $\mathbf
+e_u$ = \code{edge_u}, $\mathbf e_v$ = \code{edge_v}), with chord-length knots. The two edge
+vectors need not be perpendicular, so any parallelogram can be created. Do not confuse it with
+\apiref{make_rectangle}, which returns the planar \emph{surface} patch (\cref{ch:surfaces}).
+
+\subsection{Arcs and circles}\label{sec:arcs}
+
+Circular arcs are represented exactly as rational quadratic NURBS (Piegl \& Tiller,
+algorithm~A7.1). An arc is split into segments of at most $90^\circ$; each segment has three
+control points, the middle one with weight $\cos(\Delta\theta/2)$. A full circle therefore has
+four segments, nine control points and the knot vector
+$\{0,0,0,\tfrac14,\tfrac14,\tfrac12,\tfrac12,\tfrac34,\tfrac34,1,1,1\}$ with the weights
+$1, \tfrac{\sqrt2}{2}, 1, \tfrac{\sqrt2}{2}, \dots$ The script above confirms the exactness: the
+largest deviation of the circle from radius 5 is $1.8\cdot10^{-15}$.
+
+\begin{description}[style=nextline]
+\item[\code{make_arc(center, x_axis, y_axis, radius, start_angle, end_angle)}]
+  The arc of the circle with the given centre and radius in the plane spanned by \code{x_axis}
+  and \code{y_axis}, running from \code{start_angle} to \code{end_angle}; angles are measured
+  from \code{x_axis} towards \code{y_axis}. The point at angle $\theta$ is
+  $\text{center} + r(\cos\theta\,\hat x + \sin\theta\,\hat y)$. The axes are normalised; they
+  should be perpendicular. With \code{start = 0} and \code{end = math.radians(120)} the arc ends
+  at $(-2.5, 4.330127, 0)$ for radius 5.
+\item[\code{make_arc_3pt(p0, p1, p2)}]
+  The arc from \code{p0} through \code{p1} to \code{p2}. The three points must not be collinear.
+\item[\code{make_circle(center, normal, radius)}]
+  The full circle, oriented counter-clockwise about \code{normal} (right-hand rule). The start
+  point lies on the same deterministic perpendicular of the normal as for \code{make_polygon}: for
+  the normal $(0,0,1)$ the circle starts at $\text{center} + r\,(0,1,0)$ and reaches
+  $\text{center} + r\,(-1,0,0)$ at $u = 0.25$. If the start point matters (for example for a
+  sweep or a loft whose sections must line up), use \code{make_arc} with explicit axes and the
+  angles $0$ and $2\pi$, or \code{make_circle_3pt}.
+\item[\code{make_circle_3pt(p0, p1, p2)}]
+  The full circle through three points; it starts at \code{p0} and runs through \code{p1} and
+  \code{p2} in this order, which fixes both start point and orientation.
+\end{description}
+
+\begin{note}[Parameter and arc length on a circle]
+The quarter points of a circle lie exactly at $u = 0, \tfrac14, \tfrac12, \tfrac34$. Within a
+quarter, however, the rational parametrisation is \emph{not} proportional to arc length (no
+rational parametrisation of the circle is). Use \apiref{parameter_at_length}
+(\cref{sec:curve-analysis}) to find points at equal distances along the circle.
+\end{note}
+
+\subsection{Helices and spirals}\label{sec:helix}
+
+\begin{lstlisting}[style=text]
+make_helix(axis_point, axis, start, pitch, turns, end_radius=-1.0,
+           left_handed=False, tolerance=1e-7) -> NurbsCurve
+\end{lstlisting}
+
+\apiref{make_helix} creates a helix around the axis through \code{axis_point} with direction
+\code{axis}. The curve starts at the point \code{start}; its distance from the axis is the start
+radius, and the foot of \code{start} on the axis is the height zero. Each turn advances by
+\code{pitch} along the axis. The parameter of the curve is the number of turns: the domain is
+$[0, \text{turns}]$, and $u = 1$ is the end of the first turn.
+
+\begin{itemize}
+\item \code{end_radius < 0} (default): cylindrical helix with constant radius.
+\item \code{end_radius >= 0}: the radius changes linearly from the start radius to
+  \code{end_radius} -- a \emph{conical helix}. In the example the conical helix ends at radius
+  0.25.
+\item \code{pitch = 0} together with \code{end_radius}: a planar \emph{Archimedean spiral} (the
+  radius grows linearly with the angle).
+\item \code{left_handed=True} turns clockwise about \code{axis} instead of counter-clockwise; at
+  a quarter turn the right-handed helix of the example is at $(0, 1, 0.5)$, the left-handed one
+  at $(0, -1, 0.5)$.
+\end{itemize}
+
+The helix is approximated by a $C^2$ quintic B-spline whose distance from the exact curve is at
+most \code{tolerance}. The default tolerance of $10^{-7}$ is small enough for nearly all
+purposes; the length of the three-turn helix in the example agrees with the exact value
+$3\sqrt{(2\pi)^2+2^2}$ to $10^{-6}$. Use a smaller tolerance for very large helices or when the
+curvature and torsion (\cref{sec:curve-analysis}) must be accurate to many digits.
+
+\section{The NurbsCurve class}\label{sec:nurbscurve}
+
+\subsection{Definition}
+
+A NURBS curve of degree $p$ with control points $\mathbf P_0,\dots,\mathbf P_n$, weights
+$w_i > 0$ and a knot vector $U = \{u_0, \dots, u_{n+p+1}\}$ is
+\[
+  \mathbf C(u) = \frac{\sum_{i=0}^{n} N_{i,p}(u)\, w_i\, \mathbf P_i}
+                      {\sum_{i=0}^{n} N_{i,p}(u)\, w_i},
+  \qquad u \in [u_p, u_{n+1}],
+\]
+where $N_{i,p}$ are the B-spline basis functions. If all weights are equal the curve is a
+(non-rational) B-spline. The knot vector must be non-decreasing, contain $n + p + 2$ values and
+no interior knot may have a multiplicity larger than $p$. At a knot of multiplicity $k$ the curve
+is $C^{p-k}$ continuous. The background is explained in \cref{ch:concepts}.
+
+\subsection{Construction}
+
+\begin{lstlisting}[style=text]
+NurbsCurve(degree, knots, control_points, weights=[])
+NurbsCurve.from_points(degree, control_points)
+\end{lstlisting}
+
+The constructor takes the degree, the full knot vector (a list of floats), the control points as
+an array of shape $(n+1, 3)$ (a NumPy array or a nested list) and optionally the weights. An empty
+weight list means a non-rational curve. The constructor validates everything and raises
+\code{GeometryError} with a precise message if, for example, the knot vector has the wrong size,
+decreases somewhere or a weight is not positive.
+
+\apiref{NurbsCurve.from_points} is a shortcut for a non-rational B-spline with a \emph{clamped
+uniform} knot vector on $[0,1]$: the first and last $p+1$ knots are 0 and 1, the interior knots
+are equally spaced. For six control points and degree 3 the knot vector is
+$\{0,0,0,0,\tfrac13,\tfrac23,1,1,1,1\}$. A clamped curve starts at the first and ends at the last
+control point.
+
+\subsection{Properties}
+
+\begin{tabularx}{\linewidth}{@{}l>{\raggedright\arraybackslash}X@{}}
+\toprule
+Property & Meaning \\
+\midrule
+\code{degree} & polynomial degree $p$ \\
+\code{knots} & the full knot vector as a list \\
+\code{control_points} & NumPy array of shape $(n+1, 3)$ (a copy) \\
+\code{weights} & list of $n+1$ weights (all 1 for a non-rational curve) \\
+\code{domain} & tuple $(u_p, u_{n+1})$, the valid parameter range \\
+\code{is_rational} & \code{True} if the weights are not all equal \\
+\code{is_clamped} & \code{True} if the first and last knot have multiplicity $p+1$ \\
+\bottomrule
+\end{tabularx}
+
+\subsection{Evaluation and derivatives}
+
+\begin{description}[style=nextline]
+\item[\code{c.evaluate(u)} or \code{c(u)}] The point $\mathbf C(u)$ as a \code{Vec3}. Evaluation
+  is done in homogeneous coordinates (Piegl \& Tiller A4.1), so rational curves are exact.
+\item[\code{c.derivatives(u, order=1)}] A list of \code{order + 1} vectors
+  $[\mathbf C(u), \mathbf C'(u), \dots, \mathbf C^{(k)}(u)]$ -- derivatives of any order with
+  respect to the parameter, including the quotient rule for rational curves (A4.2).
+\item[\code{c.tangent(u)}] The unit tangent $\mathbf C'(u)/|\mathbf C'(u)|$.
+\item[\code{c.sample(n=100)}] A NumPy array of shape $(n, 3)$ with the points at $n$ equally
+  spaced parameters including both ends -- convenient for plotting with Matplotlib.
+\end{description}
+
+Parameters outside the domain are not rejected: the polynomial piece of the end span is simply
+continued (on the line from $(0,0,0)$ to $(1,0,0)$, \code{c(1.5)} is $(1.5,0,0)$). Do not rely
+on this -- use \apiref{extend} (\cref{sec:curve-extend}) for a controlled continuation. At an
+interior knot the derivatives are those of the span to the right of the knot.
+
+\subsection{Shape-preserving knot and degree operations}
+
+These operations change the representation of a curve but not its shape (except where a
+tolerance is given). They are the classical NURBS algorithms of Piegl \& Tiller.
+
+\begin{description}[style=nextline]
+\item[\code{insert_knot(u, times=1)}] Inserts the knot $u$ \code{times} times (A5.1). Each
+  insertion adds one control point. The multiplicity cannot exceed the degree.
+\item[\code{refine_knots(knots)}] Inserts all values of the list at once (knot refinement, A5.4);
+  faster than repeated insertion.
+\item[\code{try_remove_knot(u, times=1, tolerance=1e-10)}] Removes the knot $u$ up to \code{times}
+  times as long as the curve changes by at most \code{tolerance} (A5.8) and returns the tuple
+  \code{(curve, removed)} with the number of removals actually done.
+\item[\code{remove_knot(u, times=1, tolerance=1e-10)}] As above, but raises
+  \code{GeometryError} if the knot cannot be removed the requested number of times.
+\item[\code{elevate_degree(times=1)}] Raises the degree by \code{times} without changing the
+  shape (A5.9). The result is clamped.
+\item[\code{reduce_degree(tolerance=1e-10)}] Lowers the degree by one if the curve can be
+  represented within \code{tolerance}; raises \code{GeometryError} otherwise. The check is
+  rigorous: the reduced curve is elevated back and compared with the original. Undoing a degree
+  elevation always succeeds.
+\item[\code{decompose_bezier()}] The list of Bézier segments (one per non-empty knot span), each
+  on its original parameter interval.
+\item[\code{clamped()}] The same curve with a clamped knot vector (for curves with an unclamped
+  vector, e.g. from periodic data).
+\end{description}
+
+Tolerances of knot removal and degree reduction are \emph{Cartesian} deviations in model units.
+For rational curves they are checked conservatively on the homogeneous control points, so a
+removal may be refused although the true deviation would just be acceptable.
+
+\subsection{Splitting, sub-curves, reversal and transformation}
+
+\begin{description}[style=nextline]
+\item[\code{split(u)}] Splits at $u$ and returns the tuple \code{(left, right)}. Both pieces keep
+  their parameter intervals $[a, u]$ and $[u, b]$; they are clamped.
+\item[\code{sub_curve(u0, u1)}] The piece between two parameters, on the interval $[u_0, u_1]$.
+\item[\code{reversed()}] The same point set traversed in the opposite direction: $r(a) = c(b)$.
+\item[\code{transformed(transform)}] The curve under an affine \apiref{Transform}
+  (\cref{ch:transforms}). Because NURBS are affinely invariant, only the control points are
+  transformed; the result is exact.
+\end{description}
+
+\apiref{reparametrize}\code{(curve, a, b)} maps the domain linearly to $[a, b]$ (the knots are
+scaled and shifted, the shape is unchanged). This is useful when curves with a common
+parametrisation are required, e.g. for \code{ruled}.
+
+\subsection{Example}
+
+\example{05_nurbs_curve.py}
+
+Output:
+
+\begin{lstlisting}[style=text]
+degree 3 domain (0.0, 1.0) clamped True rational False
+C(0.5)  = Vec3(4.170824, 1.964664, 0.000000)
+C'(0.5) = Vec3(5.895692, -2.613379, 0.000000)  C''(0.5) = Vec3(-7.709751, 15.532880, 0.000000)
+unit tangent Vec3(0.914210, -0.405241, 0.000000)
+samples
+ [[0.     0.     0.    ]
+ [2.3843 2.4248 0.    ]
+ [4.1708 1.9647 0.    ]
+ [5.5434 2.158  0.    ]
+ [8.     2.     0.    ]]
+from_points knots [0.0, 0.0, 0.0, 0.0, 0.3333, 0.6667, 1.0, 1.0, 1.0, 1.0]
+insert: 8 ctrl, refine: 10 ctrl, max deviation 3.6e-15
+removed 2 times -> 6 ctrl
+elevated degree 5 n_ctrl 12 -> reduced back to degree 3
+reduce_degree refused: reduce_degree: curve cannot be degree-reduced within tolerance 0.00000 ...
+Bezier segments: [(0.0, 0.3), (0.3, 0.6), (0.6, 1.0)]
+split domains (0.0, 0.5) (0.5, 1.0)
+sub_curve domain (0.2, 0.7)
+reversed: r(0) == c(1): True
+reparametrized domain (0.0, 10.0)
+quarter circle: weights [1.0, 0.707107, 1.0] |C(0.3)| = 1.0
+\end{lstlisting}
+
+The last lines build a quarter circle by hand: three control points, the middle weight
+$\cos 45^\circ = \sqrt2/2$, and every point has distance exactly 1 from the origin.
+
+\section{Joining curves}\label{sec:join}
+
+\apiref{join}\code{(a, b, tolerance=1e-10)} appends curve \code{b} to the end of curve \code{a}
+and returns one curve. The end of \code{a} and the start of \code{b} must agree within
+\code{tolerance}; a remaining gap is closed at its midpoint. Internally the degrees are unified by
+degree elevation, the weights of \code{b} are scaled so that the joint weights agree, the domain
+of \code{b} is shifted to start where \code{a} ends, and the joint knot is removed as far as
+this is exact. Consequently \code{join(*c.split(u))} reproduces \code{c.clamped()}, and joining a
+line with a tangent arc gives a curve that is $G^1$ at the joint.
+
+\begin{warning}
+\code{join} does not reverse curves. If \code{b} starts at the \emph{start} of \code{a}, reverse
+one of them first. Only touching curves are joined: a gap larger than \code{tolerance} raises
+\code{GeometryError}.
+\end{warning}
+
+\section{Extending curves}\label{sec:curve-extend}
+
+\begin{lstlisting}[style=text]
+extend(curve, end, length, type=Extension.Natural) -> NurbsCurve
+\end{lstlisting}
+
+\apiref{extend} lengthens a curve at one end by the given \emph{arc length}; \code{end} is
+\code{CurveEnd.Start} or \code{CurveEnd.End}. The original parameters are kept -- the old
+domain is a sub-interval of the new one -- so points computed on the original curve remain
+valid. Two kinds of extension are available:
+
+\begin{description}[style=nextline]
+\item[\code{Extension.Natural}] Continues the polynomial (or rational) piece of the end span. The
+  extension is $C^\infty$ at the old end, and conics stay conics: an arc is extended along its
+  circle. Extensions that would require non-positive weights are rejected.
+\item[\code{Extension.Linear}] Appends a straight segment along the end tangent with the same
+  parameter speed as the curve at its end. The result is $C^1$ for non-rational curves and $G^1$
+  otherwise.
+\end{description}
+
+The same function extends surfaces across one of their sides (\cref{sec:surface-extend}).
+
+\section{Offset curves}\label{sec:offset-curve}
+
+\begin{lstlisting}[style=text]
+offset_curve(curve, distance, plane_normal=(0, 0, 1), tolerance=1e-7) -> NurbsCurve
+\end{lstlisting}
+
+\apiref{offset_curve} returns the planar offset
+$\mathbf o(t) = \mathbf c(t) + d\,\widehat{\mathbf n \times \mathbf c'(t)}$ of a curve lying in a
+plane with normal $\mathbf n$. A positive distance offsets to the \emph{left} of the direction of
+travel seen from the tip of \code{plane_normal}; for a counter-clockwise circle this is the
+inside. The exact offset of a NURBS is not a NURBS (the unit normal contains a square root), so
+the offset is a cubic B-spline fitted to the tolerance. The parametrisation is kept: $\mathbf
+o(t)$ approximates the offset point of $\mathbf c(t)$.
+
+The function raises \code{GeometryError} where the offset would develop a cusp, i.e.\ where
+$|d|$ reaches the radius of curvature on the concave side, where the curve has a corner (a
+tangent discontinuity that would open a gap), where $\mathbf c'$ vanishes, and if the curve is not
+planar in the given plane. Global self-intersections of the offset (bottlenecks narrower than
+$2|d|$) are not detected.
+
+\section{Fillets}\label{sec:curve-fillets}
+
+\subsection{Fillet between two curves}
+
+\begin{lstlisting}[style=text]
+fillet_curves(a, b, radius, plane_normal=(0, 0, 1), side_a=0, side_b=0,
+              trim=True, corner=None, tolerance=1e-7) -> CurveFillet
+\end{lstlisting}
+
+\apiref{fillet_curves} computes the circular fillet of the given radius between two coplanar
+curves that intersect. The fillet arc is exact (a rational arc). The sides select which of the
+four possible fillets at a crossing is meant: \code{+1} places the centre to the left of the
+curve's direction seen from \code{plane_normal}, \code{-1} to the right, and \code{0} chooses
+automatically the corner between the \emph{kept parts} -- on each curve, the longer side of the
+intersection point. For a polyline corner $a \to X \to b$ this is exactly the inner corner.
+\code{corner} selects the intersection point if the curves cross more than once.
+
+The result \apiref{CurveFillet} contains:
+
+\begin{tabularx}{\linewidth}{@{}l>{\raggedright\arraybackslash}X@{}}
+\toprule
+Field & Meaning \\
+\midrule
+\code{arc} & the exact fillet arc, running from \code{a} to \code{b} \\
+\code{center} & centre of the arc \\
+\code{param_a}, \code{param_b} & parameters of the tangent points on \code{a} and \code{b} \\
+\code{point_a}, \code{point_b} & the tangent points \\
+\code{trimmed_a}, \code{trimmed_b} & the kept parts of the curves, oriented so that
+  \code{trimmed_a}, \code{arc}, \code{trimmed_b} form a $G^1$ chain (with \code{trim=True}) \\
+\bottomrule
+\end{tabularx}
+
+Two lines at an angle $\theta$ give the setback $r/\tan(\theta/2)$ from the corner; in the
+example below ($\theta = 90^\circ$, $r = 0.5$) the tangent points are 0.5 from the corner.
+
+\subsection{Rounding all corners}
+
+\apiref{fillet_corners}\code{(curve, radius, tolerance=1e-7)} rounds every corner of a planar
+curve -- typically a polyline, polygon or rectangle outline -- with exact arcs and returns a
+single $G^1$ curve. A rectangle $4\times2$ with corner radius 0.5 has the length
+$12 - 8\cdot0.5 + 2\pi\cdot0.5$.
+
+\subsection{Example}
+
+\example{05_curve_operations.py}
+
+Output:
+
+\begin{lstlisting}[style=text]
+join: degree 2, domain (0.0, 2.0), length 3.570796 (2 + pi/2 = 3.570796)
+extend natural: domain (0.0, 1.4038182881544163), end Vec3(-0.479426, 0.877583, 0.000000), |end| = 1.000000000000
+extend linear : domain (0.0, 1.3535533905932737), end Vec3(-0.500000, 1.000000, 0.000000)
+original parameters kept: 0.0e+00
+offset +0.2: radius 0.8 within 2.4e-08, degree 3, 137 control points
+offset -0.2: length 7.53982237 (2 pi 1.2 = 7.53982237)
+offset 1.5 refused: offset_curve: |distance| = 1.500000 reaches the radius of cu ...
+fillet: centre Vec3(3.500000, 0.500000, 0.000000), tangent points Vec3(3.500000, 0.000000, 0.000000) / Vec3(4.000000, 0.500000, 0.000000)
+        params on a/b: 0.8750 / 0.1667, arc length 0.785398 (pi/4 = 0.785398)
+G1 chain length 6.785398 (3.5 + pi/4 + 2.5 = 6.785398)
+rounded rectangle: length 11.141593 (12 - 8*0.5 + 2 pi 0.5 = 11.141593)
+\end{lstlisting}
+
+Note how the natural extension of the quarter arc stays on the unit circle ($|end| = 1$),
+whereas the linear extension leaves it along the tangent at $(0,1,0)$. The offset of the unit
+circle by $+0.2$ is a circle of radius 0.8 within $2.4\cdot10^{-8}$, well inside the requested
+$10^{-7}$; it needs 137 control points because the cubic fit is done per Bézier segment of the
+rational circle.
+
+\section{Curve analysis}\label{sec:curve-analysis}
+
+\subsection{Differential properties}
+
+\begin{description}[style=nextline]
+\item[\apiref{curvature}\code{(curve, u)}] $\kappa = |\mathbf C' \times \mathbf C''| / |\mathbf C'|^3$, the
+  reciprocal of the radius of curvature.
+\item[\apiref{torsion}\code{(curve, u)}] $\tau = (\mathbf C' \times \mathbf C'') \cdot \mathbf
+  C''' / |\mathbf C' \times \mathbf C''|^2$; zero for planar curves.
+\end{description}
+
+For a helix of radius 1 and pitch 2 the exact values are $\kappa = 1/(1+c^2)$ and $\tau =
+c/(1+c^2)$ with $c = 2/(2\pi)$. The fitted helix with tolerance $10^{-9}$ reproduces them to
+about $5\cdot10^{-7}$ -- derivatives of an approximation are less accurate than its points.
+
+\subsection{Arc length}
+
+\begin{description}[style=nextline]
+\item[\apiref{length}\code{(curve, rel_tol=1e-10)}] the total length,
+\item[\apiref{arc_length}\code{(curve, u0, u1, rel_tol=1e-10)}] the length between two parameters,
+\item[\apiref{parameter_at_length}\code{(curve, s, rel_tol=1e-10)}] the parameter at which the
+  arc length measured from the start of the domain equals $s$.
+\end{description}
+
+Lengths are computed by adaptive Gauss--Kronrod quadrature (7/15 points) on every knot span to
+the relative accuracy \code{rel_tol}. \code{parameter_at_length} inverts the arc length by a
+safeguarded Newton iteration. Use it to place points at equal distances along a curve, e.g.\ for
+the positions of features on a circle.
+
+\subsection{Closest points}
+
+\begin{description}[style=nextline]
+\item[\apiref{closest_point}\code{(curve, point, tolerance=Tolerance())}] the \emph{global}
+  closest point (point inversion): a global candidate search over the whole curve followed by
+  Newton refinement.
+\item[\apiref{closest_point_local}\code{(curve, point, u0, tolerance=Tolerance())}] a Newton
+  iteration from the start value \code{u0}. It is much faster but finds only the local minimum
+  near \code{u0}; it stops at the ends of the domain and does not wrap around closed curves.
+\end{description}
+
+Both return a \apiref{CurvePoint} with the fields \code{u} (parameter), \code{point} and
+\code{distance}. The same functions exist for surfaces (\cref{ch:surfaces}).
+
+\subsection{Knot utilities}
+
+\begin{description}[style=nextline]
+\item[\apiref{clamped_uniform_knots}\code{(degree, n_ctrl)}] the clamped uniform knot vector on
+  $[0,1]$ for the given degree and number of control points.
+\item[\apiref{unique_knots}\code{(knots)}] the distinct knot values and their multiplicities as
+  two lists -- the format used by gmsh, OpenCASCADE and STEP.
+\item[\apiref{validate_knots}\code{(knots, degree, n_ctrl)}] raises \code{GeometryError} with a
+  message if the knot vector is invalid for the given degree and number of control points;
+  returns \code{None} otherwise.
+\item[\apiref{make_compatible}\code{(curves)}] returns copies of all curves with a common degree
+  (the highest), a common knot vector (the union of all knots) and the domain $[0,1]$. Lofts,
+  Coons patches and Gordon surfaces do this automatically; call it yourself when you need
+  compatible curves, e.g.\ to blend control points.
+\end{description}
+
+\subsection{Example}
+
+\example{05_curve_analysis.py}
+
+Output:
+
+\begin{lstlisting}[style=text]
+curvature 0.90799984  exact 0.90800033
+torsion   0.28902557  exact 0.28902548
+length 12.566370614359  (4 pi = 12.566370614359)
+arc_length(0, 0.125) = 1.5707963268
+parameter at s = pi: u = 0.250000000000, point Vec3(-2.000000, 0.000000, 0.000000)
+closest point: u = 0.875000, point Vec3(1.414214, 1.414214, 0.000000), distance 2.455491
+expected distance sqrt((3 sqrt2 - 2)^2 + 1) = 2.455491
+local search from u0 = 0.8: u = 0.875000, distance 2.455491
+local search from u0 = 0.1: u = 0.000000, distance 3.316625
+clamped_uniform_knots(3, 7): [0.0, 0.0, 0.0, 0.0, 0.25, 0.5, 0.75, 1.0, 1.0, 1.0, 1.0]
+unique_knots: ([0.0, 0.25, 0.5, 0.75, 1.0], [3, 2, 2, 2, 3])
+validate_knots: knot vector must be non-decreasing
+compatible: degree 2, 5 ctrl, domain (0.0, 1.0)
+compatible: degree 2, 5 ctrl, domain (0.0, 1.0)
+\end{lstlisting}
+
+The local search started at $u_0 = 0.1$ runs to the start of the domain and stops there with a
+distance of 3.32 instead of the true minimum 2.46 -- an illustration of why the global
+\code{closest_point} is the safe default.

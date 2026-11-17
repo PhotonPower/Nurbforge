@@ -1,0 +1,103 @@
+\chapter{Command-line interface}\label{app:cli}
+
+\NF{} installs one console command, \code{nurbforge-llm}, an interactive shell for building
+geometry from natural language with a local model served by Ollama (\cref{ch:llm}). It is a
+small wrapper around \apiref{llm.GeometryAgent}. Everything it does is also available from
+Python.
+
+\section{Synopsis}
+
+\begin{lstlisting}[style=shell]
+nurbforge-llm [-h] [--model MODEL] [--host HOST] [--out OUT]
+              [--mesh-size MESH_SIZE] [--verify-rounds VERIFY_ROUNDS]
+\end{lstlisting}
+
+The command is equivalent to \code{python -m nurbforge.llm.cli}.
+
+\section{Options}
+
+\begin{longtable}{@{}p{0.25\textwidth}p{0.30\textwidth}p{0.39\textwidth}@{}}
+\toprule
+\textbf{Option} & \textbf{Default} & \textbf{Meaning} \\
+\midrule
+\endhead
+\code{-h}, \code{--help} & & Print the usage and exit. \\
+\code{--model MODEL} & \code{NURBFORGE_LLM_MODEL}, else \code{qwen2.5:14b} & Name of the Ollama
+  model. It must support tool calling and be pulled (\code{ollama pull MODEL}). \\
+\code{--host HOST} & \code{OLLAMA_HOST}, else \code{http://localhost:11434} & URL of the Ollama
+  server. A host without scheme (\code{127.0.0.1:11434}) gets \code{http://} prepended. \\
+\code{--out OUT} & none & On exit, mesh all \emph{surfaces} (\code{NurbsSurface} objects) in
+  the workspace with gmsh and write them to this file. The format follows from the extension
+  (\code{.msh}, \code{.vtk}, \code{.stl}, ...). Needs gmsh. Shells and curves are not
+  meshed. Export shells from the session with the \toolref{export_step} tool instead. \\
+\code{--mesh-size MESH_SIZE} & gmsh default & Global maximum element size for \code{--out}, in
+  model units. \\
+\code{--verify-rounds N} & 1 & Verification rounds after each answer. Every object created or
+  changed by the request is measured and the report is sent back to the model, which repairs
+  or confirms the result. 0 disables verification. \\
+\bottomrule
+\end{longtable}
+
+\section{Environment variables}
+
+\begin{tabularx}{\textwidth}{@{}lX@{}}
+\toprule
+\textbf{Variable} & \textbf{Effect} \\
+\midrule
+\code{OLLAMA_HOST} & Default server address for \code{nurbforge-llm} and for
+  \apiref{llm.OllamaClient} created without a \code{host} argument. It is read when
+  \code{nurbforge.llm} is imported. \\
+\code{NURBFORGE_LLM_MODEL} & Default model name, read the same way. \\
+\bottomrule
+\end{tabularx}
+
+\section{Interactive use}
+
+After start-up the shell prints a banner with model and host, then reads one request per line
+after the prompt \code{>}:
+
+\begin{itemize}
+  \item Each request is sent to the agent. The model may call any number of tools (up to 20 steps
+    per request), then answers in text. The answer is printed, followed by the tool calls of
+    the request, one per line, as \code{[tool] arguments -> result}.
+  \item The workspace persists across requests. Objects can be referred to by name in later
+    requests (``now mirror \code{plate} at the yz plane'').
+  \item An empty line or end of input (Ctrl-D, on Windows Ctrl-Z Enter) ends the session. If
+    \code{--out} is given, the surfaces are meshed and written, and the number of surfaces is
+    reported.
+\end{itemize}
+
+\section{Examples}
+
+\begin{lstlisting}[style=shell]
+# default model and server
+nurbforge-llm
+
+# a different model on another machine, mesh the surfaces on exit
+nurbforge-llm --model llama3.1:8b --host http://gpu-server:11434 --out model.msh --mesh-size 0.5
+
+# without verification rounds (faster, less reliable)
+nurbforge-llm --verify-rounds 0
+
+# configuration through the environment
+export OLLAMA_HOST=http://gpu-server:11434
+export NURBFORGE_LLM_MODEL=qwen2.5:32b
+nurbforge-llm
+\end{lstlisting}
+
+A session might look like this (the model's wording varies):
+
+\begin{lstlisting}[style=text]
+Nurbforge LLM shell (qwen2.5:14b @ http://localhost:11434). Empty line to quit.
+> Create a box named plate from (0,0,0) with size 40 x 30 x 5 and drill a hole of radius 4
+  through its centre along z.
+...
+  [solid] {'name': 'plate', 'kind': 'box', ...} -> stored plate: ...
+  [solid] {'name': 'drill', 'kind': 'cylinder', ...} -> stored drill: ...
+  [boolean] {'name': 'plate', 'a': 'plate', 'b': 'drill', 'op': 'difference'} -> ...
+> Export plate to plate.step
+...
+>
+\end{lstlisting}
+
+The tools available to the model, with their parameters, are listed in \cref{app:llmtools}.

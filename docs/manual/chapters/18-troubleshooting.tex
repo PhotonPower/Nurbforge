@@ -1,0 +1,221 @@
+\chapter{Troubleshooting}\label{ch:troubleshooting}
+
+This chapter collects problems that users run into most often, explains their causes and shows
+how to fix them. It is organised by symptom.
+
+\section{Reading error messages}\label{sec:ts-errors}
+
+Most failures surface as \code{nf.GeometryError}. The message starts with the name of the
+operation and states the violated condition, often with the offending values. The following
+script provokes a few typical mistakes:
+
+\example{18_common_errors.py}
+
+\begin{lstlisting}[style=text]
+knot vector: GeometryError: need at least degree+1 control points (got 2)
+zero axis: GeometryError: solid primitive: axis must not be zero
+offset > radius: GeometryError: offset_curve: |distance| = 1.500000 reaches the radius of curvature 1.000000 at u = 0.000000 on the side of the centre of curvature (the offset would have a cusp)
+2D point: TypeError: make_line(): incompatible function arguments. The following argument types are supported:
+angle in degrees: GeometryError: revolution angle must be in (0, 2*pi]
+angle in radians: ok
+open shell closed: False  free edges: 4
+boolean with open shell: GeometryError: boolean: both shells must be closed
+\end{lstlisting}
+
+\begin{description}[style=nextline,leftmargin=1.5em]
+  \item[\code{TypeError: ... incompatible function arguments}] An argument has the wrong type
+    or shape. The full message lists every accepted signature (overloads). Common causes:
+    points with two coordinates (give $z=0$), a single number where a sequence is expected,
+    a \code{NurbsSurface} where a \code{TrimmedSurface} or \code{Shell} is needed, or an enum
+    value given as a string (\code{nf.BooleanOp.Union}, not \code{"union"}).
+  \item[Errors about knot vectors] The knot vector must have \code{n_ctrl + degree + 1}
+    entries, be non-decreasing, and have interior multiplicities of at most \code{degree}.
+    Use \apiref{clamped_uniform_knots} to create a valid one and \apiref{validate_knots} to
+    check your own.
+  \item[\code{... must be in (0, 2*pi]}] Angles are radians everywhere in the Python and C++ API.
+    Only the LLM tools take degrees (\cref{ch:llm}).
+\end{description}
+
+\section{Results that look wrong}\label{sec:ts-wrong}
+
+\paragraph{A method call ``does nothing''.}
+Geometry objects are immutable (\cref{sec:concepts-immutability}). \code{c.insert_knot(0.5)},
+\code{shell.oriented()} and \code{s.transformed(T)} return new objects. Assign the result:
+\code{c = c.insert_knot(0.5)}.
+
+\paragraph{A circle starts at an unexpected point.}
+\code{make_circle} chooses the start direction perpendicular to the normal itself (for the
+normal $+z$ the $+y$ axis). If the start point matters, for example for a seam position or for
+lofting circles, use \apiref{make_arc} with explicit axes or \apiref{make_circle_3pt}.
+
+\paragraph{Parameters are not proportional to length.}
+$u=0.5$ is not the midpoint by length in general, not even for circles made of several rational
+arcs. Use \apiref{parameter_at_length} to find a point at a given arc length.
+
+\paragraph{Offsets or fillets go to the wrong side.}
+Curve offsets go to the \emph{left} of the curve direction seen from \code{plane_normal} for a
+positive distance. Surface offsets and surface fillet sides refer to the normal
+$\mathbf S_u\times\mathbf S_v$. Check the direction with \code{surface.normal(u, v)}, reverse the
+sign of the distance, or reverse or transpose the input.
+
+\paragraph{Normals of a shell point inwards; the volume is negative.}
+Shells sewn from faces are not automatically oriented. Call \apiref{Shell.oriented} (it orients
+every connected component outwards) and check \code{shell.is_consistently_oriented}. Solid
+primitives and Boolean results are already oriented.
+
+\paragraph{Printed values are zero.}
+The text representation of \code{Vec3} and \code{Tolerance} shows six decimal places, so
+$10^{-10}$ prints as \code{0.000000}. Print the attributes with a format string.
+
+\section{Shells and Boolean operations}\label{sec:ts-booleans}
+
+\paragraph{\code{boolean: both shells must be closed}.}
+Booleans, volumes and point classification need closed shells. Check
+\code{shell.is_closed} and the edges listed by \apiref{Shell.free_edges}. Common causes are faces
+that do not meet within the sewing tolerance (raise \code{Shell.sew(faces, tolerance=...)} for
+models in large units, or fix the geometry), a missing face, or trim loops that do not match the
+neighbouring face exactly.
+
+\paragraph{Degenerate configurations.}
+Boolean operations are most robust when the operands intersect \emph{transversally}. The
+algorithm detects coincident faces and cuts them along each other's boundaries. It treats
+tangential contacts and overlaps thinner than the tolerance as contacts, so two boxes sharing a
+face, or a tool flush with a face, are handled. Problems can still arise when
+\begin{itemize}
+  \item coincident faces have a common part that crosses the seam of a closed surface (a known
+    limitation),
+  \item an intersection curve passes exactly through a pole of a sphere or the apex of a cone,
+  \item an intersection curve runs along the seam of a closed surface.
+\end{itemize}
+In such cases the result can depend on rounding. A known example (issue \#63 on GitHub) is a sphere minus a box whose
+corner lies exactly at the sphere's centre. The cut planes then contain the poles. The result
+is closed with Apple Clang but open with GCC and MSVC, probably because of different contraction
+of floating-point operations (FMA). Until this is fixed, avoid exact degeneracies. Extend tools
+slightly beyond the faces they cut (make a drill longer than the plate is thick), and move cuts a
+small distance away from poles and seams (in the example, a box corner at $(0.1, 0.2, 0.15)$
+instead of the origin gives the same closed result on all platforms).
+
+\begin{tip}[Checking Boolean results]
+After a Boolean, check \code{result.is_closed}, compare \code{result.volume()} with a rough
+expectation (for instance the operands' volumes), and look at \code{len(result.faces)}. The LLM
+interface does exactly this in its verification rounds (\cref{ch:llm}).
+\end{tip}
+
+\paragraph{Booleans are slow.}
+Run time grows with the number of face pairs and the complexity of the intersection curves.
+Rational faces of high degree from sweeps or fits cost more than primitives. Build solids
+from primitives where possible, and combine many tools into one before subtracting them from a
+part.
+
+\section{Tolerances}\label{sec:ts-tolerances}
+
+\paragraph{The requested tolerance cannot be met.}
+For example \code{sag_surface: tolerance not reached with 256 spans}. Approximating
+operations refine until the tolerance is met, but they stop at a limit
+(\code{max_sections=1025} for sweeps and surface fillets, \code{max_spans=256} for
+\code{sag_surface}). Loosen the tolerance, or simplify the input. Very tight tolerances
+($<10^{-9}$ relative to the model size) approach floating-point resolution and may never be
+met.
+
+\paragraph{Models in very large or very small units.}
+The default sewing and Boolean tolerances ($10^{-6}$) and most fit tolerances ($10^{-7}$) are
+absolute, in model units. They suit models of size 1 to 1000. For a part in metres of size 0.01,
+or in micrometres of size $10^5$, scale the tolerances, or change the unit of the model
+(\cref{sec:concepts-units}).
+
+\paragraph{Results are bigger than necessary.}
+Approximations get more knots the tighter the tolerance. A surface fitted to $10^{-9}$ can have
+many times the control points of one fitted to $10^{-6}$. This slows down intersections,
+Booleans and meshing. Request only the accuracy you need.
+
+\section{Python and NumPy}\label{sec:ts-python}
+
+\paragraph{Point lists and grids.} Functions for many points take NumPy arrays: point lists of
+shape $(n,3)$ and grids of shape $(n_u,n_v,3)$. An array of the wrong shape, e.g.\ $(3,n)$,
+raises an error. Transpose it with \code{pts.T}. Single points accept any sequence of three numbers,
+NumPy rows included.
+
+\paragraph{\code{ImportError: ... _core}.} The compiled extension does not match the interpreter,
+or the source tree shadows the installed package because Python runs from the repository root
+without an editable installation. Reinstall with the interpreter you use (\code{python -m pip
+install ...}), or run from another directory.
+
+\paragraph{Objects cannot be pickled.} \code{multiprocessing} and some caching libraries need
+picklable objects. Pass geometry between processes as STEP text (\apiref{to_step},
+\apiref{from_step}) or rebuild it in the worker.
+
+\section{gmsh and meshing}\label{sec:ts-gmsh}
+
+\paragraph{\code{OSError} on \code{import gmsh} (Linux).} The gmsh wheel needs X11 and OpenGL
+runtime libraries even when used headless (\cref{sec:install-gmsh-linux}). Install them, or
+catch \code{(ImportError, OSError)} if meshing is optional.
+
+\paragraph{\code{MeshTopologyError: surface mesh is not watertight}.} The surface mesh has open
+or non-manifold edges. Mesh a \emph{closed} shell added with \code{add_shell}. Surfaces added one
+by one with \code{add_surface} do not share their edges. Check the shell with
+\code{shell.is_closed} first.
+
+\paragraph{Faces missing in gmsh, wrong volumes.} Shells are transferred to gmsh through the
+native STEP writer and OpenCASCADE's STEP reader, so that OCC builds the seam edges of trimmed
+closed faces itself. Versions before 0.9.0 transferred faces one by one, which lost such faces
+after Booleans. Update if you see this with an older version.
+
+\paragraph{The mesh is too coarse or too fine near small features.} Use
+\apiref{mesh.GmshSession.refine} on the face labels of the features, with a \code{distance} for a
+smooth transition, and \code{curvature} in \code{mesh()} for curved faces (\cref{ch:meshing}).
+
+\section{Platform-specific issues}\label{sec:ts-platform}
+
+\paragraph{macOS: \code{Nurbforge needs macOS >= 13.3}.} CMake stops if the deployment target is
+below 13.3, because the STEP writer needs \code{std::to_chars} for floating-point numbers, which
+Apple's C++ library provides only from that version. Set
+\code{MACOSX_DEPLOYMENT_TARGET=14.0} (as the release wheels do) or leave it unset to build for the
+running system.
+
+\paragraph{Locale and decimal separators.} STEP files always use a decimal point. The writer
+and reader do not depend on the C locale. Reading works even in a process whose
+\code{LC_NUMERIC} uses a decimal comma, as with German or French locale settings. On macOS the
+reader parses numbers with a locale-independent \code{strtod_l}, and the test suite checks this
+with a \code{de_DE} locale.
+
+\paragraph{Windows: \code{Python was not found}, \code{NMake Makefiles}.} See
+\cref{sec:install-windows}.
+
+\paragraph{The C++ package is not found: \code{Threads::Threads ... target was not found}.}
+Call \code{find_package(Threads REQUIRED)} before \code{find_package(Nurbforge)}
+(\cref{sec:cpp-cmake}).
+
+\section{The LLM interface}\label{sec:ts-llm}
+
+\paragraph{\code{OllamaError: cannot reach Ollama at http://localhost:11434}.} The Ollama server
+is not running or listens elsewhere. Start it (\code{ollama serve}, or the desktop app) and check
+\code{OLLAMA_HOST}. A host without scheme, such as \code{127.0.0.1:11434}, is accepted;
+\code{http://} is added.
+
+\paragraph{The model does not call tools, or answers in prose only.} The model must support tool
+calling (\code{qwen2.5}, \code{llama3.1}, \code{mistral-nemo} and others do). Small models
+handle multi-step requests poorly. Use a larger model, split the request, or state dimensions
+explicitly.
+
+\paragraph{The result has wrong dimensions.} Keep the verification rounds enabled
+(\code{verify_rounds=1}, the default). For dimensions that are only fixed indirectly (``a
+cylinder with lateral area 50''), ask the model to use the \toolref{solve} tool
+(\cref{ch:llm}).
+
+\section{Performance tips}\label{sec:ts-performance}
+
+\begin{itemize}
+  \item Evaluate in bulk: \code{curve.sample(n)} and \code{surface.sample(nu, nv)} return NumPy
+    arrays and avoid one Python call per point.
+  \item Prefer exact constructions (primitives, revolutions, extrusions) to fitted ones. They are
+    smaller and faster in all later operations.
+  \item Use the loosest tolerance that meets your needs; size and run time of approximations grow
+    with the required accuracy.
+  \item Reuse objects: they are immutable, so a fitted surface can be shared by many shells and
+    transforms without copies.
+  \item Parallelism: the surface/surface intersection is multi-threaded internally.
+    \apiref{hatch} and STEP reading release Python's interpreter lock and can run in threads;
+    for other batch work use processes (\cref{sec:concepts-threads}).
+  \item Mass properties and areas take \code{rel_tol}; the default $10^{-8}$ is more than enough
+    for most engineering purposes, and $10^{-6}$ is noticeably faster on complex shells.
+\end{itemize}

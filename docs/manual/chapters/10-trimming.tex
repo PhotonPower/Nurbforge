@@ -1,0 +1,300 @@
+\chapter{Trimmed surfaces}\label{ch:trimming}
+
+A NURBS surface is always a deformed \emph{rectangle}: its parameter domain is
+$[u_0,u_1]\times[v_0,v_1]$. Real faces are rarely rectangular -- a plate has a bore, a lens
+has a circular aperture, the side of a drilled cylinder has an elliptic window. \NF{}
+represents such faces as \emph{trimmed surfaces}: a NURBS surface together with closed loops
+of curves in its parameter domain that cut out the part that belongs to the face.
+
+This chapter explains the trimming concept, the loop and face types
+\apiref{TrimLoop} and \apiref{TrimmedSurface}, and the two \apiref{split} functions that
+cut surfaces into trimmed regions. Trimmed surfaces are the faces of shells and solids
+(\cref{ch:solids}), they are produced by Booleans, and they are transferred exactly to gmsh
+(\cref{ch:meshing}) and STEP (\cref{ch:step}).
+
+\section{Trimming in parameter space}\label{sec:trim-concept}
+
+The loops of a trimmed surface live in the $(u,v)$ parameter plane of the surface, not in 3D.
+A trim curve is an ordinary \code{NurbsCurve} whose points are $(u, v, 0)$: the $x$ coordinate
+is $u$, the $y$ coordinate $v$, and $z$ is zero. The face is the image of the region bounded
+by the loops:
+\[
+F = \{\, S(u,v) \;:\; (u,v) \text{ inside the outer loop and outside all holes} \,\}.
+\]
+
+This representation has three important consequences:
+
+\begin{itemize}
+\item \textbf{It is exact.} The trimmed face is exactly the part of the exact surface;
+nothing is tessellated. A circle in the parameter plane of a flat rectangle maps to an exact
+circle or ellipse in 3D.
+\item \textbf{Shapes are distorted by the parametrisation.} A circle of radius $0.25$ in
+$(u,v)$ on a $2\times2$ square ($u = x/2$, $v=y/2$) is a circle of radius $0.5$ in 3D; on a
+$4\times2$ plate it is an ellipse with semi-axes $1$ and $0.5$. On curved surfaces the image
+can be any curve. Always think about the map $(u,v)\mapsto S(u,v)$ when you build loops by
+hand.
+\item \textbf{The 3D boundary is derived.} The 3D edges of a face are computed by composing
+the trim curves with the surface (\code{boundary_curves}, \cref{sec:trim-boundary}); when faces
+are sewn into shells these images are matched to find shared edges.
+\end{itemize}
+
+\subsection{Orientation rules}
+
+Loops are oriented in the $(u,v)$ plane:
+
+\begin{itemize}
+\item the \textbf{outer loop} runs \textbf{counter-clockwise} (positive signed area);
+\item \textbf{holes} run \textbf{clockwise} (negative signed area);
+\item hence the face always lies \emph{to the left} of every loop, seen in the $(u,v)$ plane
+from $+z$.
+\end{itemize}
+
+You do not have to get this right yourself: the \code{TrimmedSurface} constructor orients
+the loops on construction (reversing those that run the wrong way). The rule matters when you
+read loops back -- \code{face.outer}, \code{face.holes} -- or when you interpret section loops
+(\cref{ch:slicing}), which follow the same convention.
+
+The surface orientation, i.e. the direction of the normal $S_u\times S_v$, is a different
+matter: it is a property of the surface parametrisation, not of the loops. It is changed by
+\code{flipped()} (\cref{sec:trim-flip}).
+
+\section{Trim loops}\label{sec:trimloop}
+
+A \apiref{TrimLoop} is a closed chain of parameter-space curves: the end of each curve is
+the start of the next, and the last curve ends at the start of the first.
+
+\begin{lstlisting}
+loop = nf.TrimLoop([c0, c1, c2])   # curves with z = 0; x = u, y = v
+\end{lstlisting}
+
+Three helper functions create the common loops:
+
+\begin{center}
+\begin{tabularx}{\linewidth}{@{}lX@{}}
+\toprule
+Function & Loop \\
+\midrule
+\apiref{rectangle_loop}\code{(u0, u1, v0, v1)} & rectangle $[u_0,u_1]\times[v_0,v_1]$, four
+lines, counter-clockwise \\
+\apiref{circle_loop}\code{(cu, cv, r)} & \emph{exact} circle (rational quadratic NURBS) of
+radius $r$ about $(c_u, c_v)$, counter-clockwise \\
+\apiref{polygon_loop}\code{(points)} & closed polygon through the given $(u,v)$ points
+(the closing segment is added) \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+A \code{TrimLoop} has the following members:
+
+\begin{center}
+\begin{tabularx}{\linewidth}{@{}lX@{}}
+\toprule
+Member & Meaning \\
+\midrule
+\code{curves} & the curves of the loop, in order \\
+\code{signed_area()} & signed area enclosed in the parameter plane: $>0$ for
+counter-clockwise, $<0$ for clockwise loops \\
+\code{reversed()} & the same loop traversed in the opposite direction \\
+\code{polyline(samples_per_span=16)} & dense polyline approximation as a list of $[u, v]$
+pairs (the first point is not repeated at the end) \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\begin{note}
+\code{signed_area()} is computed from the dense polyline, so for curved loops it is accurate
+to the polyline resolution only: the circle loop of radius $0.25$ in the example below reports
+$0.196032$, while the exact area $\pi/16$ is $0.196350$. It is intended for orientation tests,
+not for measurements. Use \code{TrimmedSurface.area()} for exact areas.
+\end{note}
+
+\section{Trimmed surfaces}\label{sec:trimmed-surface}
+
+\apiref{TrimmedSurface} has two constructors:
+
+\begin{lstlisting}
+nf.TrimmedSurface(surface)                                     # untrimmed: outer loop = domain
+nf.TrimmedSurface(surface, outer, holes=[], tolerance=nf.Tolerance())
+\end{lstlisting}
+
+The loops must be closed (within \code{tolerance.length}, measured in parameter units) and
+must lie in the parameter domain; otherwise \code{GeometryError} is raised. The holes must
+lie inside the outer loop.
+
+\begin{center}
+\begin{tabularx}{\linewidth}{@{}lX@{}}
+\toprule
+Member & Meaning \\
+\midrule
+\code{surface} & the underlying \code{NurbsSurface} \\
+\code{outer}, \code{holes} & the loops (oriented: outer counter-clockwise, holes clockwise) \\
+\code{is_untrimmed} & \code{True} if the region is the whole parameter domain \\
+\code{contains(u, v)} & \code{True} if $(u,v)$ lies inside the region (on the boundary: either
+answer) \\
+\code{area(rel_tol=1e-9)} & area of the face in 3D \\
+\code{boundary_curves(tolerance=1e-7)} & the loops mapped to 3D, outer loop first \\
+\code{with_hole(loop)} & a new face with an additional hole \\
+\code{flipped()} & the same face with opposite normal \\
+\code{label}, \code{with_label(label)} & free-form name of the face \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+Like all \NF{} geometry, trimmed surfaces are immutable: \code{with_hole},
+\code{flipped} and \code{with_label} return new objects.
+
+\subsection{A worked example}
+
+\example{10_trimmed_faces.py}
+
+\begin{lstlisting}[style=text]
+rectangle: 4 curve(s), signed area +0.640000, reversed -0.640000
+circle   : 1 curve(s), signed area +0.196032, reversed -0.196032
+triangle : 3 curve(s), signed area +0.150000, reversed -0.150000
+circle loop: exact rational curve of degree 2, 64 polyline points (16 per span)
+untrimmed: is_untrimmed=True, area 4.0000000000
+with hole: area 3.2146018366 (4 - pi/4 = 3.2146018366)
+contains centre False, contains (0.1, 0.1) True
+outer signed area +0.6400, hole -0.1960, area 1.7746018366 (4 * 0.64 - pi/4 = 1.7746018366)
+3D loop 0 (outer): 4 curve(s), length 8.00000000
+3D loop 1 (hole): 1 curve(s), length 3.14159265
+hole circumference 2 pi 0.5 = 3.14159265
+normal +1 -> flipped -1, label 'cover', area kept 3.2146018366
+quarter of the cylinder, middle half: area 1.5707963268 (2 pi / 4 * 1 = 1.5707963268)
+\end{lstlisting}
+
+Points to note:
+
+\begin{itemize}
+\item The frame face is created with a \emph{clockwise} outer loop
+(\code{rect.reversed()}); the constructor reverses it, and \code{frame.outer.signed_area()}
+is positive again.
+\item Areas are exact to the integration tolerance: $4-\pi/4$ for the plate with a hole of
+radius $0.5$ agrees in all printed digits.
+\item On the cylinder (\code{extrude} of a circle: $u$ runs around, $v$ along the axis), the
+rectangle $[0, 0.25]\times[0.25, 0.75]$ is a quarter turn of the middle half: area $\pi/2$.
+Because the parametrisation of the rational circle is not proportional to the angle, $u=0.25$
+is exactly a quarter turn only by the symmetry of the circle's four spans; in general, use
+intersections or closest points to find the parameters of a 3D position.
+\end{itemize}
+
+\subsection{Area and integrals}\label{sec:trim-area}
+
+\code{area()} uses Green's theorem in the parameter plane. With
+$F(u,v) = \int |S_u\times S_v|\,du$, the area is the sum of the loop integrals
+$\oint F\,dv$ over all loops; holes, being clockwise, subtract automatically. Both integrals
+use a globally adaptive Gauss--Kronrod integrator with a bounded interval budget. The
+parameter \code{rel_tol} is the relative accuracy target (default $10^{-9}$). Because the
+trim circle is exact, areas of circular holes and discs are exact to that tolerance -- there is
+no polygonal approximation anywhere.
+
+\subsection{3D boundaries}\label{sec:trim-boundary}
+
+\code{boundary_curves(tolerance=1e-7)} returns one list of 3D curves per loop (outer loop
+first, then the holes). Each trim curve is composed with the surface and fitted by cubic
+interpolation with adaptive refinement until it lies within \code{tolerance} of the exact
+image $S(c(t))$. In the example, the 3D image of the hole circle has the length
+$3.14159265 = 2\pi\cdot0.5$.
+
+\begin{tip}
+Where the image of a trim curve is itself exactly representable -- straight segments on planar
+faces, iso-parameter lines such as the end circles of a cylinder -- the shell construction and
+the STEP writer use the exact curves. \code{boundary_curves} always returns the fitted
+approximation; pass a smaller \code{tolerance} when you need more accuracy.
+\end{tip}
+
+\subsection{Orientation of a face}\label{sec:trim-flip}
+
+The outward direction of a face is the surface normal $S_u\times S_v$. \code{flipped()}
+returns the same face with the opposite normal: the surface is reparametrised with $u$
+reversed, $S'(u,v) = S(a+b-u, v)$, and the loops are mirrored so that they still describe
+the same region. Area, labels and the 3D boundary are unchanged. You rarely need to flip
+faces by hand: \code{Shell.oriented()} does it for all faces of a shell
+(\cref{sec:shell-orientation}).
+
+\subsection{Labels}\label{sec:trim-labels}
+
+Every face carries a free-form \code{label} (empty by default), e.g. the name of a boundary
+condition or a physical group. \code{with_label(text)} returns a labelled copy. Labels are
+kept by \code{flipped}, \code{with_hole}, \code{split}, Boolean operations (every piece of a
+split face keeps the label of its face), \code{Shell.oriented} and \code{transformed}, and
+they are written to and read from STEP as the face name. The solid primitives label their
+faces automatically; see \cref{sec:face-labels} for working with labels on shells.
+
+\section{Splitting surfaces}\label{sec:split}
+
+\apiref{split} cuts a surface into trimmed regions. It has two forms:
+
+\begin{lstlisting}
+nf.split(surface, cutter, tolerance=nf.Tolerance())   # along the intersection with a surface
+nf.split(surface, pcurves, tolerance=nf.Tolerance())  # along parameter-space curves
+\end{lstlisting}
+
+Both return a list of \code{TrimmedSurface} objects that together cover the original surface
+without overlap.
+
+\subsection{Splitting by a cutting surface}
+
+\code{split(surface, cutter)} computes the surface/surface intersection
+(\cref{sec:isect-ss}) and uses the p-curves on \code{surface} as cuts. Two kinds of cuts
+occur:
+
+\begin{itemize}
+\item \textbf{Open curves} run from boundary to boundary of the parameter domain (seams count
+as boundary). They act as chords of the parameter rectangle: $n$ non-crossing chords give
+$n+1$ regions.
+\item \textbf{Closed curves} become holes of the region around them and outer loops of new
+regions inside -- also nested (a ring between two concentric cuts).
+\end{itemize}
+
+If the surfaces do not intersect, the result is a single, untrimmed face.
+
+\subsection{Splitting by parameter-space curves}
+
+\code{split(surface, pcurves)} applies the same rules to curves you provide in the
+$(u,v,0)$ convention. Open curves must start and end exactly on the domain boundary
+(a curve that overshoots or stops short raises
+\code{GeometryError: split: curve ends inside the parameter domain (dangling curve)}) and
+should not cross each other.
+
+\begin{warning}
+For \code{split(surface, pcurves)} use non-crossing chords. In our tests two \emph{crossing}
+chords (a ``+'' through the square) did not produce four quarters but the unsplit face. The
+Boolean operations internally use a general planar arrangement that handles crossing cuts
+(\cref{sec:boolean-algorithm}), but that variant is not exposed in Python.
+\end{warning}
+
+\example{10_split.py}
+
+\begin{lstlisting}[style=text]
+plane piece: 1 loop(s), area 10.55575169
+plane piece: 2 loop(s), area 25.44424831
+disk pi (4 - 0.64) = 10.55575132, frame 36 - disk = 25.44424868
+sphere pieces: 2, areas 15.07964474 + 35.18583774; cap 2 pi R h = 15.07964474
+no intersection: 1 piece, untrimmed=True
+two chords: 3 regions, areas 0.2500, 0.2500, 0.5000
+closed curve: 2 regions, areas 0.282743, 0.717257 (pi 0.09 = 0.282743)
+\end{lstlisting}
+
+The plane split by the sphere gives the disc inside (one loop) and the frame outside (outer
+loop plus a hole). Their areas deviate from the exact values by about $3.7\times10^{-7}$
+because the cut is the \emph{fitted} intersection curve (fit tolerance $10^{-7}$ of the model
+size), not an exact circle. The sphere split by the plane gives the spherical cap with the
+exact area $2\pi R h$ to all printed digits -- there the cut is an iso-parameter circle of the
+revolved surface.
+
+\section{Practical advice}\label{sec:trim-advice}
+
+\begin{itemize}
+\item \textbf{Map 3D shapes to parameters deliberately.} For a rectangle made with
+\code{make_rectangle(origin, edge_u, edge_v)}, $u$ and $v$ are the fractions along the two
+edges. A circle of 3D radius $r$ centred at the middle of a square of side $a$ is
+\code{circle_loop(0.5, 0.5, r / a)}. For curved surfaces compute loop points with
+\code{closest_point} or from intersections.
+\item \textbf{Keep loops inside the domain.} Points even slightly outside $[u_0,u_1]\times
+[v_0,v_1]$ are rejected. Snap values like $1+10^{-15}$ to the boundary.
+\item \textbf{Check results with \code{area()} and \code{contains()}.} They are cheap and
+expose wrong orientation or wrong parameter scaling immediately.
+\item \textbf{Hand trimmed faces to shells.} A single trimmed face is a surface patch; to get
+solids, sew faces with \code{Shell.sew} (\cref{ch:solids}).
+\end{itemize}

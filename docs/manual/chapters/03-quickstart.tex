@@ -1,0 +1,152 @@
+\chapter{Quick start}\label{ch:quickstart}
+
+This chapter is a guided first session. In five steps we build a curve, turn it into a surface,
+create a solid with a bore by a Boolean operation, compute its mass properties and write it to
+a STEP file. A second script meshes the result with gmsh. Each step is explained briefly. The
+following chapters cover the functions in depth.
+
+The complete script is:
+
+\example{03_quickstart.py}
+
+Running it prints
+
+\begin{lstlisting}[style=text]
+arc: degree 2, 3 control points, rational True, domain (0.0, 1.0)
+arc length 15.707963267949 (exact 15.707963267949)
+arc(0.5) = (7.071068, 0.000000, 7.071068), |arc(0.5)| = 10.000000000000000
+dome: degrees (2, 2), net 9 x 3
+dome area 628.3185307180 (exact 628.3185307180)
+part: 7 faces, closed True, labels ['back', 'bottom', 'front', 'left', 'right', 'side', 'top']
+volume 14869.02664289 (exact 14869.02664471)
+centroid (0.000000, -0.000000, 5.000000)
+inside at (0, 0, 5): False, at (10, 10, 5): True
+read back: 1 shell(s), volume 14869.02664989
+\end{lstlisting}
+
+\section{Step 1: a curve}\label{sec:qs-curve}
+
+\begin{lstlisting}
+arc = nf.make_arc(center=(0, 0, 0), x_axis=(1, 0, 0), y_axis=(0, 0, 1),
+                  radius=10.0, start_angle=0.0, end_angle=math.pi / 2)
+\end{lstlisting}
+
+\apiref{make_arc} creates a circular arc. The angles are measured in radians from
+\code{x_axis} towards \code{y_axis}, so this arc runs from $(10,0,0)$ to $(0,0,10)$ in the
+$xz$ plane. Points are given as tuples. Any sequence of three numbers works, and so does an
+\apiref{Vec3}.
+
+The result is an \apiref{NurbsCurve} of degree 2 with three control points and weights
+$1, \tfrac12\sqrt2, 1$: the classical exact representation of a circular arc as a rational
+quadratic. This exactness shows in the output:
+\begin{itemize}
+  \item \apiref{length} integrates the arc length adaptively and agrees with $5\pi$ to all
+    printed digits;
+  \item \code{arc(0.5)} evaluates the curve. Calling a curve is the same as
+    \apiref{NurbsCurve.evaluate}, and the point has distance exactly 10 from the centre.
+\end{itemize}
+
+Every curve created by a constructor has the parameter domain $[0,1]$ (\code{arc.domain}). The
+parameter is \emph{not} proportional to arc length; for a rational arc the midpoint happens to
+coincide only because of symmetry. \Cref{sec:concepts-nurbs} explains why.
+
+\section{Step 2: a surface}\label{sec:qs-surface}
+
+\begin{lstlisting}
+dome = nf.revolve(arc, axis_point=(0, 0, 0), axis_dir=(0, 0, 1), angle=2 * math.pi)
+\end{lstlisting}
+
+\apiref{revolve} sweeps the profile around an axis. A full turn of a quarter circle about the
+$z$ axis is a hemisphere of radius 10. The result is an exact \apiref{NurbsSurface}: the
+circumferential direction $u$ is a rational quadratic circle with 9 control points, and the
+profile direction $v$ keeps the 3 control points of the arc. Its area, computed by
+\apiref{area}, agrees with $2\pi R^2 = 200\pi$. Surfaces are evaluated with \code{dome(u, v)}.
+\Cref{ch:surfaces} describes all ways to build surfaces.
+
+\section{Step 3: solids and a Boolean operation}\label{sec:qs-solid}
+
+\begin{lstlisting}
+box = nf.make_box(corner=(-20, -20, 0), size=(40, 40, 10))
+bore = nf.make_cylinder(base=(0, 0, -5), axis=(0, 0, 1), radius=6.0, height=20.0)
+part = nf.boolean(box, bore, nf.BooleanOp.Difference)
+\end{lstlisting}
+
+Solids in \NF{} are closed \apiref{Shell} objects: sets of trimmed surfaces (\emph{faces}) sewn
+together along shared edges, with normals pointing outwards. \apiref{make_box} and
+\apiref{make_cylinder} create such shells directly. The cylinder is longer than the box is high,
+so it cuts through cleanly. Coincident faces are a degenerate case for any Boolean algorithm and
+should be avoided.
+
+\apiref{boolean} with \code{BooleanOp.Difference} subtracts the cylinder from the box. The result
+has 7 faces: the six box faces (top and bottom now with a circular hole) and the cylindrical
+bore wall. Every face carries a \emph{label}. The primitives name their faces (\code{bottom},
+\code{top}, \code{front}, \code{back}, \code{left}, \code{right} for the box; \code{side},
+\code{bottom}, \code{top} for the cylinder), and Booleans keep the labels. The bore wall is
+therefore \code{side}. Labels later become physical groups in the mesh, where boundary conditions
+are assigned (\cref{ch:solids,ch:meshing}).
+
+\section{Step 4: mass properties and point classification}\label{sec:qs-mass}
+
+\begin{lstlisting}
+mp = part.mass_properties()
+nf.point_in_shell(part, (0, 0, 5))
+\end{lstlisting}
+
+\apiref{Shell.mass_properties} integrates over the faces with the divergence theorem and returns
+volume, centroid, the inertia tensor about the centroid (unit density) and the principal moments
+and axes. The volume agrees with the exact value $40\cdot40\cdot10 - 36\pi\cdot 10$ to a relative
+$1.2\cdot10^{-10}$. That is better than the default integration tolerance \code{rel_tol=1e-8},
+which bounds the error. \apiref{point_in_shell} classifies points by ray casting: the axis of
+the bore lies outside the material.
+
+\section{Step 5: STEP export and import}\label{sec:qs-step}
+
+\begin{lstlisting}
+nf.write_step("part.step", part, unit="mm", name="drilled block")
+back = nf.read_step("part.step")
+\end{lstlisting}
+
+\apiref{write_step} uses \NF{}'s own STEP writer. No CAD library is involved. The file declares
+millimetres as its length unit and contains one solid with exact B-spline faces. Any CAD system
+can open it. \apiref{read_step} reads STEP files from other systems or from \NF{} and returns a
+list of shells. The volume of the re-imported part differs from the original by a relative
+$5\cdot10^{-10}$. The reader rebuilds the trim loops from the 3D edges, so the faces of the
+read-back shell are trimmed by slightly different (but equivalent) curves. \Cref{ch:step} covers units, names and the supported entities.
+
+\section{Step 6: meshing}\label{sec:qs-mesh}
+
+Meshing needs gmsh (\code{pip install "nurbforge[mesh]"}). The first line of the script tells
+the test suite to skip it when gmsh is not available:
+
+\example{03_quickstart_mesh.py}
+
+\begin{lstlisting}[style=text]
+face labels -> gmsh surfaces: {'bottom': [1], 'top': [2], 'front': [3], 'back': [4], 'left': [5], 'right': [6], 'side': [7]}
+BEM mesh: 796 nodes, 1592 triangles, watertight True, volume 14896.091 (exact 14869.027)
+\end{lstlisting}
+
+\begin{itemize}
+  \item \apiref{mesh.GmshSession} wraps the gmsh session. \apiref{mesh.GmshSession.add_shell}
+    hands the solid over with its exact NURBS faces and, with \code{physical_groups=True}, one
+    named physical surface group per face label plus a physical volume.
+  \item \apiref{mesh.GmshSession.refine} sets a smaller element size on the faces labelled
+    \code{side} (the bore), and \apiref{mesh.GmshSession.mesh} generates a tetrahedral mesh
+    (\code{dim=3}) with a global size of 4.
+  \item \apiref{mesh.bem_mesh} produces a closed triangle surface mesh whose normals point out of
+    the solid, as boundary element solvers need it, and returns it as NumPy arrays. Its
+    volume is slightly larger than the exact one: the polygonal bore removes less material
+    than the true cylinder. The difference shrinks with the element size.
+\end{itemize}
+
+\section{Where to go next}\label{sec:qs-next}
+
+\begin{itemize}
+  \item \Cref{ch:concepts} explains NURBS, parameters, tolerances and errors. Read it before
+    you rely on numbers.
+  \item \Cref{ch:curves,ch:surfaces} cover all curve and surface constructions,
+    \cref{ch:solids} shells, solids and Booleans.
+  \item \Cref{ch:meshing} shows local mesh sizes, high-order elements and BEM meshes in
+    detail, \cref{ch:step} the STEP interface.
+  \item The repository contains further scripts in \code{examples/python/}, from lens design to
+    slicing a microlens for two-photon lithography.
+\end{itemize}

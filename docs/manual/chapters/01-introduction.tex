@@ -1,0 +1,254 @@
+\chapter{Introduction}\label{ch:intro}
+
+\NF{} is a headless geometry kernel based on non-uniform rational B-splines (NURBS). It builds
+exact two- and three-dimensional curves, surfaces, trimmed surfaces and closed solids and hands
+them to downstream software: optical design tools, finite element (FEM), boundary element
+(BEM) and fast multipole (FMM) solvers, mesh generators, slicers for additive manufacturing and
+other CAD systems. There is no graphical user interface. Geometry is created from code, in C++
+or Python, or from natural language through a local large language model (LLM). It is meshed
+with \href{https://gmsh.info}{gmsh} and exchanged through STEP files.
+
+This manual describes \NF{} version \NFVersion. It explains the concepts behind the kernel,
+walks through every area of the Python interface with tested examples and closes with a
+complete command reference in \cref{app:reference}.
+
+\section{What \NF{} is for}\label{sec:intro-purpose}
+
+Scientific software often needs geometry that is \emph{exact} and \emph{reproducible}: a lens
+surface whose sag must be correct to a nanometre, a scatterer whose boundary integral must
+converge at the expected rate, or a micro-optical element whose writing paths must follow the
+true surface. General-purpose CAD systems are interactive, and their file formats lose
+information or need large libraries to read. \NF{} closes this gap with three properties:
+
+\begin{itemize}
+  \item \textbf{Exact representations.} Lines, circles, conics, spheres, cylinders, cones and
+    tori are represented exactly as rational NURBS. Operations that cannot be exact (fits,
+    sweeps, offsets, optical sags, intersection curves) take an explicit tolerance and check
+    the result against it.
+  \item \textbf{Scriptability.} Every operation is a function call. A model is a short Python
+    script that can be versioned, parametrised, optimised and run on a cluster without a
+    display.
+  \item \textbf{Embeddability.} The C++ kernel has no third-party runtime dependencies. It can be
+    linked into a solver as a static library. gmsh and Ollama are used only from the optional
+    Python layer.
+\end{itemize}
+
+\subsection{Typical users}
+
+\begin{description}[style=nextline,leftmargin=1.5em]
+  \item[Optical design] Aspheres, Zernike and XY-polynomial freeform surfaces, exact conics,
+    circular apertures as trimmed surfaces, and surface curvature for tolerance analysis
+    (\cref{ch:optics}).
+  \item[FEM, BEM and FMM solver developers] Closed B-rep solids from primitives and Booleans,
+    face labels that become physical groups, exact NURBS transfer to gmsh, local mesh sizes,
+    and watertight, outward-oriented surface meshes for boundary element methods
+    (\cref{ch:solids,ch:meshing}).
+  \item[Two-photon lithography (2PP) and additive manufacturing] Planar sections of solids,
+    critical heights at which the layer topology changes, and hatch and contour lines as
+    writing paths (\cref{ch:slicing}).
+  \item[CAD data exchange] A native, dependency-free STEP (AP214) writer and reader with units,
+    solid names and exact analytic faces (\cref{ch:step}).
+  \item[Exploratory and automated modelling] An LLM interface that turns requests in natural
+    language into calls of whitelisted geometry tools, checks the results against measurements
+    and solves dimension constraints (\cref{ch:llm}).
+\end{description}
+
+\section{Feature overview}\label{sec:intro-features}
+
+\begin{longtable}{@{}p{0.22\textwidth}p{0.72\textwidth}@{}}
+\toprule
+\textbf{Area} & \textbf{Capabilities} \\
+\midrule
+\endhead
+NURBS core & Curves and tensor-product surfaces of any degree, rational or not; evaluation and
+  derivatives of any order; knot insertion and refinement, knot removal, degree elevation and
+  reduction, splitting, joining, Bézier decomposition, clamping, reversal, transposition. \\
+Primitives & Points, lines, polylines, exact arcs and circles (also through three points),
+  regular polygons, rectangle outlines, helices, conical helices and spirals, bilinear and
+  rectangular patches. \\
+Construction & Extrusion, revolution, ruled surfaces, loft (skinning), sweeps with one or two
+  rails, Coons patches, Gordon surfaces, extrapolation, offsets of curves and surfaces, curve
+  and surface fillets, corner rounding. \\
+Fitting & Interpolation and least-squares approximation of curves and surfaces, fits to a
+  tolerance, end tangents, several parametrisation methods. \\
+Optics & Exact conics, even and odd aspheres, Zernike (Fringe and Noll), XY polynomials and
+  arbitrary sag functions, fitted to a tolerance. \\
+Analysis & Closest points, curvature and torsion, surface curvature, arc length, area,
+  curve/curve, curve/surface, curve/plane and surface/surface intersections, planar
+  sections, numerical integration. \\
+Topology & Trimmed surfaces with exact trim loops, splitting along intersections, B-rep shells
+  (sewing, watertightness, orientation), solid primitives, Boolean union, intersection and
+  difference, point classification, mass properties, face labels. \\
+Slicing & Sections of closed shells into oriented loops, critical heights, extrusion-band
+  detection, hatch and contour lines for writing paths. \\
+Exchange & Native STEP writer and reader (AP203/AP214/AP242 B-rep), units, solid names. \\
+Meshing & Exact transfer to gmsh's OpenCASCADE kernel, physical groups from face labels, local
+  mesh sizes, curvature-based sizes, high-order elements, BEM-ready surface meshes. \\
+LLM & Ollama tool calling with a whitelist of geometry tools, verification rounds, constraint
+  solving, an interactive command-line shell. \\
+\bottomrule
+\end{longtable}
+
+\section{Design principles}\label{sec:intro-principles}
+
+The following principles shape the whole interface. Knowing them makes the behaviour of
+individual functions predictable.
+
+\subsection{Exactness first}
+Whatever can be represented exactly is represented exactly. A circle is a rational quadratic
+NURBS curve whose points lie on the circle up to floating-point rounding, about $10^{-16}$
+relative. Spheres, cylinders and tori are revolved exact profiles. The data passed to gmsh or
+written to STEP are the original NURBS (degree, knots, multiplicities, weights), never a
+tessellation.
+
+Where exactness is impossible, the operation takes a \code{tolerance} in model units and
+\emph{verifies} it. This applies to fitting a sweep, offsetting a curved surface, tracing an
+intersection curve, or fitting an aspheric sag. The result is checked at dense check points
+between the data that defined it, and the construction is refined until the check passes. The
+tolerance model is described in \cref{sec:concepts-tolerances}.
+
+\subsection{Value semantics and immutability}
+Geometry objects are immutable values. An operation never modifies its input. It returns a new
+object, for example \code{curve.insert_knot(u)}, \code{surface.transformed(T)} or
+\code{nf.boolean(a, b, op)}. A curve stored in a list cannot change behind your back, and
+objects can be shared freely between threads.
+
+\subsection{Validated invariants}
+Constructors check their input: the knot vector length, monotonicity and multiplicities,
+positive weights, net sizes, non-degenerate axes. Invalid input raises
+\code{nf.GeometryError}, a subclass of Python's \code{ValueError}, with a message that names
+the violated condition. An object that exists is therefore always valid.
+
+\subsection{Headless and scriptable}
+Every operation is reachable from Python. The LLM layer only composes existing API calls, and
+the language model never executes code (\cref{ch:llm}).
+
+\subsection{Portable, dependency-free kernel}
+The kernel is written in standard C++20 and needs only the standard library and the system
+thread library. It is tested on every change with GCC (AlmaLinux 10), MSVC (Windows 11) and
+Apple Clang (macOS, Apple Silicon), and additionally under ThreadSanitizer.
+
+\section{Architecture}\label{sec:intro-architecture}
+
+\NF{} consists of three layers. Dependencies point strictly downwards:
+
+\begin{lstlisting}[style=text]
+ +--------------------------------------------------------------+
+ |  Python package  nurbforge                                   |
+ |   +- llm/   Ollama client, whitelisted tools, agent, CLI     |
+ |   +- mesh/  exact NURBS transfer to gmsh (OCC), meshing      |
+ |   +- patterns.py, __init__ (re-exports of _core)             |
+ +--------------------------------------------------------------+
+ |  nurbforge._core  (pybind11 bindings)                        |
+ +--------------------------------------------------------------+
+ |  C++ kernel  libnurbforge_core  (namespace nf)               |
+ |   io/        native STEP writer and reader                   |
+ |   topology/  trimmed surfaces, shells, Booleans, solids      |
+ |   optics/    conics, aspheres, Zernike, XY polynomials       |
+ |   modeling/  construct, loft, sweep, Coons/Gordon, extend,   |
+ |              offset, fillet, patterns                        |
+ |   fitting/   interpolation, least-squares approximation      |
+ |   analysis/  closest point, properties, intersections,       |
+ |              sections, hatching                              |
+ |   geometry/  transforms, primitives                          |
+ |   nurbs/     knot vectors, basis functions, curves, surfaces |
+ |   core/      Vec3/Vec4, tolerances, errors                   |
+ +--------------------------------------------------------------+
+\end{lstlisting}
+
+\begin{description}[style=nextline,leftmargin=1.5em]
+  \item[C++ kernel] All geometric algorithms. It is a static library
+    (\code{Nurbforge::core}) that can be used without Python (\cref{ch:cpp}).
+  \item[\code{nurbforge._core}] A thin pybind11 module that exposes the kernel types and
+    functions one to one. All of its names are re-exported by the top-level package, so
+    you write \code{nf.make_box(...)}, never \code{nf._core.make_box(...)}.
+  \item[\code{nurbforge.mesh}] Pure Python on top of the gmsh API (optional dependency).
+  \item[\code{nurbforge.llm}] Pure Python on top of the Ollama HTTP API (standard library
+    only).
+\end{description}
+
+\section{Platforms and versions}\label{sec:intro-platforms}
+
+\begin{tabularx}{\textwidth}{@{}lX@{}}
+\toprule
+\textbf{Platform} & \textbf{Support} \\
+\midrule
+Linux x86\_64 & Binary wheels \code{manylinux_2_28} (AlmaLinux/RHEL 8, 9, 10 and compatible);
+  source builds with GCC 14 on AlmaLinux 10 are tested in CI. \\
+Windows 11 x64 & Binary wheels \code{win_amd64}; source builds with Visual Studio 2022/2026. \\
+macOS 14 or newer & Binary wheels for Apple Silicon (\code{arm64}) and Intel (\code{x86_64});
+  source builds with Apple Clang. \\
+Python & CPython 3.10, 3.11, 3.12, 3.13 and 3.14. \\
+\bottomrule
+\end{tabularx}
+
+\paragraph{Versioning and API stability.}
+\NF{} follows semantic versioning. As long as the major version is 0, the API is \emph{not yet
+stable}: minor releases (0.8 $\to$ 0.9) may change names or signatures. Every change is listed
+in \code{CHANGELOG.md}. The version of an installed package is available as
+\code{nf.__version__}, and in C++ as the macro \code{NURBFORGE_VERSION}. Planned work is listed in
+the roadmap (\code{docs/roadmap.md}).
+
+\section{How to read this manual}\label{sec:intro-reading}
+
+\begin{itemize}
+  \item \Cref{ch:install,ch:quickstart} get you from installation to a first meshed solid in a
+    few minutes.
+  \item \Cref{ch:concepts} explains NURBS, parameter domains, tolerances and error handling.
+    Read it before relying on numerical results.
+  \item \Cref{ch:curves,ch:surfaces,ch:fitting,ch:optics,ch:intersections,ch:trimming,%
+ch:solids,ch:slicing,ch:transforms} cover the modelling functions area by area.
+  \item \Cref{ch:step,ch:meshing,ch:llm} describe data exchange, meshing and the LLM interface,
+    and \cref{ch:cpp} the C++ interface.
+  \item \Cref{ch:troubleshooting} collects common problems and their solutions.
+  \item The appendices are references. \Cref{app:reference} lists every Python class,
+    method and function with its signature and description, generated from the installed
+    package. \Cref{app:llmtools} lists the LLM tools, \cref{app:cli} the command-line
+    interface, and \cref{app:tolerances} every tolerance and default.
+\end{itemize}
+
+\subsection{Typographic conventions}
+
+\begin{tabularx}{\textwidth}{@{}lX@{}}
+\toprule
+\textbf{Notation} & \textbf{Meaning} \\
+\midrule
+\code{make_box} & Names of functions, classes, parameters and literal code. \\
+\apiref{make_box} & A name linked to its entry in the command reference (in the PDF, click it). \\
+\code{nf.} & The package imported as \code{import nurbforge as nf}, used in all examples. \\
+$C(u)$, $S(u,v)$ & Mathematical curves and surfaces with their parameters. \\
+\code{examples/03_quickstart.py} & A complete script shipped in \code{docs/manual/examples/}. \\
+\bottomrule
+\end{tabularx}
+
+Code listings with a file name in the title are complete scripts. The test suite runs every one
+of them, so they work with the version of \NF{} this manual describes. Numbers quoted in the
+text come from running these scripts. Short listings without a title are fragments that assume
+the objects of the surrounding text.
+
+\begin{note}[Boxes]
+Green boxes contain background notes, blue boxes practical tips, and orange boxes warnings
+about pitfalls that lead to wrong results or errors.
+\end{note}
+
+Unless stated otherwise:
+\begin{itemize}
+  \item angles are in \textbf{radians} (the LLM tools use degrees; \cref{ch:llm});
+  \item lengths are in arbitrary but consistent \textbf{model units}; \NF{} attaches a unit only
+    when writing or reading STEP files (\cref{sec:concepts-units});
+  \item curve and surface parameters run over $[0,1]$ for everything the constructors create.
+\end{itemize}
+
+\section{Getting help}\label{sec:intro-help}
+
+\begin{itemize}
+  \item Source code, issue tracker and releases: \url{https://github.com/PhotonPower/Nurbforge}.
+  \item Online documentation (tutorial, API reference, C++ reference generated by Doxygen):
+    \url{https://photonpower.github.io/Nurbforge/}.
+  \item In Python, \code{help(nf.make_box)} shows the signature and docstring of any function.
+  \item Bug reports should contain the \NF{} version (\code{nf.__version__}), the platform and a
+    minimal script that reproduces the problem. For geometry problems, a STEP file written with
+    \code{nf.write_step} is often the quickest way to share the input.
+\end{itemize}
+
+\NF{} is released under the MIT licence.

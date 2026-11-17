@@ -1,0 +1,23 @@
+# Nurbforge
+
+> Headless NURBS CAD kernel for scientific software (C++20 core, Python package `nurbforge` on
+> PyPI): exact curves and surfaces, trimmed faces, closed shells (B-rep solids), Booleans,
+> fillets, sweeps, fitting, optical surfaces, slicing/hatching, native STEP read/write, gmsh
+> meshing, and tool calling for local LLMs.
+
+Install with `pip install nurbforge` (`nurbforge[mesh]` adds gmsh). The installed package
+contains the complete API reference for agents: `python -m nurbforge` prints it,
+`nurbforge.reference()` returns it. It is the same file as the first link below; prefer the
+installed copy, which always matches the installed version.
+
+## Docs
+
+- [API reference for agents](https://github.com/PhotonPower/Nurbforge/blob/main/python/nurbforge/REFERENCE.md): conventions, a worked example, every public function, class and LLM tool (one Markdown file)
+- [README](https://github.com/PhotonPower/Nurbforge/blob/main/README.md): features, platforms, quick start
+- [Tutorial](https://github.com/PhotonPower/Nurbforge/blob/main/docs/tutorial.md): the main workflow with runnable examples
+- [NURBS conventions](https://github.com/PhotonPower/Nurbforge/blob/main/docs/math/nurbs.md): parameterisation, orientation, tolerances
+
+## Optional
+
+- [User manual (PDF)](https://github.com/PhotonPower/Nurbforge/releases/latest): `nurbforge-manual.pdf` on every release, with the full command reference
+- [Changelog](https://github.com/PhotonPower/Nurbforge/blob/main/CHANGELOG.md)

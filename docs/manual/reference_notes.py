@@ -38,6 +38,7 @@ GROUPS: list[tuple[str, list[str]]] = [
                                  "apply_pattern"]),
     ("Knot vectors", ["clamped_uniform_knots", "unique_knots", "validate_knots"]),
     ("Vector algebra", ["dot", "cross", "norm", "distance"]),
+    ("Help", ["reference"]),
 ]
 
 SUBMODULES: dict[str, list[str]] = {

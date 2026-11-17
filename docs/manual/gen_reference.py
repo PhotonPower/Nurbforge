@@ -93,7 +93,7 @@ _TYPES = [
     (r"numpy\.ndarray", "ndarray"), (r"pybind11_builtins\.", ""),
     (r"Tolerance\(length=0\.000000, parametric=0\.000000, angular=0\.000000\)", "Tolerance()"),
     (r"<(\w+)\.(\w+): \d+>", r"\1.\2"),
-    (r"<(\w+) object at 0x[0-9a-f]+>", r"\1()"),
+    (r"<(\w+) object at 0x[0-9a-fA-F]+>", r"\1()"),
     (r"Vec3\((-?[\d.]+), (-?[\d.]+), (-?[\d.]+)\)",
      lambda m: "(" + ", ".join(_num(x) for x in m.groups()) + ")"),
 ]

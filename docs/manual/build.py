@@ -3,7 +3,9 @@
     python docs/manual/build.py [--out DIR]
 
 1. generates the command reference from the installed ``nurbforge`` package
-   (``gen_reference.py --check``: fails if an API entry has no description),
+   (``gen_reference.py --check``: fails if an API entry has no description) and checks that
+   the compact agent reference ``python/nurbforge/REFERENCE.md`` is up to date
+   (``gen_agent_reference.py --check``),
 2. runs latexmk (or pdflatex three times) on ``nurbforge-manual.tex``.
 
 The PDF is written to ``docs/manual/build/nurbforge-manual.pdf`` (or ``--out``).
@@ -29,6 +31,7 @@ def main() -> int:
     out.mkdir(parents=True, exist_ok=True)
 
     subprocess.run([sys.executable, str(HERE / "gen_reference.py"), "--check"], check=True)
+    subprocess.run([sys.executable, str(HERE / "gen_agent_reference.py"), "--check"], check=True)
     tex = "nurbforge-manual.tex"
     if shutil.which("latexmk"):
         cmd = ["latexmk", "-pdf", "-interaction=nonstopmode", "-halt-on-error",

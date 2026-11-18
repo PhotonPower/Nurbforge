@@ -5,6 +5,9 @@ versioning: [SemVer](https://semver.org).
 
 ## [Unreleased]
 
+## [0.12.1] – 2026-11-18
+Bug fix: critical heights perpendicular to a cylinder axis (#83).
+
 ### Fixed
 - `critical_heights` lost height extrema that fall exactly on a sample point of its sign-change
   search, where the derivative is exactly zero (#83): since 0.7.0 the lid edges of a cylinder are

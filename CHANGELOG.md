@@ -4,6 +4,16 @@ All notable changes are documented here. Format: [Keep a Changelog](https://keep
 versioning: [SemVer](https://semver.org).
 
 ## [Unreleased]
+
+## [0.12.0] – 2026-11-18
+Solids for simulation (split by a plane with labelled cut faces, cap, thicken, hollow, pipes,
+defeaturing), parallel parameter studies from Python (expensive operations release the GIL,
+all geometry types picklable), 2D profiles (planar region Booleans, blend curves, projection
+onto surfaces), a user manual (PDF) with a generated command reference, a compact API
+reference for language models and coding agents shipped in the wheel, and fixes for
+Booleans through poles and seams, `split` with crossing cuts, `closest_point` at kinks,
+curvature at sphere poles and the installed CMake package. The API is not yet stable (0.x).
+
 ### Added
 - Compact API reference for language models and coding agents (`REFERENCE.md`, ~20k tokens:
   conventions, a worked example, every public function, class and LLM tool with signature and

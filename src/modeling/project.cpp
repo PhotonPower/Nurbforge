@@ -9,6 +9,7 @@
 #include <string>
 #include <vector>
 
+#include "geodesic.hpp"
 #include "nurbforge/analysis/closest_point.hpp"
 #include "nurbforge/analysis/intersect.hpp"
 #include "nurbforge/core/error.hpp"
@@ -105,7 +106,7 @@ UV lift(const std::array<Vec3, 3>& D, const Vec3& w) {
   const double aa = dot(D[1], D[1]), ab = dot(D[1], D[2]), bb = dot(D[2], D[2]);
   const double det = aa * bb - ab * ab;
   if (!(std::abs(det) > 1e-300 * std::max(1.0, aa * bb)))
-    throw GeometryError("offset_on_surface: degenerate surface (S_u x S_v = 0)");
+    throw GeometryError("geodesic: degenerate surface (S_u x S_v = 0)");
   const double ra = dot(D[1], w), rb = dot(D[2], w);
   return {(bb * ra - ab * rb) / det, (aa * rb - ab * ra) / det};
 }
@@ -115,7 +116,7 @@ UV lift(const std::array<Vec3, 3>& D, const Vec3& w) {
 std::array<double, 4> geodesic_rhs(const NurbsSurface& S, const std::array<double, 4>& y) {
   const auto du = S.domain_u(), dv = S.domain_v();
   if (y[0] < du[0] - 1e-12 || y[0] > du[1] + 1e-12 || y[1] < dv[0] - 1e-12 || y[1] > dv[1] + 1e-12)
-    throw GeometryError("offset_on_surface: the offset leaves the surface");
+    throw GeometryError("the geodesic (offset) leaves the surface");
   const auto D = S.derivatives(std::clamp(y[0], du[0], du[1]), std::clamp(y[1], dv[0], dv[1]), 2);
   const Vec3 q = y[2] * y[2] * D[2][0] + 2.0 * y[2] * y[3] * D[1][1] + y[3] * y[3] * D[0][2];
   const UV acc = lift({D[0][0], D[1][0], D[0][1]}, -1.0 * q);
@@ -267,22 +268,9 @@ ProjectedCurve offset_on_surface(const NurbsSurface& S, const NurbsCurve& pcurve
     if (!(norm(T) > 0.0) || !(norm(N) > 0.0))
       throw GeometryError(who + ": degenerate curve or surface at t = " + std::to_string(t));
     const Vec3 B = normalized(cross(N, T)) * (dist > 0.0 ? 1.0 : -1.0);
-    const UV start{P[0].x, P[0].y}, vel = lift(D, B);
-    const double len = std::abs(dist);
-    // steps doubled until the end point is stable to a fraction of the tolerance; neighbouring
-    // geodesics need similar step counts, so start from half the last one
-    int steps = std::max(2, last_steps / 2);
-    UV w = geodesic_end(S, start, vel, len, steps);
-    for (; steps <= 4096; steps *= 2) {
-      const UV w2 = geodesic_end(S, start, vel, len, 2 * steps);
-      const double change = distance(S.evaluate(w.u, w.v), S.evaluate(w2.u, w2.v));
-      w = w2;
-      if (change <= 0.05 * tolerance) {
-        last_steps = 2 * steps;
-        return w;
-      }
-    }
-    throw GeometryError(who + ": the geodesic does not converge at t = " + std::to_string(t));
+    const auto w =
+        detail::geodesic_point(S, P[0].x, P[0].y, B, std::abs(dist), tolerance, last_steps);
+    return UV{w[0], w[1]};
   };
   std::map<double, UV> cache;  // fit_on_surface revisits the parameters of earlier rounds
   const auto cached = [&](double t, const std::optional<UV>& prev) {
@@ -292,5 +280,33 @@ ProjectedCurve offset_on_surface(const NurbsSurface& S, const NurbsCurve& pcurve
   };
   return fit_on_surface(S, span_samples(pcurve), cached, tolerance, who);
 }
+
+namespace detail {
+
+std::array<double, 2> geodesic_point(const NurbsSurface& S, double u, double v, const Vec3& dir,
+                                     double length, double tolerance, int& steps) {
+  const auto D = S.first_derivatives(u, v);
+  const Vec3 N = cross(D[1], D[2]);
+  if (!(norm(N) > 0.0)) throw GeometryError("geodesic: degenerate surface point");
+  const Vec3 n = normalized(N);
+  Vec3 d = dir - dot(dir, n) * n;
+  if (!(norm(d) > 0.0)) throw GeometryError("geodesic: direction normal to the surface");
+  d = normalized(d);
+  const UV start{u, v}, vel = lift(D, d);
+  int k = std::max(2, steps / 2);
+  UV w = geodesic_end(S, start, vel, length, k);
+  for (; k <= 4096; k *= 2) {
+    const UV w2 = geodesic_end(S, start, vel, length, 2 * k);
+    const double change = distance(S.evaluate(w.u, w.v), S.evaluate(w2.u, w2.v));
+    w = w2;
+    if (change <= 0.05 * tolerance) {
+      steps = 2 * k;
+      return {w.u, w.v};
+    }
+  }
+  throw GeometryError("geodesic: no convergence");
+}
+
+}  // namespace detail
 
 }  // namespace nf

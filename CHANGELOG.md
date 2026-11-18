@@ -15,6 +15,13 @@ versioning: [SemVer](https://semver.org).
   `offset_on_surface(surface, curve, distance)` (geodesic offset, RK4 on the geodesic
   equations). LLM tools `chamfer`, `chamfer_corners`, `tween`, `project_to_plane`,
   `offset_on_surface`.
+- Edge blends on solids (#18): `fillet_edges(shell, edges, radius)` and
+  `chamfer_edges(shell, edges, distance)` round or chamfer edges, edge chains and closed edge
+  loops (cylinder rims, bores) of a closed shell; convex edges lose material, concave edges gain
+  it. The adjacent faces are cut back along the exact contact curves, the end faces of open
+  chains are rerouted along the exact end curves; new faces are labelled `fillet` / `chamfer`.
+  `edges_between(shell, label_a, label_b)` selects edges by face labels. LLM tool
+  `round_edges`. `fillet_surfaces` takes `near` to choose among several spines.
 - C++: `Plane` moved to its own header `nurbforge/geometry/plane.hpp` (still included by
   `analysis/section.hpp`).
 

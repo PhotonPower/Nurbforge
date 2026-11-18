@@ -140,7 +140,7 @@ Copies & \toolref{translate}, \toolref{rotate}, \toolref{mirror}, \toolref{linea
   \toolref{polar_array} \\
 Solids & \toolref{sew}, \toolref{solid} (box, sphere, cylinder, cone, torus),
   \toolref{boolean}, \toolref{split_solid}, \toolref{cap}, \toolref{thicken},
-  \toolref{hollow}, \toolref{pipe}, \toolref{remove_holes}, \toolref{merge_faces}, \toolref{mass_properties} \\
+  \toolref{hollow}, \toolref{pipe}, \toolref{round_edges}, \toolref{remove_holes}, \toolref{merge_faces}, \toolref{mass_properties} \\
 Queries & \toolref{list_objects}, \toolref{evaluate}, \toolref{closest_point},
   \toolref{measure}, \toolref{intersect} \\
 Verification & \toolref{inspect}, \toolref{check}, \toolref{solve} \\
@@ -176,7 +176,7 @@ schemas.
 \example{16_llm_tools.py}
 
 \begin{lstlisting}[style=text]
-54 tools, e.g. make_line, make_circle, make_arc, make_polygon, make_helix, round_corners ...
+55 tools, e.g. make_line, make_circle, make_arc, make_polygon, make_helix, round_corners ...
 make_circle - Create a full circle (exact NURBS).
   parameters: {"type": "number"} required: ['name', 'center', 'normal', 'radius']
 stored box: closed shell, volume 24

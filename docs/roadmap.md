@@ -85,7 +85,8 @@
 - Curves on surfaces: interpolation through points in the parameter domain, geodesic offset within a surface ✅
 
 ## 0.14 – Edge chamfers and fillets on solids (#18)
-- Chamfer and constant-radius fillet of edge chains of a shell, with trimming of the adjacent faces
+- Constant-radius fillets and chamfers of edges, edge chains and closed edge loops of a shell, convex (material removed) and concave (material added); adjacent faces cut back along the exact contact curves, end faces rerouted along the exact end curves ✅
+- Next: vertex blends where three blended edges meet; variable radius
 
 ## Infrastructure
 - ✅ Wheels via cibuildwheel (manylinux_2_28 for AlmaLinux 10 compatibility, win_amd64, macOS arm64/x86_64)

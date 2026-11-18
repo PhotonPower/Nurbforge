@@ -281,8 +281,18 @@ SurfaceFillet fillet_surfaces(const NurbsSurface& s1, const NurbsSurface& s2, do
         "ball of radius " +
         num(radius) + " on the chosen sides)");
   const IntersectionCurve* spine0 = &cut.curves.front();
-  for (const auto& c : cut.curves)
-    if (polyline_length(c) > polyline_length(*spine0)) spine0 = &c;
+  if (opt.near) {
+    const auto gap = [&](const IntersectionCurve& c) {
+      double d = std::numeric_limits<double>::infinity();
+      for (const auto& p : c.points) d = std::min(d, distance(p.point, *opt.near));
+      return d;
+    };
+    for (const auto& c : cut.curves)
+      if (gap(c) < gap(*spine0)) spine0 = &c;
+  } else {
+    for (const auto& c : cut.curves)
+      if (polyline_length(c) > polyline_length(*spine0)) spine0 = &c;
+  }
 
   const RollingBall ball(s1, s2, radius, opt, *spine0);
   const double t0 = spine0->curve.domain_start(), t1 = spine0->curve.domain_end();

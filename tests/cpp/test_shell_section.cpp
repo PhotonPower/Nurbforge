@@ -10,6 +10,7 @@
 #include "nurbforge/geometry/primitives.hpp"
 #include "nurbforge/modeling/construct.hpp"
 #include "nurbforge/topology/boolean.hpp"
+#include "nurbforge/topology/solids.hpp"
 
 using namespace nf;
 using Catch::Approx;
@@ -153,6 +154,35 @@ TEST_CASE("critical heights and extrusion bands", "[shell_section]") {
   CHECK_FALSE(is_extrusion_band(sphere_shell({0, 0, 0}, 1.0), {0, 0, 1}, -0.5, 0.5));
   // a band outside the body: trivially an extrusion (nothing to check)
   CHECK(is_extrusion_band(sphere_shell({0, 0, 0}, 1.0), {0, 0, 1}, 2.0, 3.0));
+}
+
+TEST_CASE("critical heights perpendicular to a cylinder axis (extrema on knots)",
+          "[shell_section]") {
+  // the lid edges are exact rational circles of four quarter arcs whose knots lie on the extrema
+  // along x and y: the height derivative is exactly zero at a sample point there (0.7.0 – 0.12.0
+  // lost these extrema, reported by FourierGrating's CAD slicer)
+  const auto check = [](const Shell& sh, double cx, double cy, double R) {
+    for (const Vec3 d : {Vec3{1, 0, 0}, Vec3{0, 1, 0}, Vec3{-1, 0, 0}}) {
+      const double c = d.x != 0.0 ? d.x * cx : cy;
+      const auto h = critical_heights(sh, d, {1e-9});
+      REQUIRE(h.size() >= 2);
+      CHECK(h.front() == Approx(c - R).margin(1e-12));
+      CHECK(h.back() == Approx(c + R).margin(1e-12));
+    }
+  };
+  check(cylinder_shell(1.0, 0.0, 2.0), 0.0, 0.0, 1.0);
+  check(make_cylinder({0.25, 0.25, 0.0}, {0, 0, 1}, 0.12, 0.15), 0.25, 0.25, 0.12);
+  // a face whose height depends on one parameter (the side face): its extrema are the same lines
+  const auto side =
+      Shell::sew({TrimmedSurface(extrude(make_circle({0, 0, 0}, {0, 0, 1}, 1.0), {0, 0, 2}))});
+  const auto hs = critical_heights(side, {0, 1, 0}, {1e-9});
+  REQUIRE(hs.size() >= 2);
+  CHECK(hs.front() == Approx(-1.0).margin(1e-12));
+  CHECK(hs.back() == Approx(1.0).margin(1e-12));
+  // a straight edge perpendicular to the direction (derivative identically zero) adds no heights
+  // between its vertices
+  const auto hb = critical_heights(box_shell(1.0), {1, 0, 0}, {1e-9});
+  REQUIRE(hb.size() == 2);
 }
 
 TEST_CASE("shell section: concurrent const queries", "[shell_section][threads]") {

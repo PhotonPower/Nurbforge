@@ -339,6 +339,30 @@ double bisect(G&& g, double a, double b, double ga) {
   return 0.5 * (a + b);
 }
 
+/// Zeros of g on [t0, t1] where g changes sign, from n uniform samples: sign changes between
+/// samples are refined by bisection; a sample where g is exactly zero is a zero if the nearest
+/// nonzero samples on both sides have opposite signs (an extremum on a knot of an exact circle: the
+/// derivative there is exactly 0). A run of exact zeros (g identically zero, e.g. a straight edge
+/// normal to the direction) counts once, at its start, and only with a sign change across it.
+template <class G, class F>
+void sign_change_zeros(G&& g, double t0, double t1, std::size_t n, F&& found) {
+  double ta = t0, fa = g(t0);  // last sample with g != 0 (fa == 0: none yet)
+  double tz = 0.0;
+  bool zero_run = false;
+  for (std::size_t q = 1; q <= n; ++q) {
+    const double tb = t0 + (t1 - t0) * static_cast<double>(q) / static_cast<double>(n), fb = g(tb);
+    if (fb == 0.0) {
+      if (!zero_run && fa != 0.0) tz = tb;
+      zero_run = zero_run || fa != 0.0;
+      continue;
+    }
+    if (fa != 0.0 && (fa < 0.0) != (fb < 0.0)) found(zero_run ? tz : bisect(g, ta, tb, fa));
+    zero_run = false;
+    ta = tb;
+    fa = fb;
+  }
+}
+
 /// Interior extrema of the height h = d . S(u, v) inside the trimmed face: for faces whose height
 /// depends on one parameter the zeros of h'; otherwise Newton on (S_u . d, S_v . d) = 0 from seeds
 /// on every knot span (Bezier patch).
@@ -352,23 +376,15 @@ void face_extrema(const TrimmedSurface& f, const Vec3& d, double size, std::vect
     const std::size_t n = 64 * std::max<std::size_t>(1, kn.size() - 1);
     const double t0 = hc->domain_start(), t1 = hc->domain_end();
     const auto dh = [&](double t) { return hc->derivatives(t, 1)[1].x; };
-    double ta = t0, fa = dh(t0);
-    for (std::size_t k = 1; k <= n; ++k) {
-      const double tb = t0 + (t1 - t0) * static_cast<double>(k) / static_cast<double>(n),
-                   fb = dh(tb);
-      if ((fa < 0.0) != (fb < 0.0) && fa != 0.0 && fb != 0.0) {
-        const double t = bisect(dh, ta, tb, fa);
-        bool reached = f.is_untrimmed();
-        for (int q = 0; q <= 64 && !reached; ++q) {
-          const double w =
-              along_v ? du[0] + (du[1] - du[0]) * q / 64.0 : dv[0] + (dv[1] - dv[0]) * q / 64.0;
-          reached = along_v ? f.contains(w, t) : f.contains(t, w);
-        }
-        if (reached) out.push_back(hc->evaluate(t).x);
+    sign_change_zeros(dh, t0, t1, n, [&](double t) {
+      bool reached = f.is_untrimmed();
+      for (int q = 0; q <= 64 && !reached; ++q) {
+        const double w =
+            along_v ? du[0] + (du[1] - du[0]) * q / 64.0 : dv[0] + (dv[1] - dv[0]) * q / 64.0;
+        reached = along_v ? f.contains(w, t) : f.contains(t, w);
       }
-      ta = tb;
-      fa = fb;
-    }
+      if (reached) out.push_back(hc->evaluate(t).x);
+    });
     return;
   }
   const auto ku = unique_knots(s.knots_u()).first, kv = unique_knots(s.knots_v()).first;
@@ -421,15 +437,7 @@ std::vector<double> critical_heights(const Shell& sh, const Vec3& dir, const Tol
     const std::size_t n = 64 * std::max<std::size_t>(1, k.size() - 1);
     const double t0 = c.domain_start(), t1 = c.domain_end();
     const auto g = [&](double t) { return dot(c.derivatives(t, 1)[1], d); };
-    double ta = t0, fa = g(t0);
-    for (std::size_t q = 1; q <= n; ++q) {
-      const double tb = t0 + (t1 - t0) * static_cast<double>(q) / static_cast<double>(n),
-                   fb = g(tb);
-      if ((fa < 0.0) != (fb < 0.0) && fa != 0.0 && fb != 0.0)
-        h.push_back(dot(c.evaluate(bisect(g, ta, tb, fa)), d));
-      ta = tb;
-      fa = fb;
-    }
+    sign_change_zeros(g, t0, t1, n, [&](double t) { h.push_back(dot(c.evaluate(t), d)); });
   }
   std::sort(h.begin(), h.end());
   std::vector<double> out;

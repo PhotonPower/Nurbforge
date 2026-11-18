@@ -5,6 +5,15 @@ versioning: [SemVer](https://semver.org).
 
 ## [Unreleased]
 
+### Fixed
+- `critical_heights` lost height extrema that fall exactly on a sample point of its sign-change
+  search, where the derivative is exactly zero (#83): since 0.7.0 the lid edges of a cylinder are
+  exact rational circles whose knots lie on the extrema along x and y, so the heights of a cylinder
+  perpendicular to its axis came back as one value (FourierGrating's CAD slicer: bounding boxes
+  collapsed to a line). An exact zero now counts when the nearest nonzero samples on both sides
+  have opposite signs; a run of zeros (a straight edge normal to the direction) counts once. Same
+  for edges and for faces whose height depends on one parameter.
+
 ## [0.12.0] – 2026-11-18
 Solids for simulation (split by a plane with labelled cut faces, cap, thicken, hollow, pipes,
 defeaturing), parallel parameter studies from Python (expensive operations release the GIL,

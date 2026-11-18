@@ -111,6 +111,25 @@ Observations:
   points; a tolerance of $10^{-5}$ needs 25.
 \end{itemize}
 
+\section{Best-fit lines and planes}\label{sec:fit-line-plane}
+
+Measured points often describe a straight edge or a flat face. \apiref{fit_line} and
+\apiref{fit_plane} fit them by \emph{orthogonal} regression: they minimise the sum of the
+squared perpendicular distances, unlike a parametric least-squares fit $z = f(x, y)$, which
+measures errors along one axis and depends on the orientation of the coordinate system.
+
+\begin{lstlisting}
+lf = nf.fit_line(points)    # LineFit: point (centroid), direction, max_deviation, rms
+pf = nf.fit_plane(points)   # PlaneFit: plane (through the centroid), max_deviation, rms
+\end{lstlisting}
+
+The direction of the line is the eigenvector of the largest eigenvalue of the scatter matrix of
+the points, the plane normal that of the smallest one. Both are unit vectors whose
+largest-magnitude component is positive, so the result does not depend on the order of the
+points. \code{max_deviation} and \code{rms} report how well the points fit, e.g. as a flatness
+check of a measured face. A line needs two distinct points, a plane three points that are not
+collinear. \Cref{sec:project} has an example.
+
 \section{Surface fitting}\label{sec:surface-fitting}
 
 \begin{lstlisting}[style=text]

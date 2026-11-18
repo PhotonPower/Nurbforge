@@ -383,3 +383,28 @@ def test_merge_faces_tool():
     call_tool(ws, "solid", {"name": "b", "kind": "box", "point": [1, 1, 0], "size": [2, 2, 1]})
     call_tool(ws, "boolean", {"name": "u", "a": "a", "b": "b", "op": "union"})
     assert "closed shell, 10 faces" in call_tool(ws, "merge_faces", {"name": "m", "solid": "u"})
+
+
+def test_curve_tools():
+    ws = Workspace()
+    call_tool(ws, "make_line", {"name": "a", "p0": [0, 0, 0], "p1": [2, 0, 0]})
+    call_tool(ws, "make_line", {"name": "b", "p0": [2, 0, 0], "p1": [2, 2, 0]})
+    out = call_tool(ws, "chamfer", {"name": "c", "a": "a", "b": "b", "distance_a": 0.5})
+    assert "trimmed curves c_a, c_b" in out and "c_a" in ws.objects
+    call_tool(ws, "make_polygon", {"name": "p", "center": [0, 0, 0], "normal": [0, 0, 1],
+                                   "radius": 1, "n": 6})
+    assert "stored q" in call_tool(ws, "chamfer_corners", {"name": "q", "source": "p",
+                                                           "distance": 0.1})
+    call_tool(ws, "make_circle", {"name": "k", "center": [0, 0, 3], "normal": [1, 0, 1],
+                                  "radius": 1})
+    call_tool(ws, "project_to_plane", {"name": "f", "source": "k", "point": [0, 0, 0],
+                                       "normal": [0, 0, 1]})
+    assert abs(ws.get("f")(0.2).z) < 1e-14
+    out = call_tool(ws, "tween", {"name": "t", "a": "a", "b": "b", "count": 2})
+    assert "t_1" in out and "t_2" in out
+    call_tool(ws, "make_rectangle", {"name": "s", "origin": [0, 0, 0], "edge_u": [4, 0, 0],
+                                     "edge_v": [0, 4, 0]})
+    call_tool(ws, "make_line", {"name": "uv", "p0": [0.1, 0.5, 0], "p1": [0.9, 0.5, 0]})
+    call_tool(ws, "offset_on_surface", {"name": "o", "curve_uv": "uv", "surface": "s",
+                                        "distance": 1.0})
+    assert abs(ws.get("o")(0.5).y - 3.0) < 1e-6 and "o_uv" in ws.objects

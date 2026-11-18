@@ -4,6 +4,19 @@ All notable changes are documented here. Format: [Keep a Changelog](https://keep
 versioning: [SemVer](https://semver.org).
 
 ## [Unreleased]
+### Added
+- Curve tools (#16): `chamfer_curves(a, b, distance_a, distance_b, trim, corner)` and
+  `chamfer_corners(curve, distance)` (straight cuts, counterpart of the fillets; the corner
+  handling of `fillet_corners` is shared); `fit_line` / `fit_plane` (orthogonal regression,
+  with max and rms deviation); `project_to_plane(curve | surface, plane, direction)` (exact
+  parallel projection); `tween_curves(a, b, count)`; `make_arc_tangent(start, tangent, end)`;
+  `tangent_lines(point, curve)` and `tangent_lines(a, b)` (all common tangents of two planar
+  curves); curves on surfaces: `interpolate_on_surface(surface, points, degree, uv)` and
+  `offset_on_surface(surface, curve, distance)` (geodesic offset, RK4 on the geodesic
+  equations). LLM tools `chamfer`, `chamfer_corners`, `tween`, `project_to_plane`,
+  `offset_on_surface`.
+- C++: `Plane` moved to its own header `nurbforge/geometry/plane.hpp` (still included by
+  `analysis/section.hpp`).
 
 ## [0.12.1] – 2026-11-18
 Bug fix: critical heights perpendicular to a cylinder axis (#83).

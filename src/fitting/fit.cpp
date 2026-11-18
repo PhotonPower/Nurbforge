@@ -1,6 +1,7 @@
 #include "nurbforge/fitting/fit.hpp"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <string>
 
@@ -457,6 +458,110 @@ NurbsSurface approximate_surface(const std::vector<Vec3>& Q, std::size_t nu, std
     std::copy(Prow.begin(), Prow.end(), P.begin() + static_cast<std::ptrdiff_t>(i * cv));
   }
   return {pu, pv, lsu.knots(), lsv.knots(), cu, cv, std::move(P)};
+}
+
+namespace {
+
+// Centroid and eigen decomposition of the scatter matrix sum (p - c)(p - c)^T (cyclic Jacobi);
+// eigenvalues ascending, eigenvectors as unit vectors.
+struct Scatter {
+  Vec3 centroid;
+  std::array<double, 3> value{};
+  std::array<Vec3, 3> vector{};
+  double size{0.0};
+};
+
+Scatter scatter(const std::vector<Vec3>& pts, const char* who) {
+  if (pts.empty()) throw GeometryError(std::string(who) + ": no points");
+  Vec3 c{0, 0, 0};
+  for (const auto& p : pts) c += p;
+  c = c / static_cast<double>(pts.size());
+  double A[3][3] = {};
+  double size = 0.0;
+  for (const auto& p : pts) {
+    const double d[3] = {p.x - c.x, p.y - c.y, p.z - c.z};
+    for (int i = 0; i < 3; ++i)
+      for (int j = 0; j < 3; ++j) A[i][j] += d[i] * d[j];
+    size = std::max(size, norm(p - c));
+  }
+  double V[3][3] = {{1, 0, 0}, {0, 1, 0}, {0, 0, 1}};
+  for (int sweep = 0; sweep < 50; ++sweep) {
+    const double off = A[0][1] * A[0][1] + A[0][2] * A[0][2] + A[1][2] * A[1][2];
+    const double diag = A[0][0] * A[0][0] + A[1][1] * A[1][1] + A[2][2] * A[2][2];
+    if (off <= 1e-34 * diag || off == 0.0) break;
+    for (int p = 0; p < 2; ++p)
+      for (int q = p + 1; q < 3; ++q) {
+        if (A[p][q] == 0.0) continue;
+        const double theta = (A[q][q] - A[p][p]) / (2.0 * A[p][q]);
+        const double t =
+            (theta >= 0 ? 1.0 : -1.0) / (std::abs(theta) + std::sqrt(theta * theta + 1));
+        const double cs = 1.0 / std::sqrt(t * t + 1), sn = t * cs;
+        for (int k = 0; k < 3; ++k) {  // A <- A J
+          const double akp = A[k][p], akq = A[k][q];
+          A[k][p] = cs * akp - sn * akq;
+          A[k][q] = sn * akp + cs * akq;
+        }
+        for (int k = 0; k < 3; ++k) {  // A <- J^T A
+          const double apk = A[p][k], aqk = A[q][k];
+          A[p][k] = cs * apk - sn * aqk;
+          A[q][k] = sn * apk + cs * aqk;
+        }
+        for (int k = 0; k < 3; ++k) {  // V <- V J
+          const double vkp = V[k][p], vkq = V[k][q];
+          V[k][p] = cs * vkp - sn * vkq;
+          V[k][q] = sn * vkp + cs * vkq;
+        }
+      }
+  }
+  std::array<int, 3> order{0, 1, 2};
+  std::sort(order.begin(), order.end(), [&](int i, int j) { return A[i][i] < A[j][j]; });
+  Scatter s;
+  s.centroid = c;
+  s.size = size;
+  for (int k = 0; k < 3; ++k) {
+    const int i = order[static_cast<std::size_t>(k)];
+    s.value[static_cast<std::size_t>(k)] = A[i][i];
+    Vec3 v{V[0][i], V[1][i], V[2][i]};
+    // deterministic sign: largest-magnitude component positive
+    const double big = std::abs(v.x) >= std::abs(v.y) && std::abs(v.x) >= std::abs(v.z) ? v.x
+                       : std::abs(v.y) >= std::abs(v.z)                                 ? v.y
+                                                                                        : v.z;
+    s.vector[static_cast<std::size_t>(k)] = normalized(big < 0 ? -v : v);
+  }
+  return s;
+}
+
+}  // namespace
+
+LineFit fit_line(const std::vector<Vec3>& points) {
+  const Scatter s = scatter(points, "fit_line");
+  if (points.size() < 2 || !(s.size > 0.0))
+    throw GeometryError("fit_line: needs at least two distinct points");
+  LineFit f{s.centroid, s.vector[2], 0.0, 0.0};
+  double sum = 0.0;
+  for (const auto& p : points) {
+    const Vec3 d = p - f.point;
+    const double e = norm(d - dot(d, f.direction) * f.direction);
+    f.max_deviation = std::max(f.max_deviation, e);
+    sum += e * e;
+  }
+  f.rms = std::sqrt(sum / static_cast<double>(points.size()));
+  return f;
+}
+
+PlaneFit fit_plane(const std::vector<Vec3>& points) {
+  const Scatter s = scatter(points, "fit_plane");
+  if (points.size() < 3 || !(s.value[1] > 1e-14 * s.value[2]))
+    throw GeometryError("fit_plane: needs at least three points that are not collinear");
+  PlaneFit f{Plane{s.centroid, s.vector[0]}, 0.0, 0.0};
+  double sum = 0.0;
+  for (const auto& p : points) {
+    const double e = std::abs(dot(p - s.centroid, s.vector[0]));
+    f.max_deviation = std::max(f.max_deviation, e);
+    sum += e * e;
+  }
+  f.rms = std::sqrt(sum / static_cast<double>(points.size()));
+  return f;
 }
 
 }  // namespace nf

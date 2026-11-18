@@ -80,6 +80,7 @@ arguments after `*` are keyword-only; `(1) … (2) …` are overloads.
 - `make_arc_3pt(p0: Vec3, p1: Vec3, p2: Vec3) -> NurbsCurve` — Circular arc from p0 through p1 to p2.
 - `make_circle(center: Vec3, normal: Vec3, radius: float) -> NurbsCurve` — Exact full circle (rational quadratic, 9 control points), counter-clockwise about `normal`; the start point lies in the direction `any_perpendicular(normal)`. Domain [0, 1].
 - `make_circle_3pt(p0: Vec3, p1: Vec3, p2: Vec3) -> NurbsCurve` — Full circle through three points (starts at p0, runs through p1 and p2).
+- `make_arc_tangent(start: Vec3, tangent: Vec3, end: Vec3) -> NurbsCurve` — Exact circular arc from `start`, leaving it in the direction `tangent`, to `end` (sweep between 0 and 360 degrees). Raises GeometryError if `end` lies on the tangent line.
 - `make_polygon(center: Vec3, normal: Vec3, radius: float, n: int, x_axis: Vec3 = (0, 0, 0)) -> NurbsCurve` — Closed regular polygon with n vertices on the circle of the given radius (first vertex along x_axis).
 - `make_rectangle_curve(origin: Vec3, edge_u: Vec3, edge_v: Vec3) -> NurbsCurve` — Closed rectangle outline (degree 1).
 - `make_helix(axis_point: Vec3, axis: Vec3, start: Vec3, pitch: float, turns: float, end_radius: float = -1.0, left_handed: bool = False, tolerance: float = 1e-07) -> NurbsCurve` — Helix / conical helix / planar spiral starting at `start`, parameter = turns; C2 quintic within `tolerance` of the exact curve. end_radius < 0: cylindrical.
@@ -116,9 +117,16 @@ arguments after `*` are keyword-only; `(1) … (2) …` are overloads.
 - `region_boolean(a: object, b: object, op: BooleanOp, tolerance: float = 1e-09) -> list[list[NurbsCurve]]` — Union / intersection / difference of planar regions in the xy plane. A region is a PlanarSection, or a list of loops: closed curves, lists of curves running head to tail, or SectionLoops (nested loops: holes). Returns the result as a list of loops (lists of exact curves; outer counter-clockwise, holes clockwise).
 - `region_area(region: object) -> float` — Area of a planar region (outer loops minus holes; Green's theorem on the exact curves).
 - `blend_curves(a: NurbsCurve, end0: CurveEnd, b: NurbsCurve, end1: CurveEnd, continuity: int = 2, tension: float = 1.0) -> NurbsCurve` — Smooth transition from an end of curve a to an end of curve b: G1 (cubic) or G2 (quintic, same curvature vectors). The blend leaves a and enters b; |C'| at the ends is tension x chord.
+- `tween_curves(a: NurbsCurve, b: NurbsCurve, count: int) -> list[NurbsCurve]` — `count` intermediate curves between a and b (made compatible, homogeneous control points interpolated linearly at s = k / (count + 1)). Both should run in the same direction.
+- `(1) tangent_lines(a: NurbsCurve, b: NurbsCurve, plane_normal: Vec3 = (0, 0, 1)) -> list[TangentLine]`  
+  `(2) tangent_lines(a: Vec3, b: NurbsCurve, plane_normal: Vec3 = (0, 0, 1)) -> list[TangentLine]` — (1) Common tangent lines of two coplanar curves (from a to b), or - with a point as `a` - the lines from the point tangent to curve `b`. Returns a list of TangentLine.
 - `project_curve(curve: NurbsCurve, surface: NurbsSurface, direction: Vec3 = (0, 0, 0), tolerance: float = 1e-06) -> ProjectedCurve` — Project a curve onto a surface along its normal (direction zero) or along `direction`; returns ProjectedCurve(curve, pcurve) within `tolerance` of the exact projection.
+- `(1) project_to_plane(curve: NurbsCurve, plane: Plane, direction: Vec3 = (0, 0, 0)) -> NurbsCurve`  
+  `(2) project_to_plane(surface: NurbsSurface, plane: Plane, direction: Vec3 = (0, 0, 0)) -> NurbsSurface` — (1) Exact parallel projection of a curve onto a plane along `direction` (zero: along the plane normal, i.e. orthogonal projection). (2) Exact parallel projection of a surface onto a plane.
+- `interpolate_on_surface(surface: NurbsSurface, points: array_like, degree: int = 3, uv: bool = False, tolerance: float = 1e-06) -> ProjectedCurve` — Curve on a surface through points (n, 3): projected onto the surface (or (u, v, 0) parameter points if uv=True), interpolated in the parameter domain; returns ProjectedCurve(curve, pcurve) with the 3D curve within `tolerance` of S(pcurve(t)).
+- `offset_on_surface(surface: NurbsSurface, curve: object, distance: float, tolerance: float = 1e-06) -> ProjectedCurve` — Geodesic offset of a curve within a surface: `curve` is its p-curve (u, v, 0) or a ProjectedCurve; positive distances go to the left of the curve seen from the normal S_u x S_v. Returns ProjectedCurve(curve, pcurve) within `tolerance`.
 
-**Joining, extension, offsets and fillets**
+**Joining, extension, offsets, fillets and chamfers**
 
 - `join(a: NurbsCurve, b: NurbsCurve, tolerance: float = 1e-10) -> NurbsCurve` — Join curve b to the end of curve a (gap <= tolerance).
 - `join_u(a: NurbsSurface, b: NurbsSurface, tolerance: float = 1e-10) -> NurbsSurface` — Join two surfaces along u: the u = max boundary of `a` must coincide with the u = min boundary of `b` within `tolerance` (same v knots after making them compatible). Returns one surface.
@@ -130,6 +138,8 @@ arguments after `*` are keyword-only; `(1) … (2) …` are overloads.
 - `fillet_curves(a: NurbsCurve, b: NurbsCurve, radius: float, plane_normal: Vec3 = (0, 0, 1), side_a: int = 0, side_b: int = 0, trim: bool = True, corner: Vec3 | None = None, tolerance: float = 1e-07) -> CurveFillet` — Circular fillet of the given radius between two coplanar intersecting curves. side_a / side_b: +1 = centre to the left of the curve's direction seen from plane_normal, -1 = right, 0 = automatic (the corner between the kept parts, i.e. the longer sides of the intersection). Returns a CurveFillet (exact arc, tangent parameters, trimmed curves).
 - `fillet_corners(curve: NurbsCurve, radius: float, tolerance: float = 1e-07) -> NurbsCurve` — Round every corner of a planar curve (polyline, polygon, ...) with exact arcs; one G1 curve.
 - `fillet_surfaces(s1: NurbsSurface, s2: NurbsSurface, radius: float, side1: int = 1, side2: int = 1, tolerance: float = 1e-06, offset_tolerance: float = 0.0, max_sections: int = 1025) -> SurfaceFillet` — Rolling-ball fillet of radius r between two surfaces. side1 / side2 = +1 put the ball on the side of the normal S_u x S_v of s1 / s2, -1 on the opposite side. Returns a SurfaceFillet (surface, spine, contact curves, p-curves on s1 / s2).
+- `chamfer_curves(a: NurbsCurve, b: NurbsCurve, distance_a: float, distance_b: float | None = None, trim: bool = True, corner: Vec3 | None = None) -> CurveChamfer` — Chamfer between two intersecting curves: a straight cut from the point of a at distance `distance_a` from the corner to the point of b at `distance_b` (default: distance_a), on the kept parts (the longer sides of the intersection, as in fillet_curves). The curves need not be planar. Returns a CurveChamfer (line, parameters, trimmed curves).
+- `chamfer_corners(curve: NurbsCurve, distance: float, tolerance: float = 1e-07) -> NurbsCurve` — Chamfer every corner of a curve (polyline, polygon, ...) with straight cuts at `distance` from the corner on both sides; one curve.
 
 **Fitting**
 
@@ -139,6 +149,8 @@ arguments after `*` are keyword-only; `(1) … (2) …` are overloads.
 - `interpolate_surface(points: array_like, degree_u: int = 3, degree_v: int = 3, method: Parametrization = Parametrization.Centripetal) -> NurbsSurface` — Interpolate a point grid (nu, nv, 3).
 - `approximate_surface(points: array_like, degree_u: int, degree_v: int, ctrl_u: int, ctrl_v: int, method: Parametrization = Parametrization.Centripetal) -> NurbsSurface` — Least-squares surface with `ctrl_u` x `ctrl_v` control points to a point grid of shape (nu, nv, 3): first along u for every grid column, then along v.
 - `data_parameters(points: array_like, method: Parametrization = Parametrization.Centripetal) -> list[float]` — The parameters in [0, 1] assigned to the data points by the fitting functions for the given `method` (first 0, last 1).
+- `fit_line(points: array_like) -> LineFit` — Best-fit line through points (n, 3) by orthogonal regression (minimal sum of squared perpendicular distances): centroid, unit direction, max and rms deviation.
+- `fit_plane(points: array_like) -> PlaneFit` — Best-fit plane through points (n, 3) by orthogonal regression: plane through the centroid with unit normal, max and rms deviation.
 
 **Analysis and properties**
 
@@ -255,6 +267,18 @@ Rotationally symmetric sag: conic + even (r^4, r^6, ...) + odd (r, r^2, ...) ter
 - `.odd: list[float]` (settable) — Odd/general polynomial coefficients B1, B2, B3, ... of r, r^2, r^3, …
 - `.sag(r: float) -> float` — Sag z at radius r.
 
+### `CurveChamfer`
+
+Chamfer (straight cut) between two curves.
+
+- `.line: NurbsCurve` — straight segment from point_a to point_b
+- `.param_a: float` — parameter of the chamfer point on a
+- `.param_b: float` — parameter of the chamfer point on b
+- `.point_a: Vec3` — chamfer point on a (line start)
+- `.point_b: Vec3` — chamfer point on b (line end)
+- `.trimmed_a: NurbsCurve | None` — kept part of a ending at point_a (None if trim=False)
+- `.trimmed_b: NurbsCurve | None` — kept part of b starting at point_b (None if trim=False)
+
 ### `CurveCurveIntersection`
 
 One intersection of two curves: parameters `s` on the first and `t` on the second curve, the point and the remaining distance between the curves there.
@@ -330,6 +354,15 @@ One branch of a surface/surface intersection: the traced points, the fitted 3D c
 - `.pcurve1: NurbsCurve` — Curve (u1, v1, 0) in the parameter domain of the first surface.
 - `.pcurve2: NurbsCurve` — Curve (u2, v2, 0) in the parameter domain of the second surface (in-plane coordinates for `planar_section`).
 - `.points: list[SurfaceSurfacePoint]` — The traced points with their parameters on both surfaces.
+
+### `LineFit`
+
+Best-fit line (orthogonal regression).
+
+- `.direction: Vec3` — unit direction
+- `.max_deviation: float` — largest perpendicular distance of a point from the line
+- `.point: Vec3` — centroid of the points
+- `.rms: float` — root mean square of the perpendicular distances
 
 ### `MassProperties`
 
@@ -433,6 +466,14 @@ Infinite plane through `point` with normal `normal`.
 - `.distance(p: Vec3) -> float` — Signed distance of p from the plane (positive on the side of the normal).
 - `.normal: Vec3` (settable) — Unit normal.
 - `.point: Vec3` (settable) — A point on the plane (origin of its in-plane coordinates).
+
+### `PlaneFit`
+
+Best-fit plane (orthogonal regression).
+
+- `.max_deviation: float` — largest distance of a point from the plane
+- `.plane: Plane` — plane through the centroid, unit normal
+- `.rms: float` — root mean square of the distances
 
 ### `ProjectedCurve`
 
@@ -559,6 +600,16 @@ Options of `sweep` and `sweep2`.
 - `.max_sections: int` (settable) — Upper limit for the number of sections inserted while refining.
 - `.tolerance: float` (settable) — Deviation of the swept surface from the ideal sweep, verified between the sections.
 - `.twist: float` (settable) — Additional rotation about the tangent at the end of the path (radians), distributed linearly along the arc length.
+
+### `TangentLine`
+
+Line segment tangent to curves.
+
+- `.line: NurbsCurve` — segment from point_a to point_b
+- `.param_a: float` — tangent parameter on the first curve (nan if it is a point)
+- `.param_b: float` — tangent parameter on the second curve
+- `.point_a: Vec3` — line start: tangent point on the first curve, or the given point
+- `.point_b: Vec3` — line end: tangent point on the second curve
 
 ### `Tolerance`
 
@@ -760,6 +811,7 @@ JSON tools for an LLM agent working on a `Workspace` of named objects; call them
 - `make_polygon(name: string, center: number[3], normal: number[3], radius: number, n: integer)` — Create a closed regular polygon (n vertices on a circle of the given radius about center, in the plane with the given normal).
 - `make_helix(name: string, axis_point: number[3], axis_dir: number[3], start: number[3], pitch: number, turns: number, end_radius?: number, left_handed?: boolean)` — Create a helix about an axis starting at a point (its distance from the axis is the radius): pitch = rise per turn (0: planar spiral), turns > 0, optional end_radius for a conical helix or spiral, left_handed to wind clockwise.
 - `round_corners(name: string, source: string, radius: number)` — Round all corners of a planar curve (polyline, polygon, rectangle outline) with circular arcs of the given radius; one smooth curve.
+- `chamfer_corners(name: string, source: string, distance: number)` — Chamfer all corners of a curve (polyline, polygon, rectangle outline) with straight cuts at the given distance from each corner; one curve.
 - `make_rectangle(name: string, origin: number[3], edge_u: number[3], edge_v: number[3])` — Create a planar rectangular surface.
 - `revolve(name: string, profile: string, axis_point: number[3], axis_dir: number[3], angle_deg: number)` — Revolve a curve about an axis to create a surface. Angle in degrees.
 - `extrude(name: string, profile: string, direction: number[3])` — Extrude a curve along a direction vector to create a surface.
@@ -779,6 +831,7 @@ JSON tools for an LLM agent working on a `Workspace` of named objects; call them
 - `extend(name: string, source: string, where: start | end | umin | umax | vmin | vmax, length: number, mode?: natural | linear)` — Extend a curve at its start or end (or a surface across a side umin/umax/vmin/vmax) by a length. mode 'natural' continues the shape smoothly, 'linear' continues straight along the tangent.
 - `offset(name: string, source: string, distance: number, plane_normal?: number[3])` — Offset a curve or surface by a signed distance. Surfaces move along their normal. Curves must be planar and move within their plane, to the left of the direction of travel seen from plane_normal (default [0, 0, 1]; e.g. inwards for a counter-clockwise circle). Fails if the distance reaches a radius of curvature.
 - `fillet(name: string, a: string, b: string, radius: number, side_a?: -1 | 0 | 1, side_b?: -1 | 0 | 1, plane_normal?: number[3])` — Round the corner between two objects with a constant radius. Two planar intersecting curves: circular arc tangent to both, stored as name, with the trimmed curves stored as name_a and name_b (a, arc, b form a smooth chain); the corner is chosen automatically unless side_a/side_b are given (+1 left / -1 right of the curve direction seen from plane_normal). Two surfaces: rolling-ball fillet surface stored as name, contact curves as name_contact1/name_contact2; side_a/side_b = +1 (default) put the ball on the normal side of a/b, -1 on the other side.
+- `chamfer(name: string, a: string, b: string, distance_a: number, distance_b?: number)` — Straight cut between two intersecting curves: from the point of a at distance_a from their intersection to the point of b at distance_b (default distance_a). The cut is stored as name, the trimmed curves as name_a and name_b (a, cut, b form a chain).
 - `intersect(a: string, b: string, name?: string)` — Intersection of two objects: points for curve/curve and curve/surface; for surface/surface the intersection curves are stored as name_1, name_2, ...
 - `trim_circle(name: string, source: string, center_u: number, center_v: number, radius: number)` — Restrict a surface to a circular region of its parameter domain (e.g. a circular aperture of an optical surface: for sag/graph surfaces u = x, v = y).
 - `split(name: string, surface: string, cutter: string)` — Split a surface along its intersection with another surface; the pieces are stored as name_1, name_2, ...
@@ -789,6 +842,9 @@ JSON tools for an LLM agent working on a `Workspace` of named objects; call them
 - `boolean(name: string, a: string, b: string, op: union | intersection | difference)` — Boolean operation of two closed shells (from 'sew'): union, intersection or difference (a minus b). Reports the volume of the result.
 - `blend(name: string, a: string, end_a: start | end, b: string, end_b: start | end, continuity?: 1 | 2)` — Smooth transition curve from an end of curve a to an end of curve b (G1 or G2 continuity). Ends are 'start' or 'end'.
 - `project(name: string, curve: string, surface: string, direction?: number[3])` — Project a curve onto a surface, along the surface normal or along a direction. Stores the 3D curve as name and its parameter-space curve as name + '_uv'.
+- `project_to_plane(name: string, source: string, point: number[3], normal: number[3], direction?: number[3])` — Flatten a curve or surface onto a plane (through point, with normal) by parallel projection along direction (default: the plane normal). Exact.
+- `offset_on_surface(name: string, curve_uv: string, surface: string, distance: number)` — Offset a curve lying on a surface within the surface (geodesic distance; positive = left of the curve seen from the surface normal). The curve is given by its parameter-space curve (e.g. the name + '_uv' stored by project). Stores the 3D curve as name and its parameter-space curve as name + '_uv'.
+- `tween(name: string, a: string, b: string, count: integer)` — Intermediate curves between two curves a and b (running in the same direction), stored as name_1 .. name_count.
 - `split_solid(name: string, solid: string, point: number[3], normal: number[3], cut_label?: string)` — Split a closed solid by a plane into the part below (opposite to the normal, stored as name + '_below') and above (name + '_above'). The new faces in the plane get the label cut_label (default 'cut'), e.g. for a symmetry condition.
 - `cap(name: string, shell: string)` — Close the planar openings of an open shell with planar faces (label 'cap').
 - `thicken(name: string, shell: string, thickness: number, symmetric?: boolean)` — Give an open smooth shell or a surface a wall thickness along its normal (negative: other side; symmetric: half on each side). Side walls get label 'wall'.

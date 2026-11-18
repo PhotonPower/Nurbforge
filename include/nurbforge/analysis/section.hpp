@@ -7,16 +7,9 @@
 
 #include "nurbforge/analysis/intersect.hpp"
 #include "nurbforge/analysis/surface_intersect.hpp"
+#include "nurbforge/geometry/plane.hpp"
 
 namespace nf {
-
-/// Infinite plane through `point` with normal `normal` (normalised internally).
-struct Plane {
-  Vec3 point;
-  Vec3 normal{0, 0, 1};
-  /// Signed distance of p from the plane.
-  [[nodiscard]] double distance(const Vec3& p) const;
-};
 
 /// Section of a surface with a plane: the intersection curves (3D curve and p-curve on the
 /// surface; pcurve2 is the curve in the plane's own (s, t) coordinates along two orthonormal

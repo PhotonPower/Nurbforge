@@ -636,6 +636,31 @@ PYBIND11_MODULE(_core, m) {
       py::arg("points"), py::arg("degree") = 3, py::arg("method") = Parametrization::Centripetal,
       py::arg("end_derivatives") = py::none(),
       "Global interpolation through points (n, 3); optional (C'(0), C'(1)).");
+  py::class_<LineFit>(m, "LineFit", "Best-fit line (orthogonal regression).")
+      .def_readonly("point", &LineFit::point, "centroid of the points")
+      .def_readonly("direction", &LineFit::direction, "unit direction")
+      .def_readonly("max_deviation", &LineFit::max_deviation,
+                    "largest perpendicular distance of a point from the line")
+      .def_readonly("rms", &LineFit::rms, "root mean square of the perpendicular distances")
+      .def("__repr__", [](const LineFit& f) {
+        return "<LineFit max_deviation=" + std::to_string(f.max_deviation) + ">";
+      });
+  py::class_<PlaneFit>(m, "PlaneFit", "Best-fit plane (orthogonal regression).")
+      .def_readonly("plane", &PlaneFit::plane, "plane through the centroid, unit normal")
+      .def_readonly("max_deviation", &PlaneFit::max_deviation,
+                    "largest distance of a point from the plane")
+      .def_readonly("rms", &PlaneFit::rms, "root mean square of the distances")
+      .def("__repr__", [](const PlaneFit& f) {
+        return "<PlaneFit max_deviation=" + std::to_string(f.max_deviation) + ">";
+      });
+  m.def(
+      "fit_line", [](const Arr& pts) { return fit_line(from_numpy(pts)); }, py::arg("points"),
+      "Best-fit line through points (n, 3) by orthogonal regression (minimal sum of squared "
+      "perpendicular distances): centroid, unit direction, max and rms deviation.");
+  m.def(
+      "fit_plane", [](const Arr& pts) { return fit_plane(from_numpy(pts)); }, py::arg("points"),
+      "Best-fit plane through points (n, 3) by orthogonal regression: plane through the "
+      "centroid with unit normal, max and rms deviation.");
   m.def(
       "approximate_curve",
       [](const Arr& pts, std::size_t degree, std::size_t n_ctrl, Parametrization method) {
@@ -685,6 +710,9 @@ PYBIND11_MODULE(_core, m) {
         "Full circle through three points (starts at p0, runs through p1 and p2).");
   m.def("make_arc_3pt", &make_arc_3pt, py::arg("p0"), py::arg("p1"), py::arg("p2"),
         "Circular arc from p0 through p1 to p2.");
+  m.def("make_arc_tangent", &make_arc_tangent, py::arg("start"), py::arg("tangent"), py::arg("end"),
+        "Exact circular arc from `start`, leaving it in the direction `tangent`, to `end` (sweep "
+        "between 0 and 360 degrees). Raises GeometryError if `end` lies on the tangent line.");
   m.def("make_polygon", &make_polygon, py::arg("center"), py::arg("normal"), py::arg("radius"),
         py::arg("n"), py::arg("x_axis") = Vec3{0, 0, 0},
         "Closed regular polygon with n vertices on the circle of the given radius (first vertex "
@@ -828,6 +856,36 @@ PYBIND11_MODULE(_core, m) {
       "side_b: +1 = centre to the left of the curve's direction seen from plane_normal, -1 = "
       "right, 0 = automatic (the corner between the kept parts, i.e. the longer sides of the "
       "intersection). Returns a CurveFillet (exact arc, tangent parameters, trimmed curves).");
+  py::class_<CurveChamfer>(m, "CurveChamfer", "Chamfer (straight cut) between two curves.")
+      .def_readonly("line", &CurveChamfer::line, "straight segment from point_a to point_b")
+      .def_readonly("param_a", &CurveChamfer::param_a, "parameter of the chamfer point on a")
+      .def_readonly("param_b", &CurveChamfer::param_b, "parameter of the chamfer point on b")
+      .def_readonly("point_a", &CurveChamfer::point_a, "chamfer point on a (line start)")
+      .def_readonly("point_b", &CurveChamfer::point_b, "chamfer point on b (line end)")
+      .def_readonly("trimmed_a", &CurveChamfer::trimmed_a,
+                    "kept part of a ending at point_a (None if trim=False)")
+      .def_readonly("trimmed_b", &CurveChamfer::trimmed_b,
+                    "kept part of b starting at point_b (None if trim=False)")
+      .def("__repr__", [](const CurveChamfer& c) {
+        return "<CurveChamfer length=" + std::to_string(distance(c.point_a, c.point_b)) + ">";
+      });
+  m.def(
+      "chamfer_curves",
+      [](const NurbsCurve& a, const NurbsCurve& b, double distance_a,
+         std::optional<double> distance_b, bool trim, std::optional<Vec3> corner) {
+        return chamfer_curves(a, b, distance_a, distance_b.value_or(distance_a),
+                              CurveChamferOptions{trim, corner});
+      },
+      py::call_guard<py::gil_scoped_release>(), py::arg("a"), py::arg("b"), py::arg("distance_a"),
+      py::arg("distance_b") = py::none(), py::arg("trim") = true, py::arg("corner") = py::none(),
+      "Chamfer between two intersecting curves: a straight cut from the point of a at distance "
+      "`distance_a` from the corner to the point of b at `distance_b` (default: distance_a), on "
+      "the kept parts (the longer sides of the intersection, as in fillet_curves). The curves "
+      "need not be planar. Returns a CurveChamfer (line, parameters, trimmed curves).");
+  m.def("chamfer_corners", &chamfer_corners, py::call_guard<py::gil_scoped_release>(),
+        py::arg("curve"), py::arg("distance"), py::arg("tolerance") = 1e-7,
+        "Chamfer every corner of a curve (polyline, polygon, ...) with straight cuts at "
+        "`distance` from the corner on both sides; one curve.");
   py::class_<SurfaceFillet>(m, "SurfaceFillet", "Rolling-ball fillet between two surfaces.")
       .def_readonly("surface", &SurfaceFillet::surface,
                     "u: arc from contact1 (u=0) to contact2 (u=1), v: spine parameter")
@@ -1104,6 +1162,76 @@ PYBIND11_MODULE(_core, m) {
         py::arg("surface"), py::arg("direction") = Vec3{0, 0, 0}, py::arg("tolerance") = 1e-6,
         "Project a curve onto a surface along its normal (direction zero) or along `direction`; "
         "returns ProjectedCurve(curve, pcurve) within `tolerance` of the exact projection.");
+  m.def(
+      "project_to_plane",
+      [](const NurbsCurve& c, const Plane& plane, const Vec3& direction) {
+        return project_to_plane(c, plane, direction);
+      },
+      py::arg("curve"), py::arg("plane"), py::arg("direction") = Vec3{0, 0, 0},
+      "Exact parallel projection of a curve onto a plane along `direction` (zero: along the "
+      "plane normal, i.e. orthogonal projection).");
+  m.def(
+      "project_to_plane",
+      [](const NurbsSurface& s, const Plane& plane, const Vec3& direction) {
+        return project_to_plane(s, plane, direction);
+      },
+      py::arg("surface"), py::arg("plane"), py::arg("direction") = Vec3{0, 0, 0},
+      "Exact parallel projection of a surface onto a plane.");
+  m.def(
+      "interpolate_on_surface",
+      [](const NurbsSurface& s, const Arr& pts, std::size_t degree, bool uv, double tolerance) {
+        auto P = from_numpy(pts);
+        py::gil_scoped_release release;
+        return interpolate_on_surface(s, P, degree, uv, tolerance);
+      },
+      py::arg("surface"), py::arg("points"), py::arg("degree") = 3, py::arg("uv") = false,
+      py::arg("tolerance") = 1e-6,
+      "Curve on a surface through points (n, 3): projected onto the surface (or (u, v, 0) "
+      "parameter points if uv=True), interpolated in the parameter domain; returns "
+      "ProjectedCurve(curve, pcurve) with the 3D curve within `tolerance` of S(pcurve(t)).");
+  m.def(
+      "offset_on_surface",
+      [](const NurbsSurface& s, const py::object& c, double distance, double tolerance) {
+        const NurbsCurve pc = py::isinstance<ProjectedCurve>(c)
+                                  ? c.cast<const ProjectedCurve&>().pcurve
+                                  : c.cast<NurbsCurve>();
+        py::gil_scoped_release release;
+        return offset_on_surface(s, pc, distance, tolerance);
+      },
+      py::arg("surface"), py::arg("curve"), py::arg("distance"), py::arg("tolerance") = 1e-6,
+      "Geodesic offset of a curve within a surface: `curve` is its p-curve (u, v, 0) or a "
+      "ProjectedCurve; positive distances go to the left of the curve seen from the normal "
+      "S_u x S_v. Returns ProjectedCurve(curve, pcurve) within `tolerance`.");
+  m.def("tween_curves", &tween_curves, py::call_guard<py::gil_scoped_release>(), py::arg("a"),
+        py::arg("b"), py::arg("count"),
+        "`count` intermediate curves between a and b (made compatible, homogeneous control "
+        "points interpolated linearly at s = k / (count + 1)). Both should run in the same "
+        "direction.");
+  py::class_<TangentLine>(m, "TangentLine", "Line segment tangent to curves.")
+      .def_readonly("line", &TangentLine::line, "segment from point_a to point_b")
+      .def_readonly("point_a", &TangentLine::point_a,
+                    "line start: tangent point on the first curve, or the given point")
+      .def_readonly("point_b", &TangentLine::point_b, "line end: tangent point on the second curve")
+      .def_readonly("param_a", &TangentLine::param_a,
+                    "tangent parameter on the first curve (nan if it is a point)")
+      .def_readonly("param_b", &TangentLine::param_b, "tangent parameter on the second curve")
+      .def("__repr__", [](const TangentLine& l) {
+        return "<TangentLine length=" + std::to_string(distance(l.point_a, l.point_b)) + ">";
+      });
+  m.def(
+      "tangent_lines",
+      [](const NurbsCurve& a, const NurbsCurve& b, const Vec3& n) {
+        return tangent_lines(a, b, n);
+      },
+      py::call_guard<py::gil_scoped_release>(), py::arg("a"), py::arg("b"),
+      py::arg("plane_normal") = Vec3{0, 0, 1},
+      "Common tangent lines of two coplanar curves (from a to b), or - with a point as `a` - the "
+      "lines from the point tangent to curve `b`. Returns a list of TangentLine.");
+  m.def(
+      "tangent_lines",
+      [](const Vec3& p, const NurbsCurve& b, const Vec3& n) { return tangent_lines(p, b, n); },
+      py::call_guard<py::gil_scoped_release>(), py::arg("a"), py::arg("b"),
+      py::arg("plane_normal") = Vec3{0, 0, 1});
   m.def(
       "region_boolean",
       [](const py::object& a, const py::object& b, BooleanOp op, double tolerance) {

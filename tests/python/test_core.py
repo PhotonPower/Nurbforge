@@ -594,3 +594,52 @@ def test_region_boolean_blend_and_projection():
     assert p.z == pytest.approx(p.x * p.y, abs=1e-6)
     w = pcurve(0.3)
     assert nf.distance(saddle(w.x, w.y), p) < 1e-6
+
+
+def test_curve_tools_chamfer_fit_projection_tween_tangents():
+    a, b = nf.make_line((0, 0, 0), (2, 0, 0)), nf.make_line((2, 0, 0), (2, 2, 0))
+    c = nf.chamfer_curves(a, b, 0.5, 0.25)
+    assert nf.distance(c.point_a, (1.5, 0, 0)) < 1e-14 and nf.distance(c.point_b, (2, 0.25, 0)) < 1e-14
+    assert c.trimmed_a is not None and nf.chamfer_curves(a, b, 0.5, trim=False).trimmed_a is None
+    rect = nf.make_rectangle_curve((0, 0, 0), (4, 0, 0), (0, 2, 0))
+    assert nf.length(nf.chamfer_corners(rect, 0.5)) == pytest.approx(8 + 2 * math.sqrt(2), rel=1e-12)
+
+    pts = [(x, y, 0.5 * x + 0.2 * y + 1) for x in range(4) for y in range(3)]
+    pf = nf.fit_plane(pts)
+    assert pf.max_deviation < 1e-12 and pf.plane.normal.z > 0
+    lf = nf.fit_line(np.array([[t, 2 * t, 1.0] for t in range(5)]))
+    assert nf.norm(nf.cross(lf.direction, (1, 2, 0))) < 1e-12
+
+    circle = nf.make_circle((0, 0, 3), (1, 0, 1), 1.0)
+    flat = nf.project_to_plane(circle, nf.Plane((0, 0, 0), (0, 0, 1)))
+    assert abs(flat(0.3).z) < 1e-14 and flat(0.3).x == pytest.approx(circle(0.3).x, abs=1e-14)
+    patch = nf.project_to_plane(nf.make_rectangle((0, 0, 1), (1, 0, 1), (0, 1, 0)),
+                                nf.Plane((0, 0, 0)), direction=(0, 0, 1))
+    assert abs(patch(0.5, 0.5).z) < 1e-14
+
+    tw = nf.tween_curves(nf.make_circle((0, 0, 0), (0, 0, 1), 1), nf.make_circle((0, 0, 0), (0, 0, 1), 3), 1)
+    assert nf.norm(tw[0](0.37)) == pytest.approx(2.0, abs=1e-12)
+    arc = nf.make_arc_tangent((0, 0, 0), (1, 0, 0), (1, 1, 0))
+    assert nf.distance(arc(0.5), (0, 1, 0)) == pytest.approx(1.0, abs=1e-12)
+    lines = nf.tangent_lines((2, 0, 0), nf.make_circle((0, 0, 0), (0, 0, 1), 1))
+    assert len(lines) == 2 and all(math.isnan(t.param_a) for t in lines)
+    common = nf.tangent_lines(nf.make_circle((0, 0, 0), (0, 0, 1), 1),
+                              nf.make_circle((4, 0, 0), (0, 0, 1), 1))
+    assert len(common) == 4
+
+
+def test_curves_on_surfaces():
+    cyl = nf.extrude(nf.make_circle((0, 0, 0), (0, 0, 1), 1.0), (0, 0, 4))
+    pts = [(math.cos(a), math.sin(a), z) for a, z in ((0.3, 0.5), (0.8, 1.0), (1.3, 2.0))]
+    curve, pcurve = nf.interpolate_on_surface(cyl, pts, tolerance=1e-8)
+    assert nf.distance(curve(0.0), pts[0]) < 1e-8 and nf.distance(curve(1.0), pts[-1]) < 1e-8
+    p, w = curve(0.4), pcurve(0.4)
+    assert math.hypot(p.x, p.y) == pytest.approx(1.0, abs=1e-8)
+    assert nf.distance(cyl(w.x, w.y), p) < 1e-8
+    uv = nf.interpolate_on_surface(cyl, [(0.1, 0.2, 0), (0.3, 0.6, 0)], degree=1, uv=True)
+    assert nf.distance(uv.pcurve(0.5), (0.2, 0.4, 0)) < 1e-12
+    ring = nf.make_line((0, 0.25, 0), (1, 0.25, 0))  # z = 1 on the cylinder
+    up = nf.offset_on_surface(cyl, ring, 0.5, tolerance=1e-8)
+    assert up.curve(0.3).z == pytest.approx(1.5, abs=1e-7)
+    again = nf.offset_on_surface(cyl, up, -0.5, tolerance=1e-8)  # a ProjectedCurve works too
+    assert again.curve(0.6).z == pytest.approx(1.0, abs=1e-7)

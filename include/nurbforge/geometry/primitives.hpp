@@ -38,6 +38,11 @@ namespace nf {
 /// Throws GeometryError for (nearly) collinear points.
 [[nodiscard]] NurbsCurve make_arc_3pt(const Vec3& p0, const Vec3& p1, const Vec3& p2);
 
+/// Circular arc from `start`, leaving it in the direction `tangent`, to `end` (exact, rational;
+/// sweep in (0, 360) degrees). Throws GeometryError if end coincides with start or lies on the
+/// tangent line (the arc would be a straight line).
+[[nodiscard]] NurbsCurve make_arc_tangent(const Vec3& start, const Vec3& tangent, const Vec3& end);
+
 /// Closed regular polygon with n >= 3 vertices on the circle of the given (circum)radius about
 /// `center` in the plane with normal `normal`, counter-clockwise about the normal; the first
 /// vertex lies in the direction of x_axis (projected into the plane; zero: any_perpendicular).

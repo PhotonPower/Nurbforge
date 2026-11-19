@@ -566,13 +566,13 @@ defeatured part has exactly the volume of the plate minus the bore.
 \section{Fillets and chamfers of edges}\label{sec:edge-blends}
 
 Sharp edges are where fields concentrate in a simulation, and real parts rarely have them.
-\apiref{fillet_edges} rounds edges of a solid with a constant radius, \apiref{chamfer_edges}
-replaces them by a straight cut:
+\apiref{fillet_edges} rounds edges of a solid, \apiref{chamfer_edges} replaces them by a
+straight cut:
 
 \begin{lstlisting}
 edges = nf.edges_between(shell, "top", "front")      # edges between two labelled faces
-rounded = nf.fillet_edges(shell, edges, radius, label="fillet", tolerance=0.0)
-bevelled = nf.chamfer_edges(shell, edges, distance, label="chamfer", tolerance=0.0)
+rounded = nf.fillet_edges(shell, edges, radius, label="fillet", tolerance=0.0, sizes=[])
+bevelled = nf.chamfer_edges(shell, edges, distance, label="chamfer", tolerance=0.0, sizes=[])
 \end{lstlisting}
 
 Edges are given by their indices in \code{shell.edges}; \apiref{edges_between} finds them
@@ -596,19 +596,49 @@ cylinder or the edge of a bore, gets one blend surface:
 The surfaces are computed on the face surfaces extended beyond their boundaries, so they run
 past the ends of the edge. The two faces are then cut back along the contact curves: their
 boundary loops are rerouted, not split, which stays exact even where the fillet touches a
-boundary edge tangentially. An open chain must end at a vertex where exactly one further face
-meets the two faces, e.g. the side face at the end of a box edge. There the blend surface is
-trimmed by the exact intersection curve with that face, and the face's boundary is rerouted
-along the same curve. At a convex edge the corner is cut off; at a concave edge the end face
-grows into the corner. All curves are computed to a twentieth of the sewing tolerance
-(\code{tolerance}, by default that of the shell), and the result is sewn again.
+boundary edge tangentially. All curves are computed to a twentieth of the sewing tolerance
+(\code{tolerance}, by default that of the shell), all groups are built at once on the input
+shell, and the result is sewn once.
 
-\paragraph{Limitations.} Edges of different face pairs must not share a vertex: rounding all
-edges of a box corner needs a vertex blend (a spherical patch where three fillets meet), which
-is not implemented yet. Fillet or chamfer one edge first, then the next ones in turn.
-\code{GeometryError} is raised for a shared vertex, for an end vertex that touches more than
-one further face, and for a radius or distance larger than the faces allow, i.e. when the
-contact curve leaves a face through another edge.
+\paragraph{Ends and corners.} An open chain ends at a vertex where its two faces meet a third
+face. What happens there depends on the other selected edges at that vertex:
+
+\begin{itemize}
+  \item \emph{Only this chain ends there}, e.g.\ at the end of a single box edge: the blend
+    is trimmed by the exact intersection curve with the third face, and that face's boundary is
+    rerouted along the same curve. At a convex edge the corner is cut off; at a concave edge
+    the end face grows into the corner.
+  \item \emph{A second chain ends there and the edge between the remaining faces is smooth}
+    (the faces are tangent), e.g.\ the top rim of a plate with rounded corners, where the
+    straight and the cylindrical side walls meet tangentially: the two blends continue each
+    other and are cut at their common cross-section.
+  \item \emph{A second chain ends there at a sharp edge}, e.g.\ two top edges of a box: the
+    blends are \emph{mitred}, i.e.\ trimmed by each other along their exact intersection
+    curve. Where one of them reaches past the edge between the other faces, it is trimmed by
+    the face there, which grows into the corner.
+  \item \emph{Three chains end there}, i.e.\ all three edges of the corner are selected:
+    every fillet ends at its cross-section through the ball that touches all three faces, and
+    the corner is closed by the spherical triangle of that ball between its three contact
+    points. The patch is exact and tangent to the three fillets, as on a die. Three chamfers
+    end at the straight lines between the points where their contact curves cross, and the
+    corner gets a planar triangle (the faces at the corner must be planar).
+\end{itemize}
+
+\paragraph{Variable radius.} \code{sizes} gives the radius (or chamfer distance) at points
+on the selected edges as a list of \code{(point, size)} pairs. Along each chain the size passes
+through these values, blending between neighbours with the quintic smooth step $s_0 + (s_1 -
+s_0)(10t^3 - 15t^4 + 6t^5)$ in the arc-length fraction $t$; it is constant before the first
+and after the last point (periodic on a closed loop). Chains without points use the
+\code{radius} or \code{distance} argument. The cross-sections stay exact circular arcs of the
+local radius, in the planes normal to the edge direction $n_1 \times n_2$. Where three fillets
+meet at a corner, their radii at the corner ball must agree; a radius given at the corner
+vertex holds up to the cross-section through that ball.
+
+\paragraph{Limitations.} A chain must end at a vertex of exactly three faces and three edges,
+convex and concave chains cannot meet at a vertex, and a chain cannot continue tangentially
+into an edge that is not selected (select the whole tangent chain). \code{GeometryError} is
+raised in these cases and for a radius or distance larger than the faces allow, i.e.\ when a
+contact curve leaves a face through another edge; its message names the vertex.
 
 \example{11_edge_blends.py}
 
@@ -619,10 +649,15 @@ box edge [4]: fillet r = 0.5: 7 faces, closed=True, volume 23.78539817 (24 - 4 r
 chamfer d = 0.5: volume 23.50000000 (24 - 4 d^2/2 = 23.5), labels ['back', 'bottom', 'chamfer', 'front', 'left', 'right', 'top']
 cylinder rim: 4 faces, fillet face area 7.321856
 boss base fillet: volume 42.283185 -> 42.412672 (material added)
+all edges rounded: 26 faces (20 fillet), volume 22.23598774 (exact 22.23598776)
+two chamfers meeting at a corner (mitre): volume 23.16666667 (24 - 7 d^2/2 + d^3/3 = 23.16666667)
+variable radius 0.3 -> 0.6: volume 23.81521952 (24 - (1 - pi/4) int r^2 = 23.81521946)
 \end{lstlisting}
 
 The fillet face of the cylinder rim is part of a torus. Its area $2\pi(R - r + 2r/\pi)\,\pi r/2
-= 7.321856$ for $R = 2$, $r = 0.4$ follows from Pappus' theorem.
+= 7.321856$ for $R = 2$, $r = 0.4$ follows from Pappus' theorem. With all twelve edges of the
+box rounded, each corner is an eighth of the ball instead of the sharp corner of the three
+edge fillets, so the volume is $24 - 36\,r^2(1 - \pi/4) + 8\,r^3(2 - 7\pi/12)$.
 
 \section{Face labels}\label{sec:face-labels}
 

@@ -544,21 +544,37 @@ def _build_tools() -> list[Tool]:
 
     @add("round_edges", "Fillet (round) or chamfer the edges of a solid between the faces "
          "labelled label_a and label_b (e.g. 'top' and 'side' for the rim of a cylinder, 'top' "
-         "and 'front' for a box edge). Convex edges lose material, concave edges gain it. Edges "
-         "of different face pairs must not meet at a vertex. New faces are labelled 'fillet' or "
+         "and 'front' for a box edge); '*' matches any label ('top', '*': all edges of the top "
+         "face; '*', '*': every edge). Convex edges lose material, concave edges gain it. "
+         "Where selected edges meet at a corner they are mitred, continue tangentially, or (all "
+         "three edges of a corner) get a spherical / triangular corner patch. Optional variable "
+         "size: radius / distance at points on the edges. New faces are labelled 'fillet' or "
          "'chamfer'.",
          {"name": _NAME, "solid": _NAME, "label_a": {"type": "string"},
           "label_b": {"type": "string"}, "size": {"type": "number",
                                                   "description": "radius or chamfer distance"},
-          "kind": {"type": "string", "enum": ["fillet", "chamfer"]}},
+          "kind": {"type": "string", "enum": ["fillet", "chamfer"]},
+          "sizes": {"type": "array", "description": "variable size: size at points on the "
+                    "edges, smooth in between",
+                    "items": {"type": "object",
+                              "properties": {"point": _VEC, "size": {"type": "number"}},
+                              "required": ["point", "size"]}}},
          ["name", "solid", "label_a", "label_b", "size"])
-    def _(ws, name, solid, label_a, label_b, size, kind="fillet"):
+    def _(ws, name, solid, label_a, label_b, size, kind="fillet", sizes=()):
         s = ws.get(solid)
-        edges = nf.edges_between(s, label_a, label_b)
+        edges = []
+        for i, e in enumerate(s.edges):
+            if len(e.uses) != 2:
+                continue
+            la, lb = (s.faces[u.face].label for u in e.uses)
+            if any((a == "*" or a == x) and (b == "*" or b == y)
+                   for a, b in ((label_a, label_b),) for x, y in ((la, lb), (lb, la))):
+                edges.append(i)
         if not edges:
             raise ValueError(f"no edge between faces labelled '{label_a}' and '{label_b}'")
         op = nf.fillet_edges if kind == "fillet" else nf.chamfer_edges
-        return _report(ws, name, op(s, edges, size))
+        pts = [(tuple(p["point"]), p["size"]) for p in sizes]
+        return _report(ws, name, op(s, edges, size, sizes=pts))
 
     @add("remove_holes", "Defeaturing: fill the through and blind holes of a closed solid that "
          "are smaller than max_size across.",

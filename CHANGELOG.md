@@ -5,6 +5,30 @@ versioning: [SemVer](https://semver.org).
 
 ## [Unreleased]
 
+### Added
+- Vertex blends (#18): `fillet_edges` / `chamfer_edges` handle chains of different face pairs
+  meeting at a vertex of three faces. Two chains with a smooth third edge (tangent chains such
+  as the rim of a rounded rectangle) continue each other at their common cross-section; two
+  chains at a sharp third edge are mitred along their exact intersection curve (a blend running
+  past the sharp edge is trimmed by the face there); three chains get a corner patch: for
+  fillets the exact spherical triangle of the ball touching all three faces, for chamfers the
+  planar triangle of the contact crossings. All groups are now built at once on the input
+  shell and sewn once.
+- Variable-size edge blends: `sizes=[(point, size), ...]` (C++ `EdgeBlendOptions::sizes`)
+  gives the radius or chamfer distance at points on the edges, blended with a C2 quintic step
+  in arc length; cross-sections stay exact arcs of the local radius. `fillet_surfaces` takes a
+  `radius_at` function (C++ `SurfaceFilletOptions::radius_at`).
+- LLM tool `round_edges`: `'*'` wildcards for the face labels (e.g. every edge of the top face)
+  and optional variable `sizes`.
+
+### Changed
+- Edge blends extend polynomial face surfaces linearly (tangent planes) beyond their
+  boundaries instead of naturally; natural extensions of fitted surfaces with short spans bent
+  away and broke blends near chain ends. Rational surfaces (conics) are still extended
+  naturally.
+- Edge blend errors at a vertex name its position; a chain that continues tangentially into an
+  edge that is not selected is reported as such.
+
 ## [0.14.0] – 2026-11-19
 Curve tools (chamfers, best-fit lines and planes, projection onto planes, tween curves, tangent
 arcs and lines, curves on surfaces with geodesic offsets) and fillets and chamfers of solid

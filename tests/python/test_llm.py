@@ -421,3 +421,11 @@ def test_round_edges_tool():
     assert "volume 23.5" in out
     assert "no edge" in call_tool(ws, "round_edges", {"name": "x", "solid": "b", "label_a": "top",
                                                       "label_b": "bottom", "size": 0.1})
+    out = call_tool(ws, "round_edges", {"name": "t", "solid": "b", "label_a": "top",
+                                        "label_b": "*", "size": 0.3, "kind": "chamfer"})
+    assert "closed shell" in out and "'chamfer'" in out
+    out = call_tool(ws, "round_edges", {"name": "v", "solid": "b", "label_a": "top",
+                                        "label_b": "front", "size": 0.3,
+                                        "sizes": [{"point": [0, 0, 2], "size": 0.2},
+                                                  {"point": [4, 0, 2], "size": 0.4}]})
+    assert "closed shell" in out

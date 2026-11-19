@@ -107,6 +107,13 @@ def _build_tools() -> list[Tool]:
     def _(ws, name, source, radius):
         return ws.put(name, nf.fillet_corners(ws.get(source), radius))
 
+    @add("chamfer_corners", "Chamfer all corners of a curve (polyline, polygon, rectangle "
+         "outline) with straight cuts at the given distance from each corner; one curve.",
+         {"name": _NAME, "source": _NAME, "distance": {"type": "number"}},
+         ["name", "source", "distance"])
+    def _(ws, name, source, distance):
+        return ws.put(name, nf.chamfer_corners(ws.get(source), distance))
+
     @add("make_rectangle", "Create a planar rectangular surface.",
          {"name": _NAME, "origin": _VEC, "edge_u": _VEC, "edge_v": _VEC},
          ["name", "origin", "edge_u", "edge_v"])
@@ -277,6 +284,18 @@ def _build_tools() -> list[Tool]:
             ws.put(f"{name}_contact2", f.contact2)
             return ws.put(name, f.surface) + f"; contact curves {name}_contact1, {name}_contact2"
         raise ValueError("fillet needs two curves or two surfaces")
+
+    @add("chamfer", "Straight cut between two intersecting curves: from the point of a at "
+         "distance_a from their intersection to the point of b at distance_b (default "
+         "distance_a). The cut is stored as name, the trimmed curves as name_a and name_b "
+         "(a, cut, b form a chain).",
+         {"name": _NAME, "a": _NAME, "b": _NAME, "distance_a": {"type": "number"},
+          "distance_b": {"type": "number"}}, ["name", "a", "b", "distance_a"])
+    def _(ws, name, a, b, distance_a, distance_b=None):
+        c = nf.chamfer_curves(ws.get(a), ws.get(b), distance_a, distance_b)
+        ws.put(f"{name}_a", c.trimmed_a)
+        ws.put(f"{name}_b", c.trimmed_b)
+        return ws.put(name, c.line) + f"; trimmed curves {name}_a, {name}_b"
 
     @add("intersect", "Intersection of two objects: points for curve/curve and curve/surface; "
          "for surface/surface the intersection curves are stored as name_1, name_2, ...",
@@ -449,6 +468,36 @@ def _build_tools() -> list[Tool]:
         pr = nf.project_curve(ws.get(curve), s, direction)
         ws.put(name + "_uv", pr.pcurve)
         return ws.put(name, pr.curve)
+
+    @add("project_to_plane", "Flatten a curve or surface onto a plane (through point, with "
+         "normal) by parallel projection along direction (default: the plane normal). Exact.",
+         {"name": _NAME, "source": _NAME, "point": _VEC, "normal": _VEC, "direction": _VEC},
+         ["name", "source", "point", "normal"])
+    def _(ws, name, source, point, normal, direction=(0, 0, 0)):
+        return ws.put(name, nf.project_to_plane(ws.get(source), nf.Plane(point, normal),
+                                                direction))
+
+    @add("offset_on_surface", "Offset a curve lying on a surface within the surface (geodesic "
+         "distance; positive = left of the curve seen from the surface normal). The curve is "
+         "given by its parameter-space curve (e.g. the name + '_uv' stored by project). Stores "
+         "the 3D curve as name and its parameter-space curve as name + '_uv'.",
+         {"name": _NAME, "curve_uv": _NAME, "surface": _NAME, "distance": {"type": "number"}},
+         ["name", "curve_uv", "surface", "distance"])
+    def _(ws, name, curve_uv, surface, distance):
+        s = ws.get(surface)
+        if isinstance(s, nf.TrimmedSurface):
+            s = s.surface
+        pr = nf.offset_on_surface(s, ws.get(curve_uv), distance)
+        ws.put(name + "_uv", pr.pcurve)
+        return ws.put(name, pr.curve)
+
+    @add("tween", "Intermediate curves between two curves a and b (running in the same "
+         "direction), stored as name_1 .. name_count.",
+         {"name": _NAME, "a": _NAME, "b": _NAME, "count": {"type": "integer", "minimum": 1}},
+         ["name", "a", "b", "count"])
+    def _(ws, name, a, b, count):
+        return "\n".join(ws.put(f"{name}_{k}", c)
+                         for k, c in enumerate(nf.tween_curves(ws.get(a), ws.get(b), count), 1))
 
     @add("split_solid", "Split a closed solid by a plane into the part below (opposite to the "
          "normal, stored as name + '_below') and above (name + '_above'). The new faces in the "

@@ -1,7 +1,7 @@
 #pragma once
 /// @file fillet.hpp
 /// Constant-radius fillets: circular arcs between two planar curves and rolling-ball fillet
-/// surfaces between two surfaces.
+/// surfaces between two surfaces; chamfers (straight cuts) between two curves.
 ///
 /// Both use the offset construction: the centre of a fillet of radius r lies at distance r from
 /// both inputs, i.e. on the intersection of their offsets by r. The offsets (modeling/offset.hpp)
@@ -83,6 +83,51 @@ struct CurveFillet {
 /// or the radius is too large for a piece (the tangent points of its two fillets overlap).
 [[nodiscard]] NurbsCurve fillet_corners(const NurbsCurve& curve, double radius,
                                         double tolerance = 1e-7);
+
+/// Options of chamfer_curves.
+struct CurveChamferOptions {
+  /// Trim a and b at the chamfer points (CurveChamfer::trimmed_a / trimmed_b).
+  bool trim{true};
+  /// If the curves intersect more than once: use the intersection nearest to this point
+  /// (default: nearest to the midpoint of a's end point and b's start point).
+  std::optional<Vec3> corner{};
+};
+
+/// Result of chamfer_curves.
+struct CurveChamfer {
+  /// Straight segment (degree 1) from point_a to point_b; trimmed_a, line, trimmed_b form a
+  /// chain (join(join(trimmed_a, line), trimmed_b)).
+  NurbsCurve line;
+  double param_a{0.0};  ///< parameter of the chamfer point on a
+  double param_b{0.0};  ///< parameter of the chamfer point on b
+  Vec3 point_a;         ///< a(param_a) = line start
+  Vec3 point_b;         ///< b(param_b) = line end
+  /// The kept part of a, oriented to end at point_a (as CurveFillet::trimmed_a). Empty if
+  /// options.trim is false.
+  std::optional<NurbsCurve> trimmed_a;
+  /// The kept part of b, oriented to start at point_b. Empty if options.trim is false.
+  std::optional<NurbsCurve> trimmed_b;
+};
+
+/// Chamfer between two intersecting curves: a straight cut from the point of a at (Euclidean)
+/// distance `distance_a` from the corner X to the point of b at distance `distance_b` from X,
+/// both on the kept parts (corner and kept parts as in fillet_curves: X is the intersection
+/// nearest to options.corner, the kept part of a curve is the side of X with the longer
+/// parameter interval). The curves need not be planar. For lines the chamfer points are exact;
+/// otherwise they are solved to round-off (bisection and Newton on |c(t) - X| = d, the first
+/// solution when moving away from X). Throws GeometryError if the curves do not intersect, are
+/// tangent at the corner, a distance is not positive, or a kept part is shorter than its
+/// distance (the chamfer would consume the curve).
+[[nodiscard]] CurveChamfer chamfer_curves(const NurbsCurve& a, const NurbsCurve& b,
+                                          double distance_a, double distance_b,
+                                          const CurveChamferOptions& options = {});
+
+/// Chamfers every corner (tangent discontinuity) of a curve with straight cuts at the given
+/// distance from the corner on both sides; pieces, corners and joining as in fillet_corners
+/// (the curve need not be planar). Throws GeometryError if a corner turns back on itself or the
+/// distance is too large for a piece (its two chamfer points overlap).
+[[nodiscard]] NurbsCurve chamfer_corners(const NurbsCurve& curve, double distance,
+                                         double tolerance = 1e-7);
 
 /// Options of fillet_surfaces.
 struct SurfaceFilletOptions {

@@ -358,25 +358,28 @@ SurfaceFillet fillet_surfaces(const NurbsSurface& s1, const NurbsSurface& s2, do
 
 // ------------------------------------------------------------------ fillet_corners
 
-NurbsCurve fillet_corners(const NurbsCurve& curve, double radius, double tolerance) {
-  if (!(radius > 0.0)) throw GeometryError("fillet_corners: radius must be > 0");
-  // plane: Newell normal of the control polygon (closed up)
-  const auto& P = curve.control_points();
-  Vec3 n{0, 0, 0};
-  for (std::size_t i = 0; i < P.size(); ++i) {
-    const Vec3& a = P[i];
-    const Vec3& b = P[(i + 1) % P.size()];
-    n += Vec3{(a.y - b.y) * (a.z + b.z), (a.z - b.z) * (a.x + b.x), (a.x - b.x) * (a.y + b.y)};
-  }
-  double size = 0.0;
-  for (const auto& p : P) size = std::max(size, distance(p, P.front()));
-  if (!(norm(n) > 1e-14 * size * size)) return curve;  // straight: no corners
-  n = normalized(n);
-  for (const auto& p : P)
-    if (std::abs(dot(p - P.front(), n)) > std::max(tolerance, 1e-12 * size))
-      throw GeometryError("fillet_corners: the curve is not planar");
+namespace {
 
-  // pieces between interior knots of full multiplicity
+// Connector between the end of piece a and the start of piece b at their common corner:
+// the curve and the parameters on a and b where it attaches.
+struct Connector {
+  NurbsCurve curve;
+  double param_a{0.0}, param_b{0.0};
+};
+
+double model_size(const NurbsCurve& c) {
+  double size = 0.0;
+  for (const auto& p : c.control_points())
+    size = std::max(size, distance(p, c.control_points()[0]));
+  return size;
+}
+
+// Splits the curve at interior knots of full multiplicity, connects consecutive pieces meeting
+// at a corner with connect(a, b, corner) and joins everything into one curve (fillet_corners,
+// chamfer_corners).
+template <class Connect>
+NurbsCurve treat_corners(const NurbsCurve& curve, double tolerance, const std::string& who,
+                         Connect connect) {
   std::vector<NurbsCurve> pieces;
   {
     const auto [k, m] = unique_knots(curve.knots());
@@ -390,15 +393,15 @@ NurbsCurve fillet_corners(const NurbsCurve& curve, double radius, double toleran
       pieces.push_back(cuts.size() == 2 ? curve : curve.sub_curve(cuts[i], cuts[i + 1]));
   }
   const std::size_t np = pieces.size();
+  const double size = model_size(curve);
   const bool closed = distance(curve.evaluate(curve.domain_start()),
                                curve.evaluate(curve.domain_end())) <= tolerance;
   const auto tangent_at = [](const NurbsCurve& c, bool end) {
     return normalized(c.derivatives(end ? c.domain_end() : c.domain_start(), 1)[1]);
   };
-  // corners: between piece i and piece (i + 1) % np
   struct Corner {
     std::size_t a, b;
-    CurveFillet fillet;
+    Connector link;
   };
   std::vector<Corner> corners;
   std::vector<double> lo(np), hi(np);
@@ -413,50 +416,165 @@ NurbsCurve fillet_corners(const NurbsCurve& curve, double radius, double toleran
     const double angle = std::atan2(norm(cross(ta, tb)), dot(ta, tb));
     if (angle <= 1e-9) continue;
     if (angle >= std::numbers::pi - 1e-9)
-      throw GeometryError("fillet_corners: the curve turns back on itself at a corner");
-    if (np == 1) {
-      // a single closed piece with a corner at its start: split it so a and b are distinct
-      throw GeometryError("fillet_corners: corner at the seam of a single closed piece");
-    }
-    CurveFilletOptions opt;
-    opt.corner = pieces[i].evaluate(pieces[i].domain_end());
-    opt.trim = false;
-    opt.tolerance = tolerance;
-    CurveFillet f = fillet_curves(pieces[i], pieces[j], radius, n, opt);
-    // the tangent points must lie on the kept parts next to the corner
-    if (f.param_a > hi[i] || f.param_b < lo[j])
-      throw GeometryError("fillet_corners: fillet outside the corner (radius too large)");
-    hi[i] = f.param_a;
-    lo[j] = f.param_b;
-    corners.push_back({i, j, std::move(f)});
+      throw GeometryError(who + ": the curve turns back on itself at a corner");
+    if (np == 1) throw GeometryError(who + ": corner at the seam of a single closed piece");
+    Connector c = connect(pieces[i], pieces[j], pieces[i].evaluate(pieces[i].domain_end()));
+    // the connector must attach to the kept parts next to the corner
+    if (c.param_a > hi[i] || c.param_b < lo[j])
+      throw GeometryError(who + ": the corner treatment reaches beyond a piece (size too large)");
+    hi[i] = c.param_a;
+    lo[j] = c.param_b;
+    corners.push_back({i, j, std::move(c)});
   }
   if (corners.empty()) return curve;
   for (std::size_t i = 0; i < np; ++i)
     if (!(hi[i] > lo[i]))
-      throw GeometryError("fillet_corners: radius " + std::to_string(radius) +
-                          " too large for piece " + std::to_string(i) +
-                          " (the tangent points of its fillets overlap)");
-  // chain: for a closed curve start right after the first corner's arc
+      throw GeometryError(who + ": size too large for piece " + std::to_string(i) +
+                          " (the treatments of its two corners overlap)");
   const auto trimmed = [&](std::size_t i) {
     return lo[i] > pieces[i].domain_start() || hi[i] < pieces[i].domain_end()
                ? pieces[i].sub_curve(lo[i], hi[i])
                : pieces[i];
   };
-  const auto arc_after = [&](std::size_t i) -> const CurveFillet* {
+  const auto link_after = [&](std::size_t i) -> const Connector* {
     for (const auto& c : corners)
-      if (c.a == i) return &c.fillet;
+      if (c.a == i) return &c.link;
     return nullptr;
   };
+  // for a closed curve start right after the first corner's connector
   const std::size_t first = closed ? corners.front().b : 0;
   const double jtol = std::max(tolerance, 1e-9 * size);
   std::optional<NurbsCurve> out;
   for (std::size_t k = 0; k < np; ++k) {
     const std::size_t i = (first + k) % np;
     out = out ? join(*out, trimmed(i), jtol) : trimmed(i);
-    const CurveFillet* f = arc_after(i);
-    if (f) out = join(*out, f->arc, jtol);  // closed: the last arc returns to the start
+    if (const Connector* c = link_after(i)) out = join(*out, c->curve, jtol);
   }
   return *out;
+}
+
+// Corner of two curves (intersection nearest to ref) and the kept sides.
+struct CornerInfo {
+  double s, t;  // parameters of the corner on a and b
+  Vec3 X;
+  bool keep_a_before, keep_b_before;
+};
+
+CornerInfo find_corner(const NurbsCurve& a, const NurbsCurve& b, const std::optional<Vec3>& at,
+                       const std::string& who) {
+  const Vec3 ref = at ? *at : 0.5 * (a.evaluate(a.domain_end()) + b.evaluate(b.domain_start()));
+  const auto hits = intersect(a, b, Tolerance{1e-9, tol::kParametric, tol::kAngular});
+  if (hits.empty()) throw GeometryError(who + ": the curves do not intersect");
+  const auto* corner = &hits.front();
+  for (const auto& h : hits)
+    if (distance(h.point, ref) < distance(corner->point, ref)) corner = &h;
+  CornerInfo c{corner->s, corner->t, corner->point, false, false};
+  c.keep_a_before = c.s - a.domain_start() >= a.domain_end() - c.s;
+  c.keep_b_before = c.t - b.domain_start() >= b.domain_end() - c.t;
+  return c;
+}
+
+// First parameter from x0 towards x1 (on the kept side) where |c(t) - X| = d.
+double point_at_distance(const NurbsCurve& c, double x0, double x1, const Vec3& X, double d,
+                         const std::string& who) {
+  const auto f = [&](double t) { return distance(c.evaluate(t), X) - d; };
+  const auto [k, m] = unique_knots(c.knots());
+  const std::size_t spans = std::max<std::size_t>(1, k.size() - 1);
+  const int n = static_cast<int>(std::min<std::size_t>(64 * spans, 4096));
+  double ta = x0, fa = f(x0);
+  for (int i = 1; i <= n; ++i) {
+    double tb = x0 + (x1 - x0) * i / n, fb = f(tb);
+    if (fb >= 0.0) {
+      if (fa >= 0.0) return ta;  // only at i = 1 with d = 0, excluded by the caller
+      // bisection to round-off (f is continuous, fa < 0 <= fb)
+      for (int it = 0; it < 200 && std::abs(tb - ta) > 1e-16 * (1.0 + std::abs(ta)); ++it) {
+        const double tm = 0.5 * (ta + tb), fm = f(tm);
+        if (fm >= 0.0) {
+          tb = tm;
+          fb = fm;
+        } else {
+          ta = tm;
+          fa = fm;
+        }
+      }
+      return std::abs(fa) < std::abs(fb) ? ta : tb;
+    }
+    ta = tb;
+    fa = fb;
+  }
+  throw GeometryError(who + ": the chamfer distance " + num(d) +
+                      " exceeds the kept part of a curve");
+}
+
+}  // namespace
+
+NurbsCurve fillet_corners(const NurbsCurve& curve, double radius, double tolerance) {
+  if (!(radius > 0.0)) throw GeometryError("fillet_corners: radius must be > 0");
+  // plane: Newell normal of the control polygon (closed up)
+  const auto& P = curve.control_points();
+  Vec3 n{0, 0, 0};
+  for (std::size_t i = 0; i < P.size(); ++i) {
+    const Vec3& a = P[i];
+    const Vec3& b = P[(i + 1) % P.size()];
+    n += Vec3{(a.y - b.y) * (a.z + b.z), (a.z - b.z) * (a.x + b.x), (a.x - b.x) * (a.y + b.y)};
+  }
+  const double size = model_size(curve);
+  if (!(norm(n) > 1e-14 * size * size)) return curve;  // straight: no corners
+  n = normalized(n);
+  for (const auto& p : P)
+    if (std::abs(dot(p - P.front(), n)) > std::max(tolerance, 1e-12 * size))
+      throw GeometryError("fillet_corners: the curve is not planar");
+  return treat_corners(curve, tolerance, "fillet_corners",
+                       [&](const NurbsCurve& a, const NurbsCurve& b, const Vec3& X) {
+                         CurveFilletOptions opt;
+                         opt.corner = X;
+                         opt.trim = false;
+                         opt.tolerance = tolerance;
+                         CurveFillet f = fillet_curves(a, b, radius, n, opt);
+                         return Connector{std::move(f.arc), f.param_a, f.param_b};
+                       });
+}
+
+CurveChamfer chamfer_curves(const NurbsCurve& a, const NurbsCurve& b, double distance_a,
+                            double distance_b, const CurveChamferOptions& opt) {
+  const std::string who = "chamfer_curves";
+  if (!(distance_a > 0.0) || !(distance_b > 0.0))
+    throw GeometryError(who + ": the distances must be positive");
+  const CornerInfo c = find_corner(a, b, opt.corner, who);
+  const Vec3 ta = normalized(a.derivatives(c.s, 1)[1]), tb = normalized(b.derivatives(c.t, 1)[1]);
+  if (norm(cross(ta, tb)) <= 1e-9)
+    throw GeometryError(who + ": the curves are tangent at the corner");
+  const double s = point_at_distance(a, c.s, c.keep_a_before ? a.domain_start() : a.domain_end(),
+                                     c.X, distance_a, who);
+  const double t = point_at_distance(b, c.t, c.keep_b_before ? b.domain_start() : b.domain_end(),
+                                     c.X, distance_b, who);
+  const Vec3 pa = a.evaluate(s), pb = b.evaluate(t);
+  CurveChamfer out{make_line(pa, pb), s, t, pa, pb, std::nullopt, std::nullopt};
+  if (opt.trim) {
+    const double eps = tol::kParametric;
+    if (c.keep_a_before ? s - a.domain_start() <= eps : a.domain_end() - s <= eps)
+      throw GeometryError(who + ": the chamfer consumes curve a (distance too large)");
+    if (c.keep_b_before ? t - b.domain_start() <= eps : b.domain_end() - t <= eps)
+      throw GeometryError(who + ": the chamfer consumes curve b (distance too large)");
+    out.trimmed_a = c.keep_a_before ? a.sub_curve(a.domain_start(), s)
+                                    : a.sub_curve(s, a.domain_end()).reversed();
+    out.trimmed_b = c.keep_b_before ? b.sub_curve(b.domain_start(), t).reversed()
+                                    : b.sub_curve(t, b.domain_end());
+  }
+  return out;
+}
+
+NurbsCurve chamfer_corners(const NurbsCurve& curve, double dist, double tolerance) {
+  if (!(dist > 0.0)) throw GeometryError("chamfer_corners: distance must be > 0");
+  return treat_corners(curve, tolerance, "chamfer_corners",
+                       [&](const NurbsCurve& a, const NurbsCurve& b, const Vec3& X) {
+                         // the pieces meet at X: chamfer points measured from their common end
+                         const double s = point_at_distance(a, a.domain_end(), a.domain_start(), X,
+                                                            dist, "chamfer_corners");
+                         const double t = point_at_distance(b, b.domain_start(), b.domain_end(), X,
+                                                            dist, "chamfer_corners");
+                         return Connector{make_line(a.evaluate(s), b.evaluate(t)), s, t};
+                       });
 }
 
 }  // namespace nf

@@ -31,6 +31,7 @@ Function & Result & Degree & Rational \\
 \apiref{make_rectangle_curve}\code{(origin, edge_u, edge_v)} & closed parallelogram outline & 1 & no \\
 \apiref{make_arc}\code{(center, x_axis, y_axis, radius, start, end)} & circular arc between two angles & 2 & yes \\
 \apiref{make_arc_3pt}\code{(p0, p1, p2)} & arc from \code{p0} through \code{p1} to \code{p2} & 2 & yes \\
+\apiref{make_arc_tangent}\code{(start, tangent, end)} & arc leaving \code{start} along \code{tangent}, ending at \code{end} & 2 & yes \\
 \apiref{make_circle}\code{(center, normal, radius)} & full circle & 2 & yes \\
 \apiref{make_circle_3pt}\code{(p0, p1, p2)} & full circle through three points & 2 & yes \\
 \apiref{make_helix}\code{(axis_point, axis, start, pitch, turns, ...)} & cylindrical or conical helix, planar spiral & 5 & no \\
@@ -435,6 +436,31 @@ circle by $+0.2$ is a circle of radius 0.8 within $2.4\cdot10^{-8}$, well inside
 $10^{-7}$; it needs 137 control points because the cubic fit is done per Bézier segment of the
 rational circle.
 
+\section{Chamfers}\label{sec:chamfers}
+
+A chamfer replaces a corner by a straight cut. It is the counterpart of the fillet and uses the
+same rules for the corner and the kept parts:
+
+\begin{lstlisting}[style=text]
+chamfer_curves(a, b, distance_a, distance_b=None, trim=True, corner=None) -> CurveChamfer
+chamfer_corners(curve, distance, tolerance=1e-7) -> NurbsCurve
+\end{lstlisting}
+
+\apiref{chamfer_curves} cuts from the point of \code{a} at the (straight-line) distance
+\code{distance_a} from the corner to the point of \code{b} at \code{distance_b} (by default the
+same distance). The points lie on the kept parts, i.e. on the longer sides of the
+intersection, as for \apiref{fillet_curves}. The curves need not be planar. For curved inputs
+the points are solved to round-off: the first point at the given distance when moving away from
+the corner. \apiref{CurveChamfer} has the fields \code{line}, \code{param_a}, \code{param_b},
+\code{point_a}, \code{point_b} and, with \code{trim=True}, \code{trimmed_a} and \code{trimmed_b};
+\code{trimmed_a}, \code{line}, \code{trimmed_b} form a chain.
+
+\apiref{chamfer_corners} chamfers every corner of a curve in one go and returns a single curve,
+like \apiref{fillet_corners}. Chamfered edges are common on machined parts; in a simulation
+model they remove the field singularity of a sharp corner less effectively than a fillet but keep
+the profile polygonal. \code{GeometryError} is raised if a distance is larger than the piece it
+is measured on.
+
 \section{Blend curves}\label{sec:blend}
 
 \apiref{blend_curves} builds a smooth transition between the ends of two curves -- a lead-in
@@ -454,6 +480,29 @@ $|C'|$ at both ends is \code{tension} times the distance between the ends; large
 fuller, longer transitions. The blend is not joined to the curves; use \apiref{join} to make a
 single curve.
 
+\section{Tween curves and tangent lines}\label{sec:tween}
+
+\apiref{tween_curves}\code{(a, b, count)} returns \code{count} curves between \code{a} and
+\code{b}, evenly spaced in the blending parameter $s = k/(\text{count}+1)$. The curves are made
+compatible (\apiref{make_compatible}) and their homogeneous control points are interpolated
+linearly, so the tween of two concentric circles is again an exact circle. Both curves should run
+in the same direction and start at corresponding points; reverse one with
+\apiref{NurbsCurve.reversed} otherwise. Tweens are useful for parameter studies (a family of
+cross-sections between two designs) and as loft sections.
+
+\apiref{tangent_lines} constructs lines that touch planar curves:
+
+\begin{lstlisting}
+lines = nf.tangent_lines(point, curve, plane_normal=(0, 0, 1))  # from a point to a curve
+lines = nf.tangent_lines(a, b, plane_normal=(0, 0, 1))          # common tangents of two curves
+\end{lstlisting}
+
+Both return lists of \apiref{TangentLine} with the segment \code{line}, the end points
+\code{point_a}, \code{point_b} and the tangent parameters \code{param_a} (NaN for a point) and
+\code{param_b}. All solutions are found by sampling and refined by Newton's method: two circles
+outside each other have four common tangents (two outer ones for a belt, two crossing ones). The
+inputs must lie in a plane normal to \code{plane_normal}.
+
 \section{Projecting curves onto surfaces}\label{sec:project}
 
 \apiref{project_curve} maps a curve onto a surface, along the surface normal (closest points)
@@ -471,6 +520,57 @@ optical surface becomes a trim loop with \code{nf.TrimLoop([pcurve])} (\cref{ch:
 projection must not cross the seam of a closed surface (a revolved surface has one): split the
 curve there, or use a graph surface such as the Zernike and XY-polynomial surfaces
 (\cref{ch:optics}). \code{GeometryError} is raised if a ray misses the surface.
+
+\subsection{Projection onto a plane}
+
+\apiref{project_to_plane}\code{(curve_or_surface, plane, direction=(0, 0, 0))} flattens a curve
+or a surface onto a plane by a parallel projection along \code{direction}; the zero vector
+projects along the plane normal (orthogonal projection). The projection is an affine map, so
+projecting the control points is exact: a tilted circle becomes an exact ellipse.
+
+\subsection{Curves on surfaces}\label{sec:curves-on-surfaces}
+
+Two functions build curves that lie on a surface, both returning a \code{ProjectedCurve}:
+
+\begin{itemize}
+  \item \apiref{interpolate_on_surface}\code{(surface, points, degree=3, uv=False,
+    tolerance=1e-6)} interpolates points in the parameter domain. The points are projected onto
+    the surface first, or taken as parameter points $(u, v, 0)$ with \code{uv=True}. The curve
+    is therefore exactly on the surface (up to \code{tolerance} for the 3D curve) and passes
+    through the projected points.
+  \item \apiref{offset_on_surface}\code{(surface, curve, distance, tolerance=1e-6)} offsets a
+    curve on the surface \emph{within} the surface: from every point a geodesic of length
+    $|\text{distance}|$ is traced perpendicular to the curve, to the left of the curve seen from
+    the surface normal $S_u \times S_v$ for positive distances. \code{curve} is the p-curve of
+    the curve on the surface or a \code{ProjectedCurve}. A ring around a cylinder is offset
+    along the axis; the equator of a sphere becomes a circle of latitude at the angle
+    $d/R$. Typical uses are margins along the rim of an aperture and bands of constant width
+    on a curved surface. \code{GeometryError} is raised if a geodesic leaves the surface.
+\end{itemize}
+
+\subsection{Example}
+
+\example{05_curve_tools.py}
+
+Output:
+
+\begin{lstlisting}[style=text]
+chamfer: Vec3(3.000000, 0.000000, 0.000000) -> Vec3(4.000000, 0.500000, 0.000000), cut length 1.118034
+chamfered rectangle: length 10.828427 (12 - 8*0.5 + 4*0.5*sqrt 2 = 10.828427)
+arc_tangent: length 4.712389 (3/4 of a unit circle = 4.712389)
+common tangents of two circles: 4, lengths 9.949874, 9.539392, 9.539392, 9.949874
+tangents from (6, 0, 0): touching points (0.666667, -1.885618), (0.666667, 1.885618)
+tween lengths: 7.3994, 8.6209, 9.9310
+fit_plane: normal (-0.099381, 0.049690, 0.993808), max deviation 1.03e-03, rms 9.93e-04
+fit_line: direction (0.447321, 0.894373, 0.000000), max deviation 5.41e-03
+projected circle: y range 2.828427 (2 * 2 cos 45 = 2.828427)
+curve on the cylinder: |r| at t = 0.5 is 1.000000000
+geodesic offset of the ring by 0.75: z = 1.750000000
+\end{lstlisting}
+
+The outer common tangents of the two pulleys (radii 2 and 1, centres 10 apart) have the length
+$\sqrt{10^2 - 1^2} = 9.949874$, the crossing ones $\sqrt{10^2 - 3^2} = 9.539392$. The best-fit
+functions are described in \cref{sec:fit-line-plane}.
 
 \section{Planar regions and their Booleans}\label{sec:regions}
 

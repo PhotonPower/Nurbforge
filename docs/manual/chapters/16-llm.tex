@@ -129,15 +129,17 @@ The system prompt tells the model:
 \midrule\endhead
 Curves & \toolref{make_line}, \toolref{make_circle}, \toolref{make_arc},
   \toolref{make_polygon}, \toolref{make_helix}, \toolref{round_corners},
-  \toolref{interpolate_points} \\
+  \toolref{chamfer_corners}, \toolref{interpolate_points}, \toolref{blend}, \toolref{tween},
+  \toolref{project}, \toolref{project_to_plane}, \toolref{offset_on_surface} \\
 Surfaces & \toolref{make_rectangle}, \toolref{revolve}, \toolref{extrude}, \toolref{ruled},
   \toolref{loft}, \toolref{sweep}, \toolref{coons}, \toolref{asphere} \\
-Modification & \toolref{extend}, \toolref{offset}, \toolref{fillet}, \toolref{trim_circle},
+Modification & \toolref{extend}, \toolref{offset}, \toolref{fillet}, \toolref{chamfer},
+  \toolref{trim_circle},
   \toolref{split}, \toolref{section} \\
 Copies & \toolref{translate}, \toolref{rotate}, \toolref{mirror}, \toolref{linear_array},
   \toolref{polar_array} \\
 Solids & \toolref{sew}, \toolref{solid} (box, sphere, cylinder, cone, torus),
-  \toolref{boolean}, \toolref{blend}, \toolref{project}, \toolref{split_solid}, \toolref{cap}, \toolref{thicken},
+  \toolref{boolean}, \toolref{split_solid}, \toolref{cap}, \toolref{thicken},
   \toolref{hollow}, \toolref{pipe}, \toolref{remove_holes}, \toolref{merge_faces}, \toolref{mass_properties} \\
 Queries & \toolref{list_objects}, \toolref{evaluate}, \toolref{closest_point},
   \toolref{measure}, \toolref{intersect} \\
@@ -174,7 +176,7 @@ schemas.
 \example{16_llm_tools.py}
 
 \begin{lstlisting}[style=text]
-40 tools, e.g. make_line, make_circle, make_arc, make_polygon, make_helix, round_corners ...
+54 tools, e.g. make_line, make_circle, make_arc, make_polygon, make_helix, round_corners ...
 make_circle - Create a full circle (exact NURBS).
   parameters: {"type": "number"} required: ['name', 'center', 'normal', 'radius']
 stored box: closed shell, volume 24

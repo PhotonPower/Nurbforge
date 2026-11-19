@@ -13,6 +13,7 @@
 #include "nurbforge/core/tolerance.hpp"
 #include "nurbforge/core/vec.hpp"
 #include "nurbforge/fitting/fit.hpp"
+#include "nurbforge/geometry/plane.hpp"
 #include "nurbforge/geometry/primitives.hpp"
 #include "nurbforge/geometry/transform.hpp"
 #include "nurbforge/io/step.hpp"

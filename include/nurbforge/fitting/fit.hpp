@@ -8,6 +8,7 @@
 #include <vector>
 
 #include "nurbforge/core/vec.hpp"
+#include "nurbforge/geometry/plane.hpp"
 #include "nurbforge/nurbs/curve.hpp"
 #include "nurbforge/nurbs/surface.hpp"
 
@@ -78,5 +79,31 @@ enum class Parametrization {
     const std::vector<Vec3>& points, std::size_t num_u, std::size_t num_v, std::size_t degree_u,
     std::size_t degree_v, std::size_t ctrl_u, std::size_t ctrl_v,
     Parametrization method = Parametrization::Centripetal);
+
+/// Best-fit line through points (orthogonal regression: minimises the sum of squared
+/// perpendicular distances).
+struct LineFit {
+  Vec3 point;                 ///< centroid of the points (on the line)
+  Vec3 direction;             ///< unit direction; sign: its largest-magnitude component is positive
+  double max_deviation{0.0};  ///< largest perpendicular distance of a point from the line
+  double rms{0.0};            ///< root mean square of the perpendicular distances
+};
+
+/// Best-fit plane through points (orthogonal regression).
+struct PlaneFit {
+  Plane plane;  ///< through the centroid; unit normal, largest-magnitude component positive
+  double max_deviation{0.0};  ///< largest distance of a point from the plane
+  double rms{0.0};            ///< root mean square of the distances
+};
+
+/// Line through points by orthogonal regression: the centroid and the eigenvector of the largest
+/// eigenvalue of the scatter matrix (symmetric Jacobi rotations). Needs at least 2 distinct
+/// points; throws GeometryError otherwise.
+[[nodiscard]] LineFit fit_line(const std::vector<Vec3>& points);
+
+/// Plane through points by orthogonal regression: the centroid and the eigenvector of the
+/// smallest eigenvalue of the scatter matrix. Needs at least 3 points that are not collinear;
+/// throws GeometryError otherwise.
+[[nodiscard]] PlaneFit fit_plane(const std::vector<Vec3>& points);
 
 }  // namespace nf

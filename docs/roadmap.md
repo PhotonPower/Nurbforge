@@ -77,6 +77,16 @@
 - Blend curves between curve ends (G1 cubic, G2 quintic) ✅
 - Projection of curves onto surfaces (normal or directional, 3D curve + p-curve) ✅
 
+## 0.13 – Curve tools (#16)
+- Chamfers between two curves and at all corners of a curve ✅
+- Best-fit line and plane through points (orthogonal regression) ✅
+- Exact parallel projection of curves and surfaces onto a plane ✅
+- Tween curves; arcs from start, tangent and end; tangent lines from a point and common tangents of two curves ✅
+- Curves on surfaces: interpolation through points in the parameter domain, geodesic offset within a surface ✅
+
+## 0.14 – Edge chamfers and fillets on solids (#18)
+- Chamfer and constant-radius fillet of edge chains of a shell, with trimming of the adjacent faces
+
 ## Infrastructure
 - ✅ Wheels via cibuildwheel (manylinux_2_28 for AlmaLinux 10 compatibility, win_amd64, macOS arm64/x86_64)
 - ✅ Sphinx site with Breathe (Doxygen) API docs on GitHub Pages

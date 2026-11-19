@@ -8,7 +8,7 @@ appear in the reference). ``gen_reference.py --check`` fails if anything is miss
 
 GROUPS: list[tuple[str, list[str]]] = [
     ("Curve primitives", ["make_line", "make_polyline", "make_arc", "make_arc_3pt", "make_circle",
-                          "make_circle_3pt", "make_polygon", "make_rectangle_curve",
+                          "make_circle_3pt", "make_arc_tangent", "make_polygon", "make_rectangle_curve",
                           "make_helix"]),
     ("Surface primitives and construction", [
         "make_bilinear", "make_rectangle", "extrude", "revolve", "ruled", "loft",
@@ -16,12 +16,15 @@ GROUPS: list[tuple[str, list[str]]] = [
         "gordon", "reparametrize"]),
     ("Solid primitives", ["make_box", "make_sphere", "make_cylinder", "make_cone", "make_torus"]),
     ("Planar regions and curve tools", ["region_boolean", "region_area", "blend_curves",
-                                        "project_curve"]),
-    ("Joining, extension, offsets and fillets", [
+                                        "tween_curves", "tangent_lines", "project_curve",
+                                        "project_to_plane", "interpolate_on_surface",
+                                        "offset_on_surface"]),
+    ("Joining, extension, offsets, fillets and chamfers", [
         "join", "join_u", "join_v", "extend", "offset_curve", "offset_surface", "fillet_curves",
-        "fillet_corners", "fillet_surfaces"]),
+        "fillet_corners", "fillet_surfaces", "chamfer_curves", "chamfer_corners"]),
     ("Fitting", ["interpolate_curve", "approximate_curve", "approximate_curve_tol",
-                 "interpolate_surface", "approximate_surface", "data_parameters"]),
+                 "interpolate_surface", "approximate_surface", "data_parameters", "fit_line",
+                 "fit_plane"]),
     ("Analysis and properties", [
         "closest_point", "closest_point_local", "curvature", "torsion", "length", "arc_length",
         "parameter_at_length", "surface_curvature", "area", "integrate"]),

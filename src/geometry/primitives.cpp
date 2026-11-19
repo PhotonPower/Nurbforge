@@ -162,6 +162,28 @@ NurbsCurve make_arc_3pt(const Vec3& p0, const Vec3& p1, const Vec3& p2) {
   return {arc.degree(), arc.knots(), P, arc.weights()};
 }
 
+NurbsCurve make_arc_tangent(const Vec3& start, const Vec3& tangent, const Vec3& end) {
+  const Vec3 chord = end - start;
+  const double L = norm(chord), tn = norm(tangent);
+  if (!(L > tol::kLength)) throw GeometryError("make_arc_tangent: end coincides with start");
+  if (!(tn > 0.0)) throw GeometryError("make_arc_tangent: the tangent is zero");
+  const Vec3 t = tangent / tn;
+  // unit vector from start towards the centre: the part of the chord normal to the tangent
+  const Vec3 perp = chord - dot(chord, t) * t;
+  if (!(norm(perp) > 1e-12 * L))
+    throw GeometryError("make_arc_tangent: end lies on the tangent line (straight line)");
+  const Vec3 u = normalized(perp);
+  const double r = dot(chord, chord) / (2.0 * dot(chord, u));
+  const Vec3 c = start + r * u, x = -1.0 * u;  // x: from the centre to start
+  double sweep = std::atan2(dot(end - c, t), dot(end - c, x));
+  if (sweep <= 0.0) sweep += 2.0 * std::numbers::pi;
+  NurbsCurve arc = make_arc(c, x, t, r, 0.0, sweep);
+  auto P = arc.control_points();
+  P.front() = start;
+  P.back() = end;
+  return {arc.degree(), arc.knots(), P, arc.weights()};
+}
+
 NurbsCurve make_polygon(const Vec3& center, const Vec3& normal, double radius, std::size_t n,
                         const Vec3& x_axis) {
   if (n < 3) throw GeometryError("polygon needs at least 3 vertices");

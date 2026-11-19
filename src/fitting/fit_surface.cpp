@@ -275,7 +275,8 @@ FittedSurface fit_surface(const std::vector<Vec3>& points, const SurfaceFitOptio
     if (!xu.empty()) base = base.refine_knots_u(xu);
     const auto xv = refine(base.knots_v(), base.num_v(), want_v);
     if (!xv.empty()) base = base.refine_knots_v(xv);
-    if (base.weights() != std::vector<double>(base.weights().size(), 1.0))
+    if (std::any_of(base.weights().begin(), base.weights().end(),
+                    [](double w) { return w != 1.0; }))
       throw GeometryError("fit_surface: boundary curves must be non-rational");
     L = {base.degree_u(), base.degree_v(), base.num_u(),
          base.num_v(),    base.knots_u(),  base.knots_v()};

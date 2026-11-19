@@ -429,3 +429,27 @@ def test_round_edges_tool():
                                         "sizes": [{"point": [0, 0, 2], "size": 0.2},
                                                   {"point": [4, 0, 2], "size": 0.4}]})
     assert "closed shell" in out
+
+
+def test_surface_tool_tools():
+    ws = Workspace()
+    call_tool(ws, "make_circle", {"name": "c0", "center": [0, 0, 0], "normal": [0, 0, 1],
+                                  "radius": 1})
+    call_tool(ws, "make_circle", {"name": "c1", "center": [0, 0, 4], "normal": [0, 0, 1],
+                                  "radius": 2})
+    call_tool(ws, "make_line", {"name": "path", "p0": [0, 0, 0], "p1": [0, 0, 4]})
+    call_tool(ws, "make_line", {"name": "prof", "p0": [0, 0, 4], "p1": [2, 0, 4]})
+    assert "stored duct" in call_tool(ws, "sweep", {"name": "duct", "path": "path",
+                                                    "profiles": ["c0", "c1"]})
+    assert "stored t" in call_tool(ws, "extrude_tapered", {"name": "t", "profile": "c0",
+                                                           "direction": [0, 0, 1],
+                                                           "angle_deg": 10})
+    assert "stored k" in call_tool(ws, "extrude_to_point", {"name": "k", "curve": "c0",
+                                                            "apex": [0, 0, 2]})
+    assert "max deviation" in call_tool(ws, "rebuild", {"name": "r", "source": "c0",
+                                                        "num_u": 16})
+    assert "stored rr" in call_tool(ws, "rail_revolve", {"name": "rr", "profile": "prof",
+                                                         "rail": "c1", "axis_point": [0, 0, 0],
+                                                         "axis_dir": [0, 0, 1]})
+    assert "stored rb" in call_tool(ws, "ribbon", {"name": "rb", "curve": "path", "width": 0.5,
+                                                   "plane_normal": [1, 0, 0]})

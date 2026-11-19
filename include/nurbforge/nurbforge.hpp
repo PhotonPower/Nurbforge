@@ -26,6 +26,7 @@
 #include "nurbforge/modeling/offset.hpp"
 #include "nurbforge/modeling/pattern.hpp"
 #include "nurbforge/modeling/project.hpp"
+#include "nurbforge/modeling/surface_tools.hpp"
 #include "nurbforge/modeling/sweep.hpp"
 #include "nurbforge/nurbs/basis.hpp"
 #include "nurbforge/nurbs/curve.hpp"

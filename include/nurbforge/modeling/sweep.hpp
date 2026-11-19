@@ -4,6 +4,7 @@
 
 #include <cstddef>
 #include <functional>
+#include <vector>
 
 #include "nurbforge/nurbs/curve.hpp"
 #include "nurbforge/nurbs/surface.hpp"
@@ -40,6 +41,30 @@ struct SweepOptions {
 /// With SweepFrame::Fixed and no twist the exact translational sweep is returned.
 [[nodiscard]] NurbsSurface sweep(const NurbsCurve& profile, const NurbsCurve& trajectory,
                                  const SweepOptions& options = {});
+
+/// Sweep with several profiles: profile k is given in world coordinates where it crosses the
+/// trajectory, at trajectory parameter params[k] (empty: the parameter of the trajectory point
+/// nearest to the profile). Every profile is moved back to the trajectory start by the inverse
+/// of its placement (frame as in sweep()); the moved profiles are lofted over the parameters
+/// (cubic for four or more), so the section at v is that blended shape placed at v. Before the
+/// first and after the last profile the shape is constant. Closed profiles should have aligned
+/// seams. Same skinning and tolerance control as sweep(); u on [0, 1], v the trajectory domain.
+[[nodiscard]] NurbsSurface sweep(const std::vector<NurbsCurve>& profiles,
+                                 const NurbsCurve& trajectory, std::vector<double> params = {},
+                                 const SweepOptions& options = {});
+
+/// Rail revolve: the profile is revolved about the axis while its end nearer to the rail follows
+/// the rail. At rail parameter v the profile is rotated about the axis to the angle of
+/// rail(v) and scaled about the axis in the radial direction so that this end reaches the
+/// rail's distance from the axis; with `scale_height` it is also scaled along the axis (about
+/// the axis point) to the rail's height, otherwise heights are kept. The other end of a profile
+/// starting on the axis stays there, e.g. a reflector with a non-round rim. u: profile on
+/// [0, 1], v: rail domain (closed rail: closed surface). Same skinning and tolerance control as
+/// sweep(). Throws GeometryError if the profile end or the rail touches the axis.
+[[nodiscard]] NurbsSurface rail_revolve(const NurbsCurve& profile, const NurbsCurve& rail,
+                                        const Vec3& axis_point, const Vec3& axis_dir,
+                                        bool scale_height = false,
+                                        const SweepOptions& options = {});
 
 /// Two-rail sweep: the profile, given at the rail starts, is moved, rotated and uniformly
 /// scaled so that the points it had on rail1(v0) and rail2(v0) follow rail1(v) and rail2(v)

@@ -11,6 +11,7 @@
 #include "nurbforge/analysis/closest_point.hpp"
 #include "nurbforge/core/error.hpp"
 #include "nurbforge/fitting/fit.hpp"
+#include "nurbforge/geometry/primitives.hpp"
 #include "nurbforge/modeling/construct.hpp"
 #include "nurbforge/modeling/loft.hpp"
 #include "nurbforge/nurbs/join.hpp"
@@ -131,6 +132,64 @@ NurbsSurface boolean_sum(NurbsSurface a, NurbsSurface b, NurbsSurface c) {
   return {pu, pv, a.knots_u(), a.knots_v(), a.num_u(), a.num_v(), std::move(P)};
 }
 
+// Coons patch (Boolean sum) of boundary curves already oriented and on [0, 1]; exact for
+// non-rational curves: ruled(c0, c1) + ruled(d0, d1)^T - bilinear(corners).
+NurbsSurface coons_poly(const NurbsCurve& c0, const NurbsCurve& c1, const NurbsCurve& d0,
+                        const NurbsCurve& d1) {
+  const auto at = [](const NurbsCurve& c, bool end) {
+    return c.evaluate(end ? c.domain_end() : c.domain_start());
+  };
+  return boolean_sum(ruled(c0, c1), ruled(d0, d1).transposed(),
+                     make_bilinear(at(c0, false), at(c0, true), at(c1, false), at(c1, true)));
+}
+
+// The curve with all weights multiplied by f (the same curve).
+NurbsCurve weights_scaled(const NurbsCurve& c, double f) {
+  std::vector<double> W = c.weights();
+  for (auto& w : W) w *= f;
+  return {c.degree(), c.knots(), c.control_points(), std::move(W)};
+}
+
+// Exact Coons patch of rational boundaries: the Boolean sum is linear, so it is taken in
+// homogeneous coordinates (numerators w P and weights w separately, with identical knot
+// processing). The boundaries are reproduced exactly if the weights agree at the corners; the
+// curves are first scaled (which does not change them) to make the corner weights agree where
+// possible. Returns nothing if they cannot be made to agree or a weight of the result is not
+// positive.
+std::optional<NurbsSurface> coons_rational(NurbsCurve c0, NurbsCurve c1, NurbsCurve d0,
+                                           NurbsCurve d1) {
+  const auto w0 = [](const NurbsCurve& c) { return c.weights().front(); };
+  const auto w1 = [](const NurbsCurve& c) { return c.weights().back(); };
+  d0 = weights_scaled(d0, w0(c0) / w0(d0));
+  d1 = weights_scaled(d1, w1(c0) / w0(d1));
+  c1 = weights_scaled(c1, w1(d0) / w0(c1));
+  if (std::abs(w1(d1) - w1(c1)) > 1e-12 * std::max(w1(d1), w1(c1))) return std::nullopt;
+  const auto split = [](const NurbsCurve& c, bool weights) {
+    std::vector<Vec3> P;
+    for (std::size_t i = 0; i < c.num_control_points(); ++i) {
+      const double w = c.weights()[i];
+      P.push_back(weights ? Vec3{w, 0.0, 0.0} : w * c.control_points()[i]);
+    }
+    return NurbsCurve(c.degree(), c.knots(), std::move(P));
+  };
+  const NurbsSurface N =
+      coons_poly(split(c0, false), split(c1, false), split(d0, false), split(d1, false));
+  const NurbsSurface W =
+      coons_poly(split(c0, true), split(c1, true), split(d0, true), split(d1, true));
+  if (N.control_points().size() != W.control_points().size() || N.num_u() != W.num_u())
+    return std::nullopt;
+  std::vector<Vec3> P;
+  std::vector<double> w;
+  for (std::size_t i = 0; i < N.control_points().size(); ++i) {
+    const double wi = W.control_points()[i].x;
+    if (!(wi > 0.0)) return std::nullopt;
+    P.push_back(N.control_points()[i] / wi);
+    w.push_back(wi);
+  }
+  return NurbsSurface(N.degree_u(), N.degree_v(), N.knots_u(), N.knots_v(), N.num_u(), N.num_v(),
+                      std::move(P), std::move(w));
+}
+
 }  // namespace
 
 NurbsSurface gordon(const std::vector<NurbsCurve>& u_in, const std::vector<NurbsCurve>& v_in,
@@ -236,7 +295,12 @@ NurbsSurface coons(const NurbsCurve& c0, const NurbsCurve& c1_in, const NurbsCur
   if (gap > tolerance)
     throw GeometryError("coons: the boundary curves do not form a closed loop (corner gap " +
                         std::to_string(gap) + ")");
-  return gordon({c0, c1}, {d0, d1}, tolerance);
+  const NurbsCurve a0 = unit_domain(c0), a1 = unit_domain(c1), b0 = unit_domain(d0),
+                   b1 = unit_domain(d1);
+  if (a0.is_rational() || a1.is_rational() || b0.is_rational() || b1.is_rational())
+    if (auto exact = coons_rational(a0, a1, b0, b1)) return *exact;
+  return coons_poly(nonrational(a0, tolerance), nonrational(a1, tolerance),
+                    nonrational(b0, tolerance), nonrational(b1, tolerance));
 }
 
 }  // namespace nf

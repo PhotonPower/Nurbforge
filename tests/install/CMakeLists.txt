@@ -3,7 +3,7 @@
 cmake_minimum_required(VERSION 3.24)
 project(NurbforgeConsumer LANGUAGES CXX)
 
-find_package(Nurbforge 0.14 REQUIRED)
+find_package(Nurbforge 0.15 REQUIRED)
 
 add_executable(consumer main.cpp)
 target_compile_features(consumer PRIVATE cxx_std_20)

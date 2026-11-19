@@ -475,6 +475,70 @@ The fillet between the floor $z=0$ and the wall $x=0$ is the exact quarter cylin
 0.5 around the line $x = z = 0.5$; the p-curve on the floor gives the parameters $(0.3, 0.5)$,
 which map back to the contact point.
 
+\section{Blending and matching surfaces}\label{sec:surface-blend}
+
+\begin{lstlisting}[style=text]
+blend_surfaces(s0, side0, s1, side1, continuity=2, tension=1.0,
+               tolerance=1e-7) -> NurbsSurface
+match_surface(surface, side, target, target_side, continuity=2,
+              tolerance=1e-7) -> NurbsSurface
+\end{lstlisting}
+
+\apiref{blend_surfaces} is the surface counterpart of \code{blend_curves}
+(\cref{sec:blend}): a new surface between a side of \code{s0} and a side of \code{s1}
+(\code{SurfaceSide.UMin}, \code{UMax}, \code{VMin}, \code{VMax}) that continues both with
+\begin{itemize}
+  \item G0 (\code{continuity=0}): a ruled surface between the edges,
+  \item G1 (\code{continuity=1}): the same tangent planes along both edges (cubic across),
+  \item G2 (\code{continuity=2}): also the same normal curvatures (quintic across).
+\end{itemize}
+$u$ runs along the edge of \code{s0} in its parameter direction and $v$ across, from \code{s0}
+($v = 0$) to \code{s1} ($v = 1$). The edge of \code{s1} is mapped linearly onto the edge of
+\code{s0}, in the orientation that pairs the nearer points; for closed edges (cylinder rims) the
+seams should be aligned, otherwise the blend is twisted. Across each edge the blend is a
+reparametrisation of the surface up to the requested order: with the outward cross-boundary
+derivatives $\mathbf D_1$, $\mathbf D_2$ of the surface,
+$\mathbf B_v = k\,\mathbf D_1$ and $\mathbf B_{vv} = k^2\,\mathbf D_2$, so tangent planes and
+normal curvatures agree exactly. The constant $k$ is chosen so that the mean cross speed
+$|\mathbf B_v|$ is \code{tension} times the mean distance between the edges; larger values make
+the blend follow the surfaces further before it turns.
+
+\apiref{match_surface} changes an existing surface instead of adding one: the surface is
+modified near \code{side} so that this side coincides with \code{target_side} of the target and
+joins it with G0, G1 or G2. The first \code{continuity} + 1 control rows at the side are
+replaced so that the surface continues the target as a reparametrisation, with the cross speed
+of the original surface kept on average. The surface is refined first (degree and knots along
+the edge, knots across), so that the opposite side and its cross derivatives up to the same
+order stay unchanged. The parameter directions and domain are kept.
+
+Both are exact NURBS constructions when the weights of a surface do not vary across the side
+in the control rows involved: all non-rational surfaces, extrusions, and surfaces of revolution
+at sides along the profile ends (the cylinder rim in the example, a rational blend). Otherwise
+(e.g.\ at a latitude side of a sphere zone, where the weights vary in both directions) the edge
+and its derivatives are interpolated piecewise from dense samples, the edge within
+\code{tolerance} and the derivatives within \code{tolerance} relative to the edge length.
+
+\example{06_surface_blend.py}
+
+Output:
+
+\begin{lstlisting}[style=text]
+blend G0: degree across 1, gap 2e-13, normal angle 5e+01 deg, curvature jump 3e-01
+blend G1: degree across 3, gap 2e-13, normal angle 2e-12 deg, curvature jump 2e+00
+blend G2: degree across 5, gap 2e-13, normal angle 2e-12 deg, curvature jump 1e-14
+tension 0.5: middle cross-section length 1.2564
+tension 1.0: middle cross-section length 1.3243
+tension 2.0: middle cross-section length 1.6115
+cylinder to flange: rational=True, radius at v = 0.5 varies by 2.2e-16
+match G0: gap 2e-13, normal angle 4e+01 deg, curvature jump 3e-01, far side moved 1e-15
+match G1: gap 2e-13, normal angle 2e-12 deg, curvature jump 2e+00, far side moved 1e-15
+match G2: gap 2e-13, normal angle 2e-12 deg, curvature jump 1e-14, far side moved 1e-15
+\end{lstlisting}
+
+The ruled G0 blend meets the surfaces at an angle; G1 removes the crease but leaves a jump in
+the mean curvature, which G2 removes as well. Matching moves only the rows at the matched side:
+the far side of the surface stays where it was.
+
 \section{Construction helpers}\label{sec:surface-tools}
 
 \begin{lstlisting}[style=text]

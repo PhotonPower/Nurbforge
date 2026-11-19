@@ -1,13 +1,14 @@
 #pragma once
 /// @file blend.hpp
-/// Blend curves (smooth transitions between the ends of two curves), tween curves, and lines
-/// tangent to curves.
+/// Blend curves (smooth transitions between the ends of two curves), tween curves, lines
+/// tangent to curves, and blend / match surfaces (smooth transitions between surface sides).
 
 #include <cstddef>
 #include <vector>
 
 #include "nurbforge/modeling/extend.hpp"
 #include "nurbforge/nurbs/curve.hpp"
+#include "nurbforge/nurbs/surface.hpp"
 
 namespace nf {
 
@@ -53,5 +54,36 @@ struct TangentLine {
 /// Throws GeometryError if the curves are not in a common plane normal to plane_normal.
 [[nodiscard]] std::vector<TangentLine> tangent_lines(const NurbsCurve& a, const NurbsCurve& b,
                                                      const Vec3& plane_normal = {0, 0, 1});
+
+/// Blend surface between the side `side0` of s0 and the side `side1` of s1 that continues both
+/// surfaces smoothly: G0 (continuity 0: ruled), G1 (1: same tangent planes along both edges,
+/// cubic across) or G2 (2: also the same normal curvature, quintic across). u runs along the
+/// edge of s0 (in its parameter direction), v across from s0 (v = 0) to s1 (v = 1); the edge of
+/// s1 is mapped linearly onto the edge of s0, in the orientation that pairs the nearer points
+/// (for closed edges the seams should be aligned). Across the edges the blend is a
+/// reparametrisation of the surfaces up to the requested order: B_v = k D1 and B_vv = k^2 D2
+/// with the outward cross-boundary derivatives D1, D2 of the surface and a constant k chosen so
+/// that the mean speed |B_v| is `tension` times the mean distance between the edges.
+/// The result is exact when the weights of each surface do not vary across its side in the
+/// rows involved (non-rational surfaces, extrusions, cylinders along the axis); otherwise the
+/// edge and its derivatives are interpolated to `tolerance` (relative to the edge length for the
+/// derivatives). Throws GeometryError if the edges touch or a cross derivative vanishes.
+[[nodiscard]] NurbsSurface blend_surfaces(const NurbsSurface& s0, SurfaceSide side0,
+                                          const NurbsSurface& s1, SurfaceSide side1,
+                                          int continuity = 2, double tension = 1.0,
+                                          double tolerance = 1e-7);
+
+/// Changes `surface` near its side `side` so that it joins `target` along the side
+/// `target_side` with continuity G0 (the edges coincide), G1 (also the tangent planes) or G2
+/// (also the normal curvature). The edge of the target is mapped linearly onto the edge of the
+/// surface (orientation as in blend_surfaces); the first continuity + 1 control rows at the side
+/// are replaced so that the surface continues the target as a reparametrisation (cross speed
+/// kept on average). The surface is refined first (degree and knots along the edge, knots
+/// across) so that the opposite side and its cross derivatives up to the same order are kept.
+/// Exactness as for blend_surfaces. Returns the modified surface with the same parameter
+/// directions and domain.
+[[nodiscard]] NurbsSurface match_surface(const NurbsSurface& surface, SurfaceSide side,
+                                         const NurbsSurface& target, SurfaceSide target_side,
+                                         int continuity = 2, double tolerance = 1e-7);
 
 }  // namespace nf

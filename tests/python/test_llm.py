@@ -451,5 +451,16 @@ def test_surface_tool_tools():
     assert "stored rr" in call_tool(ws, "rail_revolve", {"name": "rr", "profile": "prof",
                                                          "rail": "c1", "axis_point": [0, 0, 0],
                                                          "axis_dir": [0, 0, 1]})
+    call_tool(ws, "make_rectangle", {"name": "pa", "origin": [0, 0, 0], "edge_u": [1, 0, 0],
+                                     "edge_v": [0, 1, 0]})
+    call_tool(ws, "make_rectangle", {"name": "pb", "origin": [2, 0, 1], "edge_u": [1, 0, 0],
+                                     "edge_v": [0, 1, 0]})
+    assert "stored bs" in call_tool(ws, "blend_surfaces", {"name": "bs", "a": "pa",
+                                                           "side_a": "umax", "b": "pb",
+                                                           "side_b": "umin"})
+    assert "stored ms" in call_tool(ws, "match_surface", {"name": "ms", "surface": "pb",
+                                                          "side": "umin", "target": "pa",
+                                                          "target_side": "umax",
+                                                          "continuity": 1})
     assert "stored rb" in call_tool(ws, "ribbon", {"name": "rb", "curve": "path", "width": 0.5,
                                                    "plane_normal": [1, 0, 0]})

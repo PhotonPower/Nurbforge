@@ -56,3 +56,33 @@ def test_multi_profile_sweep_and_rail_revolve():
     disc = nf.rail_revolve(nf.make_line((0, 0, 0), (2, 0, 0)), rail, (0, 0, 0), (0, 0, 1),
                            options=nf.SweepOptions(tolerance=1e-8))
     assert nf.TrimmedSurface(disc).area() == pytest.approx(2 * math.pi, abs=1e-6)
+
+
+def _plane_strip(x0, z0, slope):
+    pts = [[(x0 + i / 3, j / 3, z0 + slope * (x0 + i / 3) ** 2 + 0.1 * j / 3) for j in range(4)]
+           for i in range(4)]
+    return nf.interpolate_surface(pts)
+
+
+def test_blend_and_match_surfaces():
+    a, b = _plane_strip(0, 0, 0.2), _plane_strip(2, 1, -0.1)
+    for c, deg in ((0, 1), (1, 3), (2, 5)):
+        bl = nf.blend_surfaces(a, nf.SurfaceSide.UMax, b, nf.SurfaceSide.UMin, continuity=c)
+        assert bl.degree_v == deg
+        for t in (0.0, 0.3, 1.0):
+            assert nf.distance(bl(t, 0.0), a(1.0, t)) < 1e-12
+            assert nf.distance(bl(t, 1.0), b(0.0, t)) < 1e-12
+            if c >= 1:
+                assert nf.norm(nf.cross(bl.normal(t, 0.0), a.normal(1.0, t))) < 1e-10
+                assert nf.norm(nf.cross(bl.normal(t, 1.0), b.normal(0.0, t))) < 1e-10
+            if c == 2:
+                k0 = nf.surface_curvature(bl, t, 0.0).mean
+                k1 = nf.surface_curvature(a, 1.0, t).mean
+                assert abs(abs(k0) - abs(k1)) < 1e-8
+    m = nf.match_surface(b, nf.SurfaceSide.UMin, a, nf.SurfaceSide.UMax, continuity=1)
+    for t in (0.0, 0.5, 1.0):
+        assert nf.distance(m(0.0, t), a(1.0, t)) < 1e-12
+        assert nf.norm(nf.cross(m.normal(0.0, t), a.normal(1.0, t))) < 1e-10
+        assert nf.distance(m(1.0, t), b(1.0, t)) < 1e-12
+    with pytest.raises(nf.GeometryError):
+        nf.blend_surfaces(a, nf.SurfaceSide.UMax, b, nf.SurfaceSide.UMin, continuity=3)

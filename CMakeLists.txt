@@ -54,6 +54,7 @@ add_library(nurbforge_core STATIC
   src/modeling/offset.cpp
   src/modeling/fillet.cpp
   src/modeling/blend.cpp
+  src/modeling/surface_blend.cpp
   src/modeling/project.cpp
   src/analysis/closest_point.cpp
   src/analysis/properties.cpp

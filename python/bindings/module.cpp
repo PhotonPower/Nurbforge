@@ -1253,6 +1253,22 @@ PYBIND11_MODULE(_core, m) {
         "Smooth transition from an end of curve a to an end of curve b: G1 (cubic) or G2 "
         "(quintic, same curvature vectors). The blend leaves a and enters b; |C'| at the ends is "
         "tension x chord.");
+  m.def("blend_surfaces", &blend_surfaces, py::call_guard<py::gil_scoped_release>(), py::arg("s0"),
+        py::arg("side0"), py::arg("s1"), py::arg("side1"), py::arg("continuity") = 2,
+        py::arg("tension") = 1.0, py::arg("tolerance") = 1e-7,
+        "Blend surface between a side of s0 and a side of s1 continuing both with G0 (ruled), "
+        "G1 (cubic across) or G2 (quintic across, same normal curvature). u runs along the edge "
+        "of s0, v from s0 (v = 0) to s1 (v = 1); the edge of s1 is mapped linearly onto it in "
+        "the orientation pairing the nearer points. The cross speed is tension x the mean edge "
+        "distance. Exact when the weights do not vary across the sides, otherwise the boundary "
+        "data are interpolated to tolerance.");
+  m.def("match_surface", &match_surface, py::call_guard<py::gil_scoped_release>(),
+        py::arg("surface"), py::arg("side"), py::arg("target"), py::arg("target_side"),
+        py::arg("continuity") = 2, py::arg("tolerance") = 1e-7,
+        "Modify a surface near one side so that it joins the target's side with G0, G1 or G2 "
+        "continuity: the first continuity + 1 control rows are replaced (after refinement), the "
+        "opposite side and its cross derivatives are kept. Same parameter directions and "
+        "domain.");
   py::class_<ProjectedCurve>(m, "ProjectedCurve", "A curve on a surface: 3D curve and p-curve.")
       .def_readonly("curve", &ProjectedCurve::curve, "3D curve on the surface.")
       .def_readonly("pcurve", &ProjectedCurve::pcurve,

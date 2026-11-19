@@ -5,6 +5,16 @@ versioning: [SemVer](https://semver.org).
 
 ## [Unreleased]
 
+### Added
+- Blend and match surfaces (#17): `blend_surfaces(s0, side0, s1, side1, continuity, tension)`
+  builds a G0 (ruled), G1 (cubic) or G2 (quintic) transition surface between two surface sides;
+  `match_surface(surface, side, target, target_side, continuity)` modifies a surface near one
+  side so that it joins the target with G0/G1/G2 and keeps the opposite side and its cross
+  derivatives. Both continue the surfaces as exact reparametrisations across the edges; exact
+  NURBS when the weights do not vary across the sides (non-rational surfaces, extrusions,
+  revolutions at profile ends), otherwise the boundary data are interpolated to a tolerance.
+  LLM tools `blend_surfaces` and `match_surface`.
+
 ## [0.15.0] – 2026-11-19
 Vertex blends and variable-radius fillets and chamfers of solid edges (#18), and surface tools
 (#17): sweeps with several profiles, rail revolve, tapered extrusion, ribbons, cones to a point,

@@ -13,7 +13,7 @@ GROUPS: list[tuple[str, list[str]]] = [
     ("Surface primitives and construction", [
         "make_bilinear", "make_rectangle", "extrude", "revolve", "ruled", "loft",
         "loft_parameters", "make_compatible", "sweep", "sweep2", "sweep_translational", "pipe_surface", "rail_revolve", "coons",
-        "gordon", "triangle_patch", "extrude_tapered", "ribbon", "extrude_to_point",
+        "gordon", "triangle_patch", "blend_surfaces", "match_surface", "extrude_tapered", "ribbon", "extrude_to_point",
         "rebuild_curve", "rebuild_surface", "reparametrize"]),
     ("Solid primitives", ["make_box", "make_sphere", "make_cylinder", "make_cone", "make_torus"]),
     ("Planar regions and curve tools", ["region_boolean", "region_area", "blend_curves",

@@ -64,6 +64,7 @@ add_library(nurbforge_core STATIC
   src/analysis/shell_section.cpp
   src/analysis/hatch.cpp
   src/fitting/fit.cpp
+  src/fitting/fit_surface.cpp
   src/optics/surfaces.cpp
   src/topology/trimmed_surface.cpp
   src/topology/shell.cpp

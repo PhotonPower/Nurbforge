@@ -95,7 +95,7 @@
 
 ## 0.16 – Surface blend / match, fitting to scattered data (#17)
 - Blend surface between two surface sides and matching a surface to a target side, G0/G1/G2 ✅
-- Surface fitting to scattered points (optionally with boundary curves and smoothing)
+- Surface fitting to scattered points (optionally with boundary curves and smoothing) ✅
 
 ## Infrastructure
 - ✅ Wheels via cibuildwheel (manylinux_2_28 for AlmaLinux 10 compatibility, win_amd64, macOS arm64/x86_64)

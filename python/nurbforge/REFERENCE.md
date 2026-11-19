@@ -158,6 +158,7 @@ arguments after `*` are keyword-only; `(1) … (2) …` are overloads.
 - `approximate_curve_tol(points: array_like, degree: int, tolerance: float, method: Parametrization = Parametrization.Centripetal) -> NurbsCurve` — Least squares with the fewest control points meeting the tolerance.
 - `interpolate_surface(points: array_like, degree_u: int = 3, degree_v: int = 3, method: Parametrization = Parametrization.Centripetal) -> NurbsSurface` — Interpolate a point grid (nu, nv, 3).
 - `approximate_surface(points: array_like, degree_u: int, degree_v: int, ctrl_u: int, ctrl_v: int, method: Parametrization = Parametrization.Centripetal) -> NurbsSurface` — Least-squares surface with `ctrl_u` x `ctrl_v` control points to a point grid of shape (nu, nv, 3): first along u for every grid column, then along v.
+- `fit_surface(points: array_like, num_u: int = 0, num_v: int = 0, degree_u: int = 3, degree_v: int = 3, smoothing: float = 0.001, iterations: int = 2, base: NurbsSurface | None = None, boundary: Sequence[NurbsCurve] = []) -> FittedSurface` — Fit a B-spline surface (domain [0, 1]^2) to unordered points (n, 3): least squares plus smoothing x thin-plate energy (relative weight; 1e-3 barely changes smooth data, 0.1-1 smooths noise), then `iterations` rounds of parameter correction. Parameters from the best-fit plane (height fields), from `base` (closest points), or from the Coons patch of four `boundary` curves [c0, c1, d0, d1], which are then interpolated exactly. num_u/num_v = 0: about sqrt(n / 4). Returns FittedSurface (surface, max_error, rms_error, parameters).
 - `data_parameters(points: array_like, method: Parametrization = Parametrization.Centripetal) -> list[float]` — The parameters in [0, 1] assigned to the data points by the fitting functions for the given `method` (first 0, last 1).
 - `fit_line(points: array_like) -> LineFit` — Best-fit line through points (n, 3) by orthogonal regression (minimal sum of squared perpendicular distances): centroid, unit direction, max and rms deviation.
 - `fit_plane(points: array_like) -> PlaneFit` — Best-fit plane through points (n, 3) by orthogonal regression: plane through the centroid with unit normal, max and rms deviation.
@@ -331,6 +332,15 @@ One intersection of a curve with a surface or plane: curve parameter `t`, surfac
 - `.t: float` — Parameter on the curve.
 - `.u: float` — u parameter on the surface (in-plane coordinate s for a plane).
 - `.v: float` — v parameter on the surface (in-plane coordinate t for a plane).
+
+### `FittedSurface`
+
+Result of fit_surface.
+
+- `.max_error: float` — largest distance of a point from the surface
+- `.parameters: ndarray` — (n, 2) array: (u, v) of each point's foot point
+- `.rms_error: float` — rms of the point distances
+- `.surface: NurbsSurface` — the fitted surface
 
 ### `GeometryError` (exception, subclass of ValueError)
 
@@ -851,6 +861,7 @@ JSON tools for an LLM agent working on a `Workspace` of named objects; call them
 - `list_objects()` — List all objects in the workspace.
 - `closest_point(name: string, point: number[3])` — Closest point of an object to a given point, with its parameters and the distance.
 - `interpolate_points(name: string, points: number[3][], degree?: integer)` — Create a smooth curve through the given points (in order).
+- `fit_surface(name: string, points: number[3][], smoothing?: number, num_ctrl?: integer)` — Fit a smooth surface to unordered measured points (e.g. a height map). smoothing: 0.001 follows the points closely, 0.1-1 smooths noisy data. Reports the max and rms deviation.
 - `loft(name: string, sections: string[], degree?: integer)` — Create a smooth surface through several section curves (in the given order).
 - `sweep(name: string, profile?: string, path: string, twist_deg?: number, profiles?: string[])` — Sweep a profile curve along a path curve. The profile must be drawn at the start of the path (typically in the plane normal to the path). Optional twist in degrees over the whole path. With 'profiles' (several curves drawn where they cross the path, e.g. a circle at the start and a larger one at the end) the cross-section blends between them.
 - `rail_revolve(name: string, profile: string, rail: string, axis_point: number[3], axis_dir: number[3], scale_height?: boolean)` — Revolve a profile curve about an axis while its outer end follows a rail curve (e.g. a reflector with an elliptic or square-ish rim): the profile is scaled radially so its end stays on the rail; scale_height also scales heights.

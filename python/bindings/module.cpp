@@ -661,6 +661,55 @@ PYBIND11_MODULE(_core, m) {
       "fit_plane", [](const Arr& pts) { return fit_plane(from_numpy(pts)); }, py::arg("points"),
       "Best-fit plane through points (n, 3) by orthogonal regression: plane through the "
       "centroid with unit normal, max and rms deviation.");
+  py::class_<FittedSurface>(m, "FittedSurface", "Result of fit_surface.")
+      .def_readonly("surface", &FittedSurface::surface, "the fitted surface")
+      .def_readonly("max_error", &FittedSurface::max_error,
+                    "largest distance of a point from the surface")
+      .def_readonly("rms_error", &FittedSurface::rms_error, "rms of the point distances")
+      .def_property_readonly(
+          "parameters",
+          [](const FittedSurface& f) {
+            py::array_t<double> a({f.parameters.size(), std::size_t{2}});
+            auto r = a.mutable_unchecked<2>();
+            for (std::size_t k = 0; k < f.parameters.size(); ++k) {
+              r(k, 0) = f.parameters[k][0];
+              r(k, 1) = f.parameters[k][1];
+            }
+            return a;
+          },
+          "(n, 2) array: (u, v) of each point's foot point")
+      .def("__repr__", [](const FittedSurface& f) {
+        return "<FittedSurface max_error=" + std::to_string(f.max_error) +
+               " rms_error=" + std::to_string(f.rms_error) + ">";
+      });
+  m.def(
+      "fit_surface",
+      [](const Arr& pts, std::size_t num_u, std::size_t num_v, std::size_t degree_u,
+         std::size_t degree_v, double smoothing, std::size_t iterations,
+         const std::optional<NurbsSurface>& base, const std::vector<NurbsCurve>& boundary) {
+        SurfaceFitOptions o;
+        o.num_u = num_u;
+        o.num_v = num_v;
+        o.degree_u = degree_u;
+        o.degree_v = degree_v;
+        o.smoothing = smoothing;
+        o.iterations = iterations;
+        o.base = base;
+        o.boundary = boundary;
+        const auto P = from_numpy(pts);
+        py::gil_scoped_release release;
+        return fit_surface(P, o);
+      },
+      py::arg("points"), py::arg("num_u") = 0, py::arg("num_v") = 0, py::arg("degree_u") = 3,
+      py::arg("degree_v") = 3, py::arg("smoothing") = 1e-3, py::arg("iterations") = 2,
+      py::arg("base") = std::nullopt, py::arg("boundary") = std::vector<NurbsCurve>{},
+      "Fit a B-spline surface (domain [0, 1]^2) to unordered points (n, 3): least squares plus "
+      "smoothing x thin-plate energy (relative weight; 1e-3 barely changes smooth data, 0.1-1 "
+      "smooths noise), then `iterations` rounds of parameter correction. Parameters from the "
+      "best-fit plane (height fields), from `base` (closest points), or from the Coons patch "
+      "of four `boundary` curves [c0, c1, d0, d1], which are then interpolated exactly. "
+      "num_u/num_v = 0: about sqrt(n / 4). Returns FittedSurface (surface, max_error, "
+      "rms_error, parameters).");
   m.def(
       "approximate_curve",
       [](const Arr& pts, std::size_t degree, std::size_t n_ctrl, Parametrization method) {

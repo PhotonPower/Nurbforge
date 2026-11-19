@@ -5,6 +5,12 @@ versioning: [SemVer](https://semver.org).
 
 ## [Unreleased]
 
+## [0.15.0] – 2026-11-19
+Vertex blends and variable-radius fillets and chamfers of solid edges (#18), and surface tools
+(#17): sweeps with several profiles, rail revolve, tapered extrusion, ribbons, cones to a point,
+three-sided patches, exact Coons patches from arcs, rebuild of curves and surfaces. The API is
+not yet stable (0.x).
+
 ### Added
 - Vertex blends (#18): `fillet_edges` / `chamfer_edges` handle chains of different face pairs
   meeting at a vertex of three faces. Two chains with a smooth third edge (tangent chains such

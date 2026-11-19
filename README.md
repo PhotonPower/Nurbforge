@@ -11,7 +11,7 @@ Nurbforge builds exact 2D/3D curves, surfaces and surface systems for downstream
 tools such as optical design, FEM, BEM and FMM solvers. There is no GUI: geometry is created
 from code (C++ or Python), from a local LLM (Ollama), and meshed with [gmsh](https://gmsh.info).
 
-> **Status: 0.14.0 – early, API not yet stable.** NURBS core and toolbox (refinement, fitting, loft,
+> **Status: 0.15.0 – early, API not yet stable.** NURBS core and toolbox (refinement, fitting, loft,
 > sweep, Coons/Gordon, offsets, fillets, chamfers, curves on surfaces), freeform optical surfaces, intersections, trimming,
 > B-rep shells, solid primitives and Boolean operations, solid operations for simulation (split,
 > cap, thicken, hollow, pipes, defeaturing, edge fillets and chamfers), planar region Booleans, mass properties, shell

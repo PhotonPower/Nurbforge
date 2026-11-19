@@ -93,7 +93,7 @@
 - Surface tools (#17): sweep with several profiles, rail revolve, tapered extrusion, ribbon, extrusion to a point, three-sided patch, exact Coons patches for rational boundaries, rebuild of curves and surfaces ✅
 - Next from #17: surface blend / match (G1/G2), fitting to scattered data, variable offset, unrolling
 
-## 0.16 – Surface blend / match, fitting to scattered data (#17)
+## 0.16 – Surface blend / match, fitting to scattered data (#17) ✅
 - Blend surface between two surface sides and matching a surface to a target side, G0/G1/G2 ✅
 - Surface fitting to scattered points (optionally with boundary curves and smoothing) ✅
 

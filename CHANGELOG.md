@@ -5,6 +5,10 @@ versioning: [SemVer](https://semver.org).
 
 ## [Unreleased]
 
+## [0.16.0] – 2026-11-19
+Blend and match surfaces with G0/G1/G2 continuity, and fitting of surfaces to scattered points
+(#17). The API is not yet stable (0.x).
+
 ### Added
 - Blend and match surfaces (#17): `blend_surfaces(s0, side0, s1, side1, continuity, tension)`
   builds a G0 (ruled), G1 (cubic) or G2 (quintic) transition surface between two surface sides;

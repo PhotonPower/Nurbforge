@@ -180,6 +180,29 @@ two diverging lines doubles its span and its height.
 \apiref{sweep_translational} is exact: $\mathbf S(u,v) = \mathbf C(u) + \mathbf T(v) -
 \mathbf T(v_0)$, a tensor product of the two curves (rational curves are allowed).
 
+\paragraph{Several profiles.} \code{sweep(profiles, trajectory, params=[], options)} takes a
+list of profiles, each drawn \emph{where it crosses the trajectory}, at the trajectory
+parameters \code{params} (empty: the parameter of the trajectory point nearest to each
+profile). Every profile is moved back to the trajectory start by the inverse of its placement,
+the moved profiles are lofted over their parameters (cubic for four or more profiles), and the
+section at $v$ is that blended shape placed at $v$. Before the first and after the last profile
+the shape is constant. Closed profiles should have their seams aligned, as for \code{loft}.
+
+\paragraph{Rail revolve.} \apiref{rail_revolve} revolves a profile about an axis while the
+profile end nearer to a \emph{rail} curve follows the rail:
+
+\begin{lstlisting}[style=text]
+rail_revolve(profile, rail, axis_point, axis_dir, scale_height=False, options=SweepOptions()) -> NurbsSurface
+\end{lstlisting}
+
+At the rail parameter $v$ the profile is rotated about the axis to the angle of
+$\mathbf R(v)$ and scaled about the axis in the radial direction, so that its end lies at the
+rail's distance from the axis. With \code{scale_height} it is also scaled along the axis (about
+the axis point) to the rail's height; otherwise heights are kept. A profile starting on the axis
+keeps that point, e.g.\ a reflector with an elliptic or rounded-square rim. $u$ runs along the
+profile, $v$ along the rail; a closed rail gives a closed surface.
+
+
 \subsection{Coons patches and Gordon surfaces}
 
 \begin{lstlisting}[style=text]
@@ -200,8 +223,22 @@ one $u$-curve must lie at the same $v$-curve parameters as on the others. The in
 parameters are determined and checked internally. The Gordon surface is again a Boolean sum
 $L_1 + L_2 - T$ of two lofts and a tensor-product interpolant of the intersection points.
 
-The Boolean sum is exact only for non-rational curves, so rational input (arcs, circles) is
-first replaced by cubic interpolants within \code{tolerance}.
+The Boolean sum is linear in the control points. For non-rational curves it is therefore
+exact. For rational boundaries (arcs, conics) \code{coons} forms it in homogeneous coordinates
+-- numerators $w\mathbf P$ and weights $w$ separately -- which reproduces the boundaries
+exactly if the weights agree at the corners. Each curve's weights may be scaled for this
+(scaling does not change a curve); arcs from \code{make_arc}, whose end weights are 1, always
+qualify. A Coons patch from two coaxial arcs and two straight lines is then an exact cylinder
+patch. Otherwise, and always for \code{gordon}, rational input is first replaced by cubic
+interpolants within \code{tolerance}.
+
+\apiref{triangle_patch} fills a loop of three curves: a Coons patch with \code{c0} as one side
+and the opposite corner as a degenerate side ($v = 1$), so it is regular except at that corner,
+where the limit normal is used:
+
+\begin{lstlisting}[style=text]
+triangle_patch(c0, c1, c2, tolerance=1e-7) -> NurbsSurface
+\end{lstlisting}
 
 \subsection{Example}
 
@@ -412,9 +449,11 @@ Field & Meaning \\
 \bottomrule
 \end{tabularx}
 
-Not handled: variable radii, several spine branches (the longest intersection curve of the
-offsets is used), vertex blends where several fillets meet. The input surfaces are not trimmed
-automatically.
+Not handled: several spine branches (the longest intersection curve of the offsets is used).
+The input surfaces are not trimmed automatically; \apiref{fillet_edges} does this for the edges
+of a solid, including vertex blends where several fillets meet and variable radii
+(\cref{sec:edge-blends}). In C++, \code{SurfaceFilletOptions::radius_at} gives a variable
+radius as a function of the ball position.
 
 \example{06_surface_operations.py}
 
@@ -435,3 +474,57 @@ fillet: net 3 x 9, spine at mid Vec3(0.500000, 1.500000, 0.500000)
 The fillet between the floor $z=0$ and the wall $x=0$ is the exact quarter cylinder of radius
 0.5 around the line $x = z = 0.5$; the p-curve on the floor gives the parameters $(0.3, 0.5)$,
 which map back to the contact point.
+
+\section{Construction helpers}\label{sec:surface-tools}
+
+\begin{lstlisting}[style=text]
+extrude_tapered(profile, direction, angle, tolerance=1e-7) -> list[NurbsSurface]
+ribbon(curve, width, plane_normal=(0, 0, 1), tolerance=1e-7) -> list[NurbsSurface]
+extrude_to_point(curve, apex) -> NurbsSurface
+rebuild_curve(curve, num_ctrl, degree=3) -> RebuiltCurve        # .curve, .max_error
+rebuild_surface(surface, num_u, num_v, degree_u=3, degree_v=3) -> RebuiltSurface
+\end{lstlisting}
+
+\apiref{extrude_tapered} extrudes a planar profile along a direction normal to its plane, the
+vector length being the height, with a draft angle: the top curve is the profile offset in its
+plane by $h\tan\alpha$ (\code{offset_curve}), outwards for $\alpha > 0$, inwards for
+$\alpha < 0$, and moved by \code{direction}. For an open profile ``outwards'' is its left side
+seen from the tip of the direction. The profile is split at its corners; the offset pieces are
+\emph{mitred} (extended or cut where neighbours meet), and each piece gives one ruled surface
+from the profile piece to its top piece. Line pieces give exact planar faces, curved pieces are
+within the offset tolerance. Together with \code{cap} this gives drafted solids, e.g.\ the
+frustum in the example.
+
+\apiref{ribbon} is the planar counterpart: ruled surfaces between a curve and its offset by
+\code{width} in the plane with normal \code{plane_normal} (to the left for positive width),
+mitred at the corners.
+
+\apiref{extrude_to_point} is the cone over a curve: the ruled surface from the curve ($v = 0$)
+to the apex ($v = 1$). The apex is a degenerate curve with the curve's degree, knots and
+weights, so the rulings are straight also for rational curves and a circle gives an exact
+circular cone.
+
+\apiref{rebuild_curve} and \apiref{rebuild_surface} replace a curve or surface by a
+non-rational B-spline with a prescribed number of control points, degrees and uniform knots on
+the same domain, e.g.\ to unify surfaces before meshing or to simplify fitted data. The fit is
+a least-squares fit of dense samples \emph{at their parameters}, so the parametrisation is kept;
+\code{max_error} is the largest distance between input and result at equal parameters on a
+grid four times denser than the fit samples, an upper bound of the geometric deviation. The
+rational circle converges only slowly because its parametrisation is only $C^1$ at its knots.
+
+\example{06_surface_tools.py}
+
+Output:
+
+\begin{lstlisting}[style=text]
+duct: radius at z = 3: 1.500000, at the ends 1.000000
+rail revolve: area 6.283185 (ellipse pi a b = 6.283185)
+tapered extrusion: 4 faces, volume 4.746762862 (h/3 (A1 + A2 + sqrt(A1 A2)) = 4.746762862)
+ribbon: 2 pieces, area 1.250000000 (1.25)
+cone: area 7.024814731 (pi r s = 7.024814731)
+coons from arcs: rational=True, max |r - 1| = 1.1e-16
+triangle patch: boundary on the sphere within 1.1e-16, corner Vec3(0.000000, 0.000000, 1.000000)
+rebuild circle with  8 control points: max error 1.82e-02
+rebuild circle with 16 control points: max error 3.29e-03
+rebuild circle with 32 control points: max error 5.82e-04
+\end{lstlisting}

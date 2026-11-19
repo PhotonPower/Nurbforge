@@ -12,9 +12,12 @@ namespace nf {
 /// Bilinearly blended Coons patch from four boundary curves:
 /// S(u, 0) = c0(u), S(u, 1) = c1(u), S(0, v) = d0(v), S(1, v) = d1(v) on [0, 1]^2.
 /// Curve orientations are corrected automatically (d0 must connect the starts of c0 and c1,
-/// d1 their ends); corners must agree within `tolerance`. Rational boundaries are first replaced
-/// by non-rational approximations within `tolerance` (the Boolean sum is exact only for
-/// non-rational curves); non-rational boundaries are interpolated exactly.
+/// d1 their ends); corners must agree within `tolerance`. Non-rational boundaries are
+/// interpolated exactly. Rational boundaries (arcs, conics) are exact too when their weights
+/// can be made to agree at the corners by scaling each curve's weights (e.g. arcs from
+/// make_arc, whose end weights are 1): the Boolean sum is then taken in homogeneous
+/// coordinates and the result is rational. Otherwise they are replaced by non-rational
+/// approximations within `tolerance` first.
 [[nodiscard]] NurbsSurface coons(const NurbsCurve& c0, const NurbsCurve& c1, const NurbsCurve& d0,
                                  const NurbsCurve& d1, double tolerance = 1e-7);
 

@@ -200,12 +200,84 @@ def _build_tools() -> list[Tool]:
 
     @add("sweep", "Sweep a profile curve along a path curve. The profile must be drawn at the "
          "start of the path (typically in the plane normal to the path). Optional twist in "
-         "degrees over the whole path.",
-         {"name": _NAME, "profile": _NAME, "path": _NAME, "twist_deg": {"type": "number"}},
-         ["name", "profile", "path"])
-    def _(ws, name, profile, path, twist_deg=0.0):
+         "degrees over the whole path. With 'profiles' (several curves drawn where they cross "
+         "the path, e.g. a circle at the start and a larger one at the end) the cross-section "
+         "blends between them.",
+         {"name": _NAME, "profile": _NAME, "path": _NAME, "twist_deg": {"type": "number"},
+          "profiles": {"type": "array", "items": _NAME}},
+         ["name", "path"])
+    def _(ws, name, path, profile=None, twist_deg=0.0, profiles=None):
         opt = nf.SweepOptions(twist=_deg(twist_deg))
+        if profiles:
+            return ws.put(name, nf.sweep([ws.get(p) for p in profiles], ws.get(path),
+                                         options=opt))
+        if profile is None:
+            raise ValueError("give 'profile' or 'profiles'")
         return ws.put(name, nf.sweep(ws.get(profile), ws.get(path), opt))
+
+    @add("rail_revolve", "Revolve a profile curve about an axis while its outer end follows a "
+         "rail curve (e.g. a reflector with an elliptic or square-ish rim): the profile is scaled "
+         "radially so its end stays on the rail; scale_height also scales heights.",
+         {"name": _NAME, "profile": _NAME, "rail": _NAME, "axis_point": _VEC, "axis_dir": _VEC,
+          "scale_height": {"type": "boolean"}},
+         ["name", "profile", "rail", "axis_point", "axis_dir"])
+    def _(ws, name, profile, rail, axis_point, axis_dir, scale_height=False):
+        return ws.put(name, nf.rail_revolve(ws.get(profile), ws.get(rail), axis_point, axis_dir,
+                                            scale_height))
+
+    def _pieces(ws, name, surfaces):
+        if len(surfaces) == 1:
+            return ws.put(name, surfaces[0])
+        return ws.put(name, nf.Shell.sew([nf.TrimmedSurface(s) for s in surfaces]))
+
+    @add("extrude_tapered", "Tapered (draft-angle) extrusion of a planar profile along a "
+         "direction normal to its plane (the vector length is the height). angle_deg > 0 widens "
+         "the section towards the top, < 0 narrows it. Corners are mitred; a profile with "
+         "corners gives an open shell of faces (use 'cap' to close it).",
+         {"name": _NAME, "profile": _NAME, "direction": _VEC, "angle_deg": {"type": "number"}},
+         ["name", "profile", "direction", "angle_deg"])
+    def _(ws, name, profile, direction, angle_deg):
+        return _pieces(ws, name, nf.extrude_tapered(ws.get(profile), direction,
+                                                    _deg(angle_deg)))
+
+    @add("ribbon", "Planar strip of the given width along a curve (to the left seen from the "
+         "plane normal's tip; negative width: right). Corners are mitred.",
+         {"name": _NAME, "curve": _NAME, "width": {"type": "number"}, "plane_normal": _VEC},
+         ["name", "curve", "width"])
+    def _(ws, name, curve, width, plane_normal=(0, 0, 1)):
+        return _pieces(ws, name, nf.ribbon(ws.get(curve), width, plane_normal))
+
+    @add("extrude_to_point", "Cone-like surface from a curve to an apex point (exact for "
+         "circles and arcs).",
+         {"name": _NAME, "curve": _NAME, "apex": _VEC}, ["name", "curve", "apex"])
+    def _(ws, name, curve, apex):
+        return ws.put(name, nf.extrude_to_point(ws.get(curve), apex))
+
+    @add("triangle_patch", "Three-sided surface filling three boundary curves that form a "
+         "closed loop (any orientation).",
+         {"name": _NAME, "c0": _NAME, "c1": _NAME, "c2": _NAME}, ["name", "c0", "c1", "c2"])
+    def _(ws, name, c0, c1, c2):
+        return ws.put(name, nf.triangle_patch(ws.get(c0), ws.get(c1), ws.get(c2)))
+
+    @add("rebuild", "Rebuild a curve or surface with a given number of control points "
+         "(uniform cubic B-spline by default), e.g. to simplify or unify it; reports the "
+         "maximum deviation.",
+         {"name": _NAME, "source": _NAME, "num_u": {"type": "integer", "minimum": 2},
+          "num_v": {"type": "integer", "minimum": 2,
+                    "description": "surfaces only (default num_u)"},
+          "degree": {"type": "integer", "minimum": 1, "maximum": 7}},
+         ["name", "source", "num_u"])
+    def _(ws, name, source, num_u, num_v=None, degree=3):
+        o = ws.get(source)
+        if isinstance(o, nf.NurbsCurve):
+            r = nf.rebuild_curve(o, num_u, degree)
+            out = ws.put(name, r.curve)
+        elif isinstance(o, nf.NurbsSurface):
+            r = nf.rebuild_surface(o, num_u, num_v or num_u, degree, degree)
+            out = ws.put(name, r.surface)
+        else:
+            raise TypeError(f"'{source}' is not a curve or surface")
+        return f"{out}; max deviation {r.max_error:.3g}"
 
     @add("coons", "Create a surface filling four boundary curves that form a closed loop "
          "(any orientation).",

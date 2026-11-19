@@ -3,9 +3,12 @@
 #include <algorithm>
 #include <cmath>
 #include <functional>
+#include <limits>
+#include <numbers>
 #include <string>
 #include <vector>
 
+#include "nurbforge/analysis/closest_point.hpp"
 #include "nurbforge/core/error.hpp"
 #include "nurbforge/geometry/primitives.hpp"
 #include "nurbforge/geometry/transform.hpp"
@@ -100,28 +103,27 @@ class RotationMinimizingFrame {
 };
 
 using Placement = std::function<Transform(double)>;
+using SectionAt = std::function<NurbsCurve(double)>;  // the exact section (on [0, 1]) at v
 
-// Skins one smooth piece [a, b] through exactly placed copies of the profile (on [0, 1]),
-// doubling the number of sections until the deviation from the ideal sweep at the midpoints is
-// below the tolerance.
-NurbsSurface skin_piece(const NurbsCurve& profile, const Placement& place, double a, double b,
-                        const SweepOptions& opt) {
+// Skins one smooth piece [a, b] through exact sections, doubling the number of sections until
+// the deviation from the ideal sweep at the midpoints is below the tolerance.
+NurbsSurface skin_piece(const SectionAt& section, double a, double b, const SweepOptions& opt) {
   std::size_t K = 5;
   while (true) {
     std::vector<double> v(K);
     std::vector<NurbsCurve> sections;
     for (std::size_t k = 0; k < K; ++k) {
       v[k] = k + 1 == K ? b : a + (b - a) * static_cast<double>(k) / static_cast<double>(K - 1);
-      sections.push_back(profile.transformed(place(v[k])));
+      sections.push_back(section(v[k]));
     }
     NurbsSurface s = loft(sections, 3, v);
     double err = 0.0;
     for (std::size_t k = 0; k + 1 < K; ++k) {
       const double vm = 0.5 * (v[k] + v[k + 1]);
-      const Transform T = place(vm);
+      const NurbsCurve ideal = section(vm);
       for (int i = 0; i <= 16; ++i) {
         const double u = i / 16.0;
-        err = std::max(err, distance(s.evaluate(u, vm), T.apply(profile.evaluate(u))));
+        err = std::max(err, distance(s.evaluate(u, vm), ideal.evaluate(u)));
       }
     }
     if (err <= opt.tolerance) return s;
@@ -137,16 +139,35 @@ NurbsSurface skin_piece(const NurbsCurve& profile, const Placement& place, doubl
 // (e.g. the rational circle). A cubic skin across such a kink converges like h^2 only, so the
 // sweep is skinned piecewise between the distinct knots and the pieces are joined (they share
 // the exactly placed boundary section).
-NurbsSurface skin_adaptive(const NurbsCurve& profile, const Placement& place,
-                           std::vector<double> breaks, const SweepOptions& opt) {
+NurbsSurface skin_adaptive(const SectionAt& section, std::vector<double> breaks,
+                           const SweepOptions& opt) {
   std::sort(breaks.begin(), breaks.end());
   breaks.erase(std::unique(breaks.begin(), breaks.end(),
                            [](double x, double y) { return y - x <= tol::kParametric; }),
                breaks.end());
-  NurbsSurface result = skin_piece(profile, place, breaks[0], breaks[1], opt);
+  NurbsSurface result = skin_piece(section, breaks[0], breaks[1], opt);
   for (std::size_t i = 1; i + 1 < breaks.size(); ++i)
-    result = join_v(result, skin_piece(profile, place, breaks[i], breaks[i + 1], opt), 1e-9);
+    result = join_v(result, skin_piece(section, breaks[i], breaks[i + 1], opt), 1e-9);
   return result;
+}
+
+NurbsSurface skin_adaptive(const NurbsCurve& profile, const Placement& place,
+                           std::vector<double> breaks, const SweepOptions& opt) {
+  return skin_adaptive([&](double v) { return profile.transformed(place(v)); }, std::move(breaks),
+                       opt);
+}
+
+// Inverse of an affine map (3x3 part inverted by its adjugate).
+Transform inverse(const Transform& T) {
+  const auto& m = T.matrix();
+  const Vec3 c0{m[0], m[4], m[8]}, c1{m[1], m[5], m[9]}, c2{m[2], m[6], m[10]};
+  const double det = dot(c0, cross(c1, c2));
+  if (std::abs(det) <= 1e-300) throw GeometryError("sweep: singular placement");
+  // rows of the inverse: (c1 x c2, c2 x c0, c0 x c1) / det
+  const Vec3 r0 = cross(c1, c2) / det, r1 = cross(c2, c0) / det, r2 = cross(c0, c1) / det;
+  const Vec3 t{m[3], m[7], m[11]};
+  return Transform({r0.x, r0.y, r0.z, -dot(r0, t), r1.x, r1.y, r1.z, -dot(r1, t), r2.x, r2.y, r2.z,
+                    -dot(r2, t)});
 }
 
 // Distinct knots of the curves inside [a, b], including a and b.
@@ -175,16 +196,15 @@ NurbsSurface sweep_translational(const NurbsCurve& profile_in, const NurbsCurve&
           std::move(P),     std::move(W)};
 }
 
-NurbsSurface sweep(const NurbsCurve& profile_in, const NurbsCurve& trajectory,
-                   const SweepOptions& opt) {
-  if (opt.frame == SweepFrame::Fixed && opt.twist == 0.0)
-    return sweep_translational(profile_in, trajectory);
-  const NurbsCurve profile = reparametrize(profile_in.clamped(), 0.0, 1.0);
+namespace {
+
+// Placement of the profile (given at the trajectory start) at trajectory parameter v.
+Placement sweep_placement(const NurbsCurve& trajectory, const RotationMinimizingFrame& rmf,
+                          const SweepOptions& opt) {
   const double a = trajectory.domain_start(), b = trajectory.domain_end();
   const Vec3 x0 = trajectory.evaluate(a);
-  const RotationMinimizingFrame rmf(trajectory);
   const Mat3 F0 = rmf.frame(a);
-  const Placement place = [&](double v) {
+  return [&trajectory, &rmf, opt, a, b, x0, F0](double v) {
     Mat3 R;  // identity for SweepFrame::Fixed
     if (opt.frame == SweepFrame::RotationMinimizing) R = relative(rmf.frame(v), F0);
     Transform L = linear(R);
@@ -194,7 +214,142 @@ NurbsSurface sweep(const NurbsCurve& profile_in, const NurbsCurve& trajectory,
           L;
     return Transform::translation(trajectory.evaluate(v)) * L * Transform::translation(-x0);
   };
+}
+
+}  // namespace
+
+NurbsSurface sweep(const NurbsCurve& profile_in, const NurbsCurve& trajectory,
+                   const SweepOptions& opt) {
+  if (opt.frame == SweepFrame::Fixed && opt.twist == 0.0)
+    return sweep_translational(profile_in, trajectory);
+  const NurbsCurve profile = reparametrize(profile_in.clamped(), 0.0, 1.0);
+  const double a = trajectory.domain_start(), b = trajectory.domain_end();
+  const RotationMinimizingFrame rmf(trajectory);
+  const Placement place = sweep_placement(trajectory, rmf, opt);
   return skin_adaptive(profile, place, break_points({&trajectory}, a, b), opt);
+}
+
+NurbsSurface sweep(const std::vector<NurbsCurve>& profiles_in, const NurbsCurve& trajectory,
+                   std::vector<double> params, const SweepOptions& opt) {
+  if (profiles_in.empty()) throw GeometryError("sweep: no profile");
+  if (!params.empty() && params.size() != profiles_in.size())
+    throw GeometryError("sweep: one trajectory parameter per profile is needed");
+  const double a = trajectory.domain_start(), b = trajectory.domain_end();
+  std::vector<NurbsCurve> profiles;
+  for (const auto& p : profiles_in) profiles.push_back(reparametrize(p.clamped(), 0.0, 1.0));
+  if (params.empty())  // where each profile comes closest to the trajectory
+    for (const auto& p : profiles) {
+      double best = std::numeric_limits<double>::infinity(), t = a;
+      for (int i = 0; i <= 64; ++i) {
+        const CurvePoint cp = closest_point(trajectory, p.evaluate(i / 64.0));
+        if (cp.distance < best) {
+          best = cp.distance;
+          t = cp.u;
+        }
+      }
+      params.push_back(t);
+    }
+  std::vector<std::size_t> order(profiles.size());
+  for (std::size_t i = 0; i < order.size(); ++i) order[i] = i;
+  std::sort(order.begin(), order.end(),
+            [&](std::size_t x, std::size_t y) { return params[x] < params[y]; });
+  for (std::size_t i = 0; i < order.size(); ++i) {
+    const double t = params[order[i]];
+    if (t < a - tol::kParametric || t > b + tol::kParametric)
+      throw GeometryError("sweep: a profile parameter lies outside the trajectory domain");
+    if (i > 0 && !(t > params[order[i - 1]] + tol::kParametric))
+      throw GeometryError("sweep: two profiles at the same trajectory parameter");
+  }
+  if (profiles.size() == 1) {
+    // a single profile placed anywhere: move it back to the trajectory start
+    const RotationMinimizingFrame rmf(trajectory);
+    const Placement place = sweep_placement(trajectory, rmf, opt);
+    return sweep(profiles[0].transformed(inverse(place(params[0]))), trajectory, opt);
+  }
+  const RotationMinimizingFrame rmf(trajectory);
+  const Placement place = sweep_placement(trajectory, rmf, opt);
+  // the profiles moved back to the start of the trajectory, blended by a loft over v
+  std::vector<NurbsCurve> local;
+  std::vector<double> v;
+  for (const std::size_t i : order) {
+    local.push_back(profiles[i].transformed(inverse(place(params[i]))));
+    v.push_back(params[i]);
+  }
+  const NurbsSurface shape = loft(local, std::min<std::size_t>(3, local.size() - 1), v);
+  const SectionAt section = [&](double t) {
+    return reparametrize(shape.iso_curve_v(std::clamp(t, v.front(), v.back())), 0.0, 1.0)
+        .transformed(place(t));
+  };
+  std::vector<double> breaks = break_points({&trajectory}, a, b);
+  for (const double t : unique_knots(shape.knots_v()).first)
+    if (t > a && t < b) breaks.push_back(t);
+  return skin_adaptive(section, std::move(breaks), opt);
+}
+
+NurbsSurface rail_revolve(const NurbsCurve& profile_in, const NurbsCurve& rail,
+                          const Vec3& axis_point, const Vec3& axis_dir, bool scale_height,
+                          const SweepOptions& opt) {
+  const double na = norm(axis_dir);
+  if (na <= tol::kLength) throw GeometryError("rail_revolve: axis direction must be non-zero");
+  const Vec3 ax = axis_dir / na;
+  const NurbsCurve profile = reparametrize(profile_in.clamped(), 0.0, 1.0);
+  const double a = rail.domain_start(), b = rail.domain_end();
+  // the profile end on the rail (the one nearer to it)
+  const Vec3 p0 = profile.evaluate(0.0), p1 = profile.evaluate(1.0);
+  const Vec3 E = closest_point(rail, p0).distance <= closest_point(rail, p1).distance ? p0 : p1;
+  const auto height = [&](const Vec3& p) { return dot(p - axis_point, ax); };
+  const auto radial = [&](const Vec3& p) { return p - axis_point - height(p) * ax; };
+  const Vec3 rE = radial(E);
+  const double rhoE = norm(rE), hE = height(E);
+  if (rhoE <= tol::kLength)
+    throw GeometryError("rail_revolve: the profile end on the rail lies on the axis");
+  if (scale_height && std::abs(hE) <= tol::kLength)
+    throw GeometryError(
+        "rail_revolve: scale_height needs a profile end off the axis point's "
+        "height");
+  const Vec3 e1 = rE / rhoE, e2 = cross(ax, e1);
+  const auto raw_angle = [&](double t) {
+    const Vec3 r = radial(rail.evaluate(t));
+    return std::atan2(dot(r, e2), dot(r, e1));
+  };
+  // unwrapped angle table (continuous along the rail)
+  constexpr std::size_t N = 2048;
+  std::vector<double> table(N + 1);
+  table[0] = raw_angle(a);
+  for (std::size_t i = 1; i <= N; ++i) {
+    const double t = a + (b - a) * static_cast<double>(i) / N;
+    double d = raw_angle(t) - table[i - 1];
+    d -= 2 * std::numbers::pi * std::round(d / (2 * std::numbers::pi));
+    table[i] = table[i - 1] + d;
+  }
+  const auto angle = [&](double t) {
+    const double s = (t - a) / (b - a) * N;
+    const auto i = static_cast<std::size_t>(std::clamp(std::round(s), 0.0, static_cast<double>(N)));
+    double d = raw_angle(t) - table[i];
+    d -= 2 * std::numbers::pi * std::round(d / (2 * std::numbers::pi));
+    return table[i] + d;
+  };
+  const SectionAt section = [&](double t) {
+    const Vec3 R = rail.evaluate(t);
+    const double rho = norm(radial(R));
+    if (rho <= tol::kLength) throw GeometryError("rail_revolve: the rail touches the axis");
+    const double k = rho / rhoE, kh = scale_height ? height(R) / hE : 1.0;
+    // p -> O + k (radial part) + kh (axial part): linear part k (I - a a^T) + kh a a^T
+    std::array<double, 12> m{};
+    const double A[3] = {ax.x, ax.y, ax.z};
+    const double O[3] = {axis_point.x, axis_point.y, axis_point.z};
+    for (int r = 0; r < 3; ++r) {
+      double tr = O[r];
+      for (int c = 0; c < 3; ++c) {
+        const double L = (r == c ? k : 0.0) + (kh - k) * A[r] * A[c];
+        m[static_cast<std::size_t>(4 * r + c)] = L;
+        tr -= L * O[c];
+      }
+      m[static_cast<std::size_t>(4 * r + 3)] = tr;
+    }
+    return profile.transformed(Transform::rotation(axis_point, ax, angle(t)) * Transform(m));
+  };
+  return skin_adaptive(section, break_points({&rail}, a, b), opt);
 }
 
 NurbsSurface sweep2(const NurbsCurve& profile_in, const NurbsCurve& rail1_in,

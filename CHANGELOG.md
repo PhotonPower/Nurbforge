@@ -20,6 +20,15 @@ versioning: [SemVer](https://semver.org).
   `radius_at` function (C++ `SurfaceFilletOptions::radius_at`).
 - LLM tool `round_edges`: `'*'` wildcards for the face labels (e.g. every edge of the top face)
   and optional variable `sizes`.
+- Surface tools (#17): `sweep(profiles, trajectory, params)` (several profiles, blended
+  between their positions), `rail_revolve(profile, rail, axis_point, axis_dir, scale_height)`,
+  `extrude_tapered(profile, direction, angle)` (draft angle, mitred corners), `ribbon(curve,
+  width, plane_normal)`, `extrude_to_point(curve, apex)` (exact cones), `triangle_patch(c0, c1,
+  c2)`, `rebuild_curve` / `rebuild_surface` (prescribed control net, reported max error). LLM
+  tools `rail_revolve`, `extrude_tapered`, `ribbon`, `extrude_to_point`, `triangle_patch`,
+  `rebuild`; `sweep` takes `profiles`.
+- `coons` is exact for rational boundaries whose corner weights can be made to agree (e.g.
+  arcs): the Boolean sum is taken in homogeneous coordinates.
 
 ### Changed
 - Edge blends extend polynomial face surfaces linearly (tangent planes) beyond their

@@ -804,9 +804,25 @@ PYBIND11_MODULE(_core, m) {
       .def_readwrite("max_sections", &SweepOptions::max_sections);
   m.def("sweep_translational", &sweep_translational, py::arg("profile"), py::arg("trajectory"),
         "Exact translational sweep S(u, v) = C(u) + T(v) - T(v0).");
-  m.def("sweep", &sweep, py::call_guard<py::gil_scoped_release>(), py::arg("profile"),
-        py::arg("trajectory"), py::arg("options") = SweepOptions{},
+  m.def("sweep",
+        py::overload_cast<const NurbsCurve&, const NurbsCurve&, const SweepOptions&>(&sweep),
+        py::call_guard<py::gil_scoped_release>(), py::arg("profile"), py::arg("trajectory"),
+        py::arg("options") = SweepOptions{},
         "Sweep a profile (given at the trajectory start) along a trajectory.");
+  m.def("sweep",
+        py::overload_cast<const std::vector<NurbsCurve>&, const NurbsCurve&, std::vector<double>,
+                          const SweepOptions&>(&sweep),
+        py::call_guard<py::gil_scoped_release>(), py::arg("profiles"), py::arg("trajectory"),
+        py::arg("params") = std::vector<double>{}, py::arg("options") = SweepOptions{},
+        "Sweep with several profiles, each given where it crosses the trajectory (at params[k]; "
+        "empty: nearest trajectory point); the shape is blended between them (loft) and placed "
+        "along the trajectory.");
+  m.def("rail_revolve", &rail_revolve, py::call_guard<py::gil_scoped_release>(), py::arg("profile"),
+        py::arg("rail"), py::arg("axis_point"), py::arg("axis_dir"),
+        py::arg("scale_height") = false, py::arg("options") = SweepOptions{},
+        "Revolve a profile about an axis while its end nearer to the rail follows the rail "
+        "(radial scaling about the axis; scale_height: also axial scaling about the axis "
+        "point). E.g. a reflector with a non-round rim.");
   m.def("sweep2", &sweep2, py::call_guard<py::gil_scoped_release>(), py::arg("profile"),
         py::arg("rail1"), py::arg("rail2"), py::arg("options") = SweepOptions{},
         "Two-rail sweep with uniform scaling.");
@@ -919,7 +935,48 @@ PYBIND11_MODULE(_core, m) {
   m.def("coons", &coons, py::call_guard<py::gil_scoped_release>(), py::arg("c0"), py::arg("c1"),
         py::arg("d0"), py::arg("d1"), py::arg("tolerance") = 1e-7,
         "Coons patch: S(u,0)=c0, S(u,1)=c1, S(0,v)=d0, S(1,v)=d1 (orientations fixed "
-        "automatically).");
+        "automatically). Exact also for rational boundaries (arcs) whose corner weights agree.");
+  // ------------------------------------------------------------------ surface tools
+  py::class_<RebuiltCurve>(m, "RebuiltCurve")
+      .def_readonly("curve", &RebuiltCurve::curve)
+      .def_readonly("max_error", &RebuiltCurve::max_error,
+                    "max distance to the input at equal parameters (dense samples)")
+      .def("__repr__", [](const RebuiltCurve& r) {
+        return "<RebuiltCurve max_error=" + std::to_string(r.max_error) + ">";
+      });
+  py::class_<RebuiltSurface>(m, "RebuiltSurface")
+      .def_readonly("surface", &RebuiltSurface::surface)
+      .def_readonly("max_error", &RebuiltSurface::max_error,
+                    "max distance to the input at equal parameters (dense grid)")
+      .def("__repr__", [](const RebuiltSurface& r) {
+        return "<RebuiltSurface max_error=" + std::to_string(r.max_error) + ">";
+      });
+  m.def("rebuild_curve", &rebuild_curve, py::call_guard<py::gil_scoped_release>(), py::arg("curve"),
+        py::arg("num_ctrl"), py::arg("degree") = 3,
+        "Rebuild a curve as a non-rational B-spline with num_ctrl control points and uniform "
+        "knots on the same domain (least squares, parametrisation kept); returns RebuiltCurve "
+        "with the max error.");
+  m.def("rebuild_surface", &rebuild_surface, py::call_guard<py::gil_scoped_release>(),
+        py::arg("surface"), py::arg("num_u"), py::arg("num_v"), py::arg("degree_u") = 3,
+        py::arg("degree_v") = 3,
+        "Rebuild a surface with num_u x num_v control points and uniform knots on the same "
+        "domain; returns RebuiltSurface with the max error.");
+  m.def("extrude_tapered", &extrude_tapered, py::call_guard<py::gil_scoped_release>(),
+        py::arg("profile"), py::arg("direction"), py::arg("angle"), py::arg("tolerance") = 1e-7,
+        "Tapered (draft) extrusion of a planar profile normal to `direction` (its length is the "
+        "height): the top is the profile offset by height*tan(angle), outwards for angle > 0. "
+        "Corners are mitred; returns one ruled surface per smooth piece of the profile.");
+  m.def("ribbon", &ribbon, py::call_guard<py::gil_scoped_release>(), py::arg("curve"),
+        py::arg("width"), py::arg("plane_normal") = Vec3{0, 0, 1}, py::arg("tolerance") = 1e-7,
+        "Planar ribbon: ruled surfaces between a curve and its offset by `width` (left of the "
+        "curve seen from the normal's tip), mitred at corners; one surface per smooth piece.");
+  m.def("extrude_to_point", &extrude_to_point, py::arg("curve"), py::arg("apex"),
+        "Cone over a curve: ruled surface from the curve (v = 0) to the apex (v = 1); exact, "
+        "also for rational curves.");
+  m.def("triangle_patch", &triangle_patch, py::call_guard<py::gil_scoped_release>(), py::arg("c0"),
+        py::arg("c1"), py::arg("c2"), py::arg("tolerance") = 1e-7,
+        "Three-sided patch bounded by three curves forming a loop: a Coons patch with c0 as one "
+        "side and the opposite corner as a degenerate side (v = 1).");
   m.def("gordon", &gordon, py::call_guard<py::gil_scoped_release>(), py::arg("u_curves"),
         py::arg("v_curves"), py::arg("tolerance") = 1e-7,
         "Gordon surface through a consistent curve network.");

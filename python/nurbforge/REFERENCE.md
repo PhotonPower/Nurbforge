@@ -96,12 +96,20 @@ arguments after `*` are keyword-only; `(1) … (2) …` are overloads.
   `(2) loft(sections: Sequence[NurbsCurve], degree_v: int, v_params: Sequence[float]) -> NurbsSurface` — (1) Skinned surface through section curves (u along the sections, v across them).
 - `loft_parameters(sections: Sequence[NurbsCurve], method: Parametrization = Parametrization.Centripetal) -> list[float]` — The v parameters at which `loft` places the sections for the given method (averaged over the section control points), first 0 and last 1.
 - `make_compatible(curves: Sequence[NurbsCurve]) -> list[NurbsCurve]` — Common degree, knot vector and domain [0, 1] for all curves.
-- `sweep(profile: NurbsCurve, trajectory: NurbsCurve, options: SweepOptions = SweepOptions()) -> NurbsSurface` — Sweep a profile (given at the trajectory start) along a trajectory.
+- `(1) sweep(profile: NurbsCurve, trajectory: NurbsCurve, options: SweepOptions = SweepOptions()) -> NurbsSurface`  
+  `(2) sweep(profiles: Sequence[NurbsCurve], trajectory: NurbsCurve, params: Sequence[float] = [], options: SweepOptions = SweepOptions()) -> NurbsSurface` — (1) Sweep a profile (given at the trajectory start) along a trajectory. (2) Sweep with several profiles, each given where it crosses the trajectory (at params[k]; empty: nearest trajectory point); the shape is blended between them (loft) and placed along the trajectory.
 - `sweep2(profile: NurbsCurve, rail1: NurbsCurve, rail2: NurbsCurve, options: SweepOptions = SweepOptions()) -> NurbsSurface` — Two-rail sweep with uniform scaling.
 - `sweep_translational(profile: NurbsCurve, trajectory: NurbsCurve) -> NurbsSurface` — Exact translational sweep S(u, v) = C(u) + T(v) - T(v0).
 - `pipe_surface(path: NurbsCurve, radius: Callable[[float], float], options: SweepOptions = SweepOptions()) -> NurbsSurface` — Pipe wall: a circle of radius radius(t) (t in [0, 1] along the path) swept with the rotation-minimising frame; u around the circle, v along the path.
-- `coons(c0: NurbsCurve, c1: NurbsCurve, d0: NurbsCurve, d1: NurbsCurve, tolerance: float = 1e-07) -> NurbsSurface` — Coons patch: S(u,0)=c0, S(u,1)=c1, S(0,v)=d0, S(1,v)=d1 (orientations fixed automatically).
+- `rail_revolve(profile: NurbsCurve, rail: NurbsCurve, axis_point: Vec3, axis_dir: Vec3, scale_height: bool = False, options: SweepOptions = SweepOptions()) -> NurbsSurface` — Revolve a profile about an axis while its end nearer to the rail follows the rail (radial scaling about the axis; scale_height: also axial scaling about the axis point). E.g. a reflector with a non-round rim.
+- `coons(c0: NurbsCurve, c1: NurbsCurve, d0: NurbsCurve, d1: NurbsCurve, tolerance: float = 1e-07) -> NurbsSurface` — Coons patch: S(u,0)=c0, S(u,1)=c1, S(0,v)=d0, S(1,v)=d1 (orientations fixed automatically). Exact also for rational boundaries (arcs) whose corner weights agree.
 - `gordon(u_curves: Sequence[NurbsCurve], v_curves: Sequence[NurbsCurve], tolerance: float = 1e-07) -> NurbsSurface` — Gordon surface through a consistent curve network.
+- `triangle_patch(c0: NurbsCurve, c1: NurbsCurve, c2: NurbsCurve, tolerance: float = 1e-07) -> NurbsSurface` — Three-sided patch bounded by three curves forming a loop: a Coons patch with c0 as one side and the opposite corner as a degenerate side (v = 1).
+- `extrude_tapered(profile: NurbsCurve, direction: Vec3, angle: float, tolerance: float = 1e-07) -> list[NurbsSurface]` — Tapered (draft) extrusion of a planar profile normal to `direction` (its length is the height): the top is the profile offset by height*tan(angle), outwards for angle > 0. Corners are mitred; returns one ruled surface per smooth piece of the profile.
+- `ribbon(curve: NurbsCurve, width: float, plane_normal: Vec3 = (0, 0, 1), tolerance: float = 1e-07) -> list[NurbsSurface]` — Planar ribbon: ruled surfaces between a curve and its offset by `width` (left of the curve seen from the normal's tip), mitred at corners; one surface per smooth piece.
+- `extrude_to_point(curve: NurbsCurve, apex: Vec3) -> NurbsSurface` — Cone over a curve: ruled surface from the curve (v = 0) to the apex (v = 1); exact, also for rational curves.
+- `rebuild_curve(curve: NurbsCurve, num_ctrl: int, degree: int = 3) -> RebuiltCurve` — Rebuild a curve as a non-rational B-spline with num_ctrl control points and uniform knots on the same domain (least squares, parametrisation kept); returns RebuiltCurve with the max error.
+- `rebuild_surface(surface: NurbsSurface, num_u: int, num_v: int, degree_u: int = 3, degree_v: int = 3) -> RebuiltSurface` — Rebuild a surface with num_u x num_v control points and uniform knots on the same domain; returns RebuiltSurface with the max error.
 - `reparametrize(curve: NurbsCurve, a: float, b: float) -> NurbsCurve` — The same curve with its domain mapped linearly to [`a`, `b`] (knots scaled; geometry unchanged).
 
 **Solid primitives**
@@ -486,6 +494,20 @@ A curve on a surface: 3D curve and p-curve.
 - `.pcurve: NurbsCurve` — (u, v, 0) in the surface's parameter domain (same parameter as curve).
 - `__iter__() -> Iterator` — Iteration `for x in a`.
 
+### `RebuiltCurve`
+
+Result of `rebuild_curve`: the rebuilt curve and its max error.
+
+- `.curve: NurbsCurve` — the rebuilt non-rational B-spline curve
+- `.max_error: float` — max distance to the input at equal parameters (dense samples)
+
+### `RebuiltSurface`
+
+Result of `rebuild_surface`: the rebuilt surface and its max error.
+
+- `.max_error: float` — max distance to the input at equal parameters (dense grid)
+- `.surface: NurbsSurface` — the rebuilt non-rational B-spline surface
+
 ### `SectionCurve`
 
 Piece of a section loop on one face of a shell.
@@ -596,7 +618,7 @@ A point on both surfaces with its parameters on each.
 
 ### `SweepOptions`
 
-Options of `sweep` and `sweep2`.
+Options of `sweep`, `sweep2` and `rail_revolve`.
 
 - `SweepOptions(frame: SweepFrame = SweepFrame.RotationMinimizing, twist: float = 0.0, tolerance: float = 1e-06, max_sections: int = 1025)` — All arguments are keywords.
 - `.frame: SweepFrame` (settable) — Orientation of the profile along the trajectory (`SweepFrame`).
@@ -828,7 +850,13 @@ JSON tools for an LLM agent working on a `Workspace` of named objects; call them
 - `closest_point(name: string, point: number[3])` — Closest point of an object to a given point, with its parameters and the distance.
 - `interpolate_points(name: string, points: number[3][], degree?: integer)` — Create a smooth curve through the given points (in order).
 - `loft(name: string, sections: string[], degree?: integer)` — Create a smooth surface through several section curves (in the given order).
-- `sweep(name: string, profile: string, path: string, twist_deg?: number)` — Sweep a profile curve along a path curve. The profile must be drawn at the start of the path (typically in the plane normal to the path). Optional twist in degrees over the whole path.
+- `sweep(name: string, profile?: string, path: string, twist_deg?: number, profiles?: string[])` — Sweep a profile curve along a path curve. The profile must be drawn at the start of the path (typically in the plane normal to the path). Optional twist in degrees over the whole path. With 'profiles' (several curves drawn where they cross the path, e.g. a circle at the start and a larger one at the end) the cross-section blends between them.
+- `rail_revolve(name: string, profile: string, rail: string, axis_point: number[3], axis_dir: number[3], scale_height?: boolean)` — Revolve a profile curve about an axis while its outer end follows a rail curve (e.g. a reflector with an elliptic or square-ish rim): the profile is scaled radially so its end stays on the rail; scale_height also scales heights.
+- `extrude_tapered(name: string, profile: string, direction: number[3], angle_deg: number)` — Tapered (draft-angle) extrusion of a planar profile along a direction normal to its plane (the vector length is the height). angle_deg > 0 widens the section towards the top, < 0 narrows it. Corners are mitred; a profile with corners gives an open shell of faces (use 'cap' to close it).
+- `ribbon(name: string, curve: string, width: number, plane_normal?: number[3])` — Planar strip of the given width along a curve (to the left seen from the plane normal's tip; negative width: right). Corners are mitred.
+- `extrude_to_point(name: string, curve: string, apex: number[3])` — Cone-like surface from a curve to an apex point (exact for circles and arcs).
+- `triangle_patch(name: string, c0: string, c1: string, c2: string)` — Three-sided surface filling three boundary curves that form a closed loop (any orientation).
+- `rebuild(name: string, source: string, num_u: integer, num_v?: integer, degree?: integer)` — Rebuild a curve or surface with a given number of control points (uniform cubic B-spline by default), e.g. to simplify or unify it; reports the maximum deviation.
 - `coons(name: string, c0: string, c1: string, d0: string, d1: string)` — Create a surface filling four boundary curves that form a closed loop (any orientation).
 - `asphere(name: string, radius: number, conic?: number, coefficients?: number[], clear_radius: number)` — Create an optical lens surface (sag along +z, vertex at the origin): radius of curvature R (0 = flat; positive: centre at +z), conic constant k and optional even aspheric coefficients A4, A6, ... over the clear radius.
 - `extend(name: string, source: string, where: start | end | umin | umax | vmin | vmax, length: number, mode?: natural | linear)` — Extend a curve at its start or end (or a surface across a side umin/umax/vmin/vmax) by a length. mode 'natural' continues the shape smoothly, 'linear' continues straight along the tangent.

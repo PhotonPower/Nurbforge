@@ -529,6 +529,35 @@ def _build_tools() -> list[Tool]:
         e = {"start": nf.CurveEnd.Start, "end": nf.CurveEnd.End}
         return ws.put(name, nf.blend_curves(ws.get(a), e[end_a], ws.get(b), e[end_b], continuity))
 
+    _SIDE = {"type": "string", "enum": ["umin", "umax", "vmin", "vmax"]}
+    _SIDES = {"umin": nf.SurfaceSide.UMin, "umax": nf.SurfaceSide.UMax,
+              "vmin": nf.SurfaceSide.VMin, "vmax": nf.SurfaceSide.VMax}
+
+    def _surface(o):
+        return o.surface if isinstance(o, nf.TrimmedSurface) else o
+
+    @add("blend_surfaces", "Smooth transition surface between a side of surface a and a side of "
+         "surface b (sides umin/umax/vmin/vmax): continuity 0 (ruled), 1 (tangent planes match) "
+         "or 2 (also curvature). tension scales how far the blend bulges.",
+         {"name": _NAME, "a": _NAME, "side_a": _SIDE, "b": _NAME, "side_b": _SIDE,
+          "continuity": {"type": "integer", "enum": [0, 1, 2]}, "tension": {"type": "number"}},
+         ["name", "a", "side_a", "b", "side_b"])
+    def _(ws, name, a, side_a, b, side_b, continuity=2, tension=1.0):
+        return ws.put(name, nf.blend_surfaces(_surface(ws.get(a)), _SIDES[side_a],
+                                              _surface(ws.get(b)), _SIDES[side_b], continuity,
+                                              tension))
+
+    @add("match_surface", "Modify a surface near one of its sides so that it joins a side of a "
+         "target surface smoothly (continuity 0: edges meet, 1: tangent, 2: curvature). The "
+         "opposite side stays unchanged. Stored under name.",
+         {"name": _NAME, "surface": _NAME, "side": _SIDE, "target": _NAME, "target_side": _SIDE,
+          "continuity": {"type": "integer", "enum": [0, 1, 2]}},
+         ["name", "surface", "side", "target", "target_side"])
+    def _(ws, name, surface, side, target, target_side, continuity=2):
+        return ws.put(name, nf.match_surface(_surface(ws.get(surface)), _SIDES[side],
+                                             _surface(ws.get(target)), _SIDES[target_side],
+                                             continuity))
+
     @add("project", "Project a curve onto a surface, along the surface normal or along a "
          "direction. Stores the 3D curve as name and its parameter-space curve as name + '_uv'.",
          {"name": _NAME, "curve": _NAME, "surface": _NAME, "direction": _VEC},

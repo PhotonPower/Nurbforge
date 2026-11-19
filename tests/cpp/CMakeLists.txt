@@ -43,6 +43,7 @@ add_executable(nurbforge_tests
   test_solid_ops.cpp
   test_region.cpp
   test_blend.cpp
+  test_surface_blend.cpp
   test_project.cpp
   test_curve_tools.cpp
   test_edge_blend.cpp

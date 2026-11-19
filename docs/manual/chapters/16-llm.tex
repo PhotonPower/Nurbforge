@@ -134,8 +134,8 @@ Curves & \toolref{make_line}, \toolref{make_circle}, \toolref{make_arc},
 Surfaces & \toolref{make_rectangle}, \toolref{revolve}, \toolref{extrude}, \toolref{ruled},
   \toolref{loft}, \toolref{sweep}, \toolref{rail_revolve}, \toolref{extrude_tapered},
   \toolref{ribbon}, \toolref{extrude_to_point}, \toolref{coons}, \toolref{triangle_patch},
-  \toolref{rebuild}, \toolref{asphere} \\
-Modification & \toolref{extend}, \toolref{offset}, \toolref{fillet}, \toolref{chamfer},
+  \toolref{blend_surfaces}, \toolref{rebuild}, \toolref{asphere} \\
+Modification & \toolref{extend}, \toolref{match_surface}, \toolref{offset}, \toolref{fillet}, \toolref{chamfer},
   \toolref{trim_circle},
   \toolref{split}, \toolref{section} \\
 Copies & \toolref{translate}, \toolref{rotate}, \toolref{mirror}, \toolref{linear_array},
@@ -178,7 +178,7 @@ schemas.
 \example{16_llm_tools.py}
 
 \begin{lstlisting}[style=text]
-61 tools, e.g. make_line, make_circle, make_arc, make_polygon, make_helix, round_corners ...
+63 tools, e.g. make_line, make_circle, make_arc, make_polygon, make_helix, round_corners ...
 make_circle - Create a full circle (exact NURBS).
   parameters: {"type": "number"} required: ['name', 'center', 'normal', 'radius']
 stored box: closed shell, volume 24

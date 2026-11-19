@@ -4,6 +4,13 @@ All notable changes are documented here. Format: [Keep a Changelog](https://keep
 versioning: [SemVer](https://semver.org).
 
 ## [Unreleased]
+
+## [0.14.0] – 2026-11-19
+Curve tools (chamfers, best-fit lines and planes, projection onto planes, tween curves, tangent
+arcs and lines, curves on surfaces with geodesic offsets) and fillets and chamfers of solid
+edges (single edges, chains and closed loops, convex and concave). The API is not yet stable
+(0.x).
+
 ### Added
 - Curve tools (#16): `chamfer_curves(a, b, distance_a, distance_b, trim, corner)` and
   `chamfer_corners(curve, distance)` (straight cuts, counterpart of the fillets; the corner

@@ -62,8 +62,18 @@ def test_fillet_and_chamfer_edges():
     assert f.volume() == pytest.approx(24 - 4 * r * r * (1 - math.pi / 4), abs=1e-7)
     c = nf.chamfer_edges(box, e, r, label="bevel")
     assert "bevel" in c.face_labels and c.volume() == pytest.approx(23.5, abs=1e-9)
+    # three edges at a corner: spherical corner patch (rounded corner instead of sharp)
+    corner = e + nf.edges_between(box, "top", "left") + nf.edges_between(box, "front", "left")
+    k = nf.fillet_edges(box, corner, r)
+    a = r * r * (1 - math.pi / 4)
+    assert k.is_closed and len(k.faces_labeled("fillet")) == 4
+    assert k.volume() == pytest.approx(24 - 9 * a + r ** 3 * (2 - 7 * math.pi / 12), abs=1e-7)
+    # variable radius along the edge: 0.3 -> 0.6 (smooth step)
+    v = nf.fillet_edges(box, e, 1.0, sizes=[((0, 0, 2), 0.3), ((4, 0, 2), 0.6)])
+    integral = 4 * (0.09 + 0.3 * 0.3 + 0.09 * 181 / 462)
+    assert v.volume() == pytest.approx(24 - (1 - math.pi / 4) * integral, abs=1e-7)
     with pytest.raises(nf.GeometryError):
-        nf.fillet_edges(box, e + nf.edges_between(box, "top", "left"), r)
+        nf.fillet_edges(box, e, r, sizes=[((2, 2, 2), 0.3)])  # point not on the edge
     cyl = nf.make_cylinder((0, 0, 0), (0, 0, 1), 2.0, 3.0)
     rim = nf.chamfer_edges(cyl, nf.edges_between(cyl, "top", "side"), 0.4)
     assert rim.volume() == pytest.approx(12 * math.pi - 2 * math.pi * (2 - 0.4 / 3) * 0.08, abs=1e-6)

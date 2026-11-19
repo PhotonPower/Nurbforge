@@ -1142,29 +1142,45 @@ PYBIND11_MODULE(_core, m) {
         "than max_size across; the faces of the removed features are deleted.");
   m.def("edges_between", &edges_between, py::arg("shell"), py::arg("label_a"), py::arg("label_b"),
         "Indices of the edges shared by a face labelled `label_a` and one labelled `label_b`.");
+  const auto blend_options = [](const std::string& label, double tolerance,
+                                const std::vector<std::pair<Vec3, double>>& sizes) {
+    EdgeBlendOptions o;
+    o.label = label;
+    o.tolerance = tolerance;
+    for (const auto& [p, v] : sizes) o.sizes.push_back({p, v});
+    return o;
+  };
   m.def(
       "fillet_edges",
-      [](const Shell& shell, const std::vector<std::size_t>& edges, double radius,
-         const std::string& label, double tolerance) {
-        return fillet_edges(shell, edges, radius, EdgeBlendOptions{label, tolerance});
+      [blend_options](const Shell& shell, const std::vector<std::size_t>& edges, double radius,
+                      const std::string& label, double tolerance,
+                      const std::vector<std::pair<Vec3, double>>& sizes) {
+        return fillet_edges(shell, edges, radius, blend_options(label, tolerance, sizes));
       },
       py::call_guard<py::gil_scoped_release>(), py::arg("shell"), py::arg("edges"),
       py::arg("radius"), py::arg("label") = "fillet", py::arg("tolerance") = 0.0,
-      "Round edges of a closed shell with a constant-radius rolling-ball fillet (convex edges "
-      "lose, concave edges gain material). Edges between the same two faces are filleted as one "
-      "chain; a chain ends at a vertex with exactly one further face, which is trimmed exactly. "
-      "New faces are labelled `label`. Edges of different face pairs must not share a vertex "
-      "(no vertex blends yet).");
+      py::arg("sizes") = std::vector<std::pair<Vec3, double>>{},
+      "Round edges of a closed shell with a rolling-ball fillet (convex edges lose, concave "
+      "edges gain material). Edges between the same two faces are filleted as one chain. Where "
+      "chains meet at a vertex of three faces: tangent chains continue each other, two chains "
+      "are mitred (trimmed by each other), three chains get a spherical corner patch; a chain "
+      "ending alone is trimmed by the third face. Variable radius: `sizes` = [(point, radius), "
+      "...] at points on the selected edges, smooth (C2) in between, constant beyond; chains "
+      "without points use `radius`. New faces are labelled `label`.");
   m.def(
       "chamfer_edges",
-      [](const Shell& shell, const std::vector<std::size_t>& edges, double distance,
-         const std::string& label, double tolerance) {
-        return chamfer_edges(shell, edges, distance, EdgeBlendOptions{label, tolerance});
+      [blend_options](const Shell& shell, const std::vector<std::size_t>& edges, double distance,
+                      const std::string& label, double tolerance,
+                      const std::vector<std::pair<Vec3, double>>& sizes) {
+        return chamfer_edges(shell, edges, distance, blend_options(label, tolerance, sizes));
       },
       py::call_guard<py::gil_scoped_release>(), py::arg("shell"), py::arg("edges"),
       py::arg("distance"), py::arg("label") = "chamfer", py::arg("tolerance") = 0.0,
+      py::arg("sizes") = std::vector<std::pair<Vec3, double>>{},
       "Chamfer edges of a closed shell: a ruled cut between the curves at (geodesic) `distance` "
-      "from the edge on both faces. Grouping, ends and restrictions as for fillet_edges.");
+      "from the edge on both faces. Grouping, vertices, variable `sizes` (point, distance) and "
+      "restrictions as for fillet_edges; a corner of three chamfered edges (between planar "
+      "faces) gets a planar triangle.");
   m.def("merge_faces", &merge_faces, py::call_guard<py::gil_scoped_release>(), py::arg("shell"),
         py::arg("tolerance") = 1e-6,
         "Defeaturing: merge adjacent faces with the same label lying on the same surface (pieces "

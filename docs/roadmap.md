@@ -86,7 +86,10 @@
 
 ## 0.14 – Edge chamfers and fillets on solids (#18) ✅
 - Constant-radius fillets and chamfers of edges, edge chains and closed edge loops of a shell, convex (material removed) and concave (material added); adjacent faces cut back along the exact contact curves, end faces rerouted along the exact end curves ✅
-- Next: vertex blends where three blended edges meet; variable radius
+
+## 0.15 – Vertex blends and variable radius (#18)
+- Edge chains meeting at a vertex: tangent continuation, mitre (mutual trimming), spherical / planar corner patch for three edges ✅
+- Variable radius / chamfer distance along edge chains (smooth step between given points, exact arc sections) ✅
 
 ## Infrastructure
 - ✅ Wheels via cibuildwheel (manylinux_2_28 for AlmaLinux 10 compatibility, win_amd64, macOS arm64/x86_64)

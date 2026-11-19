@@ -79,6 +79,7 @@ struct Section {
   double u1{0.0}, v1{0.0}, u2{0.0}, v2{0.0};
   Vec3 x, y;  // unit directions to contact 1 and in the arc plane towards contact 2
   double theta{0.0};
+  double r{0.0};  // ball radius
 };
 
 class RollingBall {
@@ -94,8 +95,15 @@ class RollingBall {
     const double dl = norm(D[1]);
     if (dl <= tol::kLength)
       throw GeometryError("fillet_surfaces: degenerate spine at t = " + num(t));
-    const Vec3 T = D[1] / dl;
+    Vec3 T = D[1] / dl;
     const Vec3 uv1 = spine0_.pcurve1.evaluate(t), uv2 = spine0_.pcurve2.evaluate(t);
+    if (opt_.radius_at) {
+      // variable radius (spine0: the constant-radius spine with its contact p-curves): the
+      // section plane is normal to n1 x n2 at the contacts - intrinsic and smooth, also across
+      // the ends of a closed spine, unlike the tangent of the interpolated spine
+      const Vec3 n = cross(s1_.normal(uv1.x, uv1.y), s2_.normal(uv2.x, uv2.y));
+      if (norm(n) > 1e-9) T = normalized(dot(n, T) < 0.0 ? -1.0 * n : n);
+    }
     Section sec;
     sec.t = t;
     sec.u1 = uv1.x;
@@ -103,7 +111,12 @@ class RollingBall {
     sec.u2 = uv2.x;
     sec.v2 = uv2.y;
     Vec3 C = Q;
-    const double scale = std::max(1.0, r_);
+    const double r = opt_.radius_at ? opt_.radius_at(Q) : r_;
+    if (!(r > 0.0))
+      throw GeometryError("fillet_surfaces: radius_at gives a non-positive radius at t = " +
+                          num(t));
+    sec.r = r;
+    const double scale = std::max(1.0, r);
     double res = std::numeric_limits<double>::infinity();
     Vec3 g1, g2;
     const Tolerance ptol{1e-13 * scale, tol::kParametric, tol::kAngular};
@@ -120,7 +133,7 @@ class RollingBall {
         throw GeometryError("fillet_surfaces: the ball centre lies on a surface at t = " + num(t));
       g1 = (C - f1.point) / f1.distance;
       g2 = (C - f2.point) / f2.distance;
-      const double e1 = f1.distance - r_, e2 = f2.distance - r_, e3 = dot(C - Q, T);
+      const double e1 = f1.distance - r, e2 = f2.distance - r, e3 = dot(C - Q, T);
       res = std::max(std::abs(e1), std::abs(e2));
       // rows g1, g2, T: inverse has columns (g2 x T, T x g1, g1 x g2) / det
       const double det = dot(g1, cross(g2, T));
@@ -263,37 +276,12 @@ CurveFillet fillet_curves(const NurbsCurve& a, const NurbsCurve& b, double radiu
   return out;
 }
 
-SurfaceFillet fillet_surfaces(const NurbsSurface& s1, const NurbsSurface& s2, double radius,
-                              const SurfaceFilletOptions& opt) {
-  if (!(radius > 0.0)) throw GeometryError("fillet_surfaces: radius must be positive");
-  if ((opt.side1 != 1 && opt.side1 != -1) || (opt.side2 != 1 && opt.side2 != -1))
-    throw GeometryError("fillet_surfaces: side1 and side2 must be +1 or -1");
-  if (!(opt.tolerance > 0.0)) throw GeometryError("fillet_surfaces: tolerance must be positive");
-  const double otol = opt.offset_tolerance > 0.0 ? opt.offset_tolerance : 0.1 * opt.tolerance;
+namespace {
 
-  // start values: intersection of the offset surfaces
-  const NurbsSurface o1 = offset_surface(s1, opt.side1 * radius, otol);
-  const NurbsSurface o2 = offset_surface(s2, opt.side2 * radius, otol);
-  const SurfaceIntersection cut = intersect(o1, o2);
-  if (cut.curves.empty())
-    throw GeometryError(
-        "fillet_surfaces: the offset surfaces do not intersect (no room for a "
-        "ball of radius " +
-        num(radius) + " on the chosen sides)");
-  const IntersectionCurve* spine0 = &cut.curves.front();
-  if (opt.near) {
-    const auto gap = [&](const IntersectionCurve& c) {
-      double d = std::numeric_limits<double>::infinity();
-      for (const auto& p : c.points) d = std::min(d, distance(p.point, *opt.near));
-      return d;
-    };
-    for (const auto& c : cut.curves)
-      if (gap(c) < gap(*spine0)) spine0 = &c;
-  } else {
-    for (const auto& c : cut.curves)
-      if (polyline_length(c) > polyline_length(*spine0)) spine0 = &c;
-  }
-
+// Sections along the start spine, refined until the skinned surface meets the tolerance.
+SurfaceFillet fillet_along(const NurbsSurface& s1, const NurbsSurface& s2, double radius,
+                           const SurfaceFilletOptions& opt, const IntersectionCurve& spine0_ref) {
+  const IntersectionCurve* spine0 = &spine0_ref;
   const RollingBall ball(s1, s2, radius, opt, *spine0);
   const double t0 = spine0->curve.domain_start(), t1 = spine0->curve.domain_end();
 
@@ -315,7 +303,7 @@ SurfaceFillet fillet_surfaces(const NurbsSurface& s1, const NurbsSurface& s2, do
     std::vector<Vec3> centers(K), uv1(K), uv2(K);
     for (std::size_t k = 0; k < K; ++k) {
       ts[k] = secs[k].t;
-      arcs.push_back(arc_section(secs[k], radius, nseg));
+      arcs.push_back(arc_section(secs[k], secs[k].r, nseg));
       centers[k] = secs[k].center;
       uv1[k] = {secs[k].u1, secs[k].v1, 0.0};
       uv2[k] = {secs[k].u2, secs[k].v2, 0.0};
@@ -332,7 +320,7 @@ SurfaceFillet fillet_surfaces(const NurbsSurface& s1, const NurbsSurface& s2, do
       for (double f : kFractions) {
         const double t = ts[k] + f * (ts[k + 1] - ts[k]);
         const Section sc = ball.solve(t);
-        const NurbsCurve ideal = arc_section(sc, radius, nseg);
+        const NurbsCurve ideal = arc_section(sc, sc.r, nseg);
         const Vec3 q1 = pc1.evaluate(t), q2 = pc2.evaluate(t);
         double err = std::max({distance(spine.evaluate(t), sc.center),
                                distance(s1.evaluate(q1.x, q1.y), sc.p1),
@@ -364,6 +352,52 @@ SurfaceFillet fillet_surfaces(const NurbsSurface& s1, const NurbsSurface& s2, do
     }
     secs = std::move(next);
   }
+}
+
+}  // namespace
+
+SurfaceFillet fillet_surfaces(const NurbsSurface& s1, const NurbsSurface& s2, double radius,
+                              const SurfaceFilletOptions& opt) {
+  if (!(radius > 0.0)) throw GeometryError("fillet_surfaces: radius must be positive");
+  if ((opt.side1 != 1 && opt.side1 != -1) || (opt.side2 != 1 && opt.side2 != -1))
+    throw GeometryError("fillet_surfaces: side1 and side2 must be +1 or -1");
+  if (!(opt.tolerance > 0.0)) throw GeometryError("fillet_surfaces: tolerance must be positive");
+  const double otol = opt.offset_tolerance > 0.0 ? opt.offset_tolerance : 0.1 * opt.tolerance;
+
+  if (opt.radius_at) {
+    // variable radius: the sections are placed in planes normal to the smooth spine of the
+    // constant-radius fillet (the fitted offset intersection has small tangent kinks at its
+    // joints, which would tilt the section planes and shift the off-spine ball centres)
+    SurfaceFilletOptions base_opt = opt;
+    base_opt.radius_at = {};
+    const SurfaceFillet base = fillet_surfaces(s1, s2, radius, base_opt);
+    const IntersectionCurve spine{{}, false, base.spine, base.pcurve1, base.pcurve2};
+    return fillet_along(s1, s2, radius, opt, spine);
+  }
+
+  // start values: intersection of the offset surfaces
+  const NurbsSurface o1 = offset_surface(s1, opt.side1 * radius, otol);
+  const NurbsSurface o2 = offset_surface(s2, opt.side2 * radius, otol);
+  const SurfaceIntersection cut = intersect(o1, o2);
+  if (cut.curves.empty())
+    throw GeometryError(
+        "fillet_surfaces: the offset surfaces do not intersect (no room for a "
+        "ball of radius " +
+        num(radius) + " on the chosen sides)");
+  const IntersectionCurve* spine0 = &cut.curves.front();
+  if (opt.near) {
+    const auto gap = [&](const IntersectionCurve& c) {
+      double d = std::numeric_limits<double>::infinity();
+      for (const auto& p : c.points) d = std::min(d, distance(p.point, *opt.near));
+      return d;
+    };
+    for (const auto& c : cut.curves)
+      if (gap(c) < gap(*spine0)) spine0 = &c;
+  } else {
+    for (const auto& c : cut.curves)
+      if (polyline_length(c) > polyline_length(*spine0)) spine0 = &c;
+  }
+  return fillet_along(s1, s2, radius, opt, *spine0);
 }
 
 // ------------------------------------------------------------------ fillet_corners

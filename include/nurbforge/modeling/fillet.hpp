@@ -9,6 +9,7 @@
 /// (Newton on the foot-point conditions), so the fillet does not inherit the offset fitting error.
 
 #include <cstddef>
+#include <functional>
 #include <optional>
 
 #include "nurbforge/core/vec.hpp"
@@ -146,6 +147,11 @@ struct SurfaceFilletOptions {
   /// If the offset surfaces intersect in several curves: use the one passing nearest to this
   /// point (default: the longest one).
   std::optional<Vec3> near{};
+  /// Variable radius: the ball radius of the section through the start-spine point Q is
+  /// radius_at(Q) (empty: the constant `radius`). The start spine (offset intersection) is
+  /// computed with `radius`, which should lie within the range of radius_at; the sections are
+  /// still exact rolling-ball arcs (centre at distance radius_at(Q) from both surfaces).
+  std::function<double(const Vec3&)> radius_at{};
 };
 
 /// Result of fillet_surfaces. All curves share the parameter t of the spine.

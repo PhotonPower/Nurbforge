@@ -45,6 +45,7 @@ add_executable(nurbforge_tests
   test_blend.cpp
   test_project.cpp
   test_curve_tools.cpp
+  test_edge_blend.cpp
   test_step.cpp
   test_step_read.cpp
   test_shell_section.cpp

@@ -34,6 +34,7 @@
 #include "nurbforge/nurbs/surface.hpp"
 #include "nurbforge/optics/surfaces.hpp"
 #include "nurbforge/topology/boolean.hpp"
+#include "nurbforge/topology/edge_blend.hpp"
 #include "nurbforge/topology/region.hpp"
 #include "nurbforge/topology/shell.hpp"
 #include "nurbforge/topology/solid_ops.hpp"

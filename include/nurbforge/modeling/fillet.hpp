@@ -143,6 +143,9 @@ struct SurfaceFilletOptions {
   /// Fit tolerance of the auxiliary offset surfaces (start values only); 0: tolerance / 10.
   double offset_tolerance{0.0};
   std::size_t max_sections{1025};
+  /// If the offset surfaces intersect in several curves: use the one passing nearest to this
+  /// point (default: the longest one).
+  std::optional<Vec3> near{};
 };
 
 /// Result of fillet_surfaces. All curves share the parameter t of the spine.

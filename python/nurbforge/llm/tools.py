@@ -542,6 +542,24 @@ def _build_tools() -> list[Tool]:
     def _(ws, name, solid):
         return _report(ws, name, nf.merge_faces(ws.get(solid)))
 
+    @add("round_edges", "Fillet (round) or chamfer the edges of a solid between the faces "
+         "labelled label_a and label_b (e.g. 'top' and 'side' for the rim of a cylinder, 'top' "
+         "and 'front' for a box edge). Convex edges lose material, concave edges gain it. Edges "
+         "of different face pairs must not meet at a vertex. New faces are labelled 'fillet' or "
+         "'chamfer'.",
+         {"name": _NAME, "solid": _NAME, "label_a": {"type": "string"},
+          "label_b": {"type": "string"}, "size": {"type": "number",
+                                                  "description": "radius or chamfer distance"},
+          "kind": {"type": "string", "enum": ["fillet", "chamfer"]}},
+         ["name", "solid", "label_a", "label_b", "size"])
+    def _(ws, name, solid, label_a, label_b, size, kind="fillet"):
+        s = ws.get(solid)
+        edges = nf.edges_between(s, label_a, label_b)
+        if not edges:
+            raise ValueError(f"no edge between faces labelled '{label_a}' and '{label_b}'")
+        op = nf.fillet_edges if kind == "fillet" else nf.chamfer_edges
+        return _report(ws, name, op(s, edges, size))
+
     @add("remove_holes", "Defeaturing: fill the through and blind holes of a closed solid that "
          "are smaller than max_size across.",
          {"name": _NAME, "solid": _NAME, "max_size": {"type": "number"}},

@@ -67,6 +67,7 @@ add_library(nurbforge_core STATIC
   src/topology/shell.cpp
   src/topology/arrangement.cpp
   src/topology/boolean.cpp
+  src/topology/edge_blend.cpp
   src/topology/solids.cpp
   src/topology/solid_ops.cpp
   src/topology/region.cpp

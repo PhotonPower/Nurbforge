@@ -900,17 +900,20 @@ PYBIND11_MODULE(_core, m) {
   m.def(
       "fillet_surfaces",
       [](const NurbsSurface& s1, const NurbsSurface& s2, double radius, int side1, int side2,
-         double tolerance, double offset_tolerance, std::size_t max_sections) {
+         double tolerance, double offset_tolerance, std::size_t max_sections,
+         std::optional<Vec3> near) {
+        py::gil_scoped_release release;
         return fillet_surfaces(
             s1, s2, radius,
-            SurfaceFilletOptions{side1, side2, tolerance, offset_tolerance, max_sections});
+            SurfaceFilletOptions{side1, side2, tolerance, offset_tolerance, max_sections, near});
       },
       py::arg("s1"), py::arg("s2"), py::arg("radius"), py::arg("side1") = 1, py::arg("side2") = 1,
       py::arg("tolerance") = 1e-6, py::arg("offset_tolerance") = 0.0,
-      py::arg("max_sections") = 1025,
+      py::arg("max_sections") = 1025, py::arg("near") = py::none(),
       "Rolling-ball fillet of radius r between two surfaces. side1 / side2 = +1 put the ball on "
-      "the side of the normal S_u x S_v of s1 / s2, -1 on the opposite side. Returns a "
-      "SurfaceFillet (surface, spine, contact curves, p-curves on s1 / s2).");
+      "the side of the normal S_u x S_v of s1 / s2, -1 on the opposite side; `near` selects the "
+      "spine nearest to a point if there are several. Returns a SurfaceFillet (surface, spine, "
+      "contact curves, p-curves on s1 / s2).");
 
   // ------------------------------------------------------------------ Coons / Gordon
   m.def("coons", &coons, py::call_guard<py::gil_scoped_release>(), py::arg("c0"), py::arg("c1"),
@@ -1137,6 +1140,31 @@ PYBIND11_MODULE(_core, m) {
         py::arg("max_size"), py::arg("tolerance") = 1e-6,
         "Defeaturing: fill the holes (through or blind) of a closed shell whose loops are smaller "
         "than max_size across; the faces of the removed features are deleted.");
+  m.def("edges_between", &edges_between, py::arg("shell"), py::arg("label_a"), py::arg("label_b"),
+        "Indices of the edges shared by a face labelled `label_a` and one labelled `label_b`.");
+  m.def(
+      "fillet_edges",
+      [](const Shell& shell, const std::vector<std::size_t>& edges, double radius,
+         const std::string& label, double tolerance) {
+        return fillet_edges(shell, edges, radius, EdgeBlendOptions{label, tolerance});
+      },
+      py::call_guard<py::gil_scoped_release>(), py::arg("shell"), py::arg("edges"),
+      py::arg("radius"), py::arg("label") = "fillet", py::arg("tolerance") = 0.0,
+      "Round edges of a closed shell with a constant-radius rolling-ball fillet (convex edges "
+      "lose, concave edges gain material). Edges between the same two faces are filleted as one "
+      "chain; a chain ends at a vertex with exactly one further face, which is trimmed exactly. "
+      "New faces are labelled `label`. Edges of different face pairs must not share a vertex "
+      "(no vertex blends yet).");
+  m.def(
+      "chamfer_edges",
+      [](const Shell& shell, const std::vector<std::size_t>& edges, double distance,
+         const std::string& label, double tolerance) {
+        return chamfer_edges(shell, edges, distance, EdgeBlendOptions{label, tolerance});
+      },
+      py::call_guard<py::gil_scoped_release>(), py::arg("shell"), py::arg("edges"),
+      py::arg("distance"), py::arg("label") = "chamfer", py::arg("tolerance") = 0.0,
+      "Chamfer edges of a closed shell: a ruled cut between the curves at (geodesic) `distance` "
+      "from the edge on both faces. Grouping, ends and restrictions as for fillet_edges.");
   m.def("merge_faces", &merge_faces, py::call_guard<py::gil_scoped_release>(), py::arg("shell"),
         py::arg("tolerance") = 1e-6,
         "Defeaturing: merge adjacent faces with the same label lying on the same surface (pieces "

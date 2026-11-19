@@ -563,6 +563,67 @@ cup: closed=True, labels ['bottom', 'bottom_offset', 'wall'], volume 0.56758107 
 The two small holes (diameters 0.4 and 0.5) are filled, the bore of diameter 2 stays: the
 defeatured part has exactly the volume of the plate minus the bore.
 
+\section{Fillets and chamfers of edges}\label{sec:edge-blends}
+
+Sharp edges are where fields concentrate in a simulation, and real parts rarely have them.
+\apiref{fillet_edges} rounds edges of a solid with a constant radius, \apiref{chamfer_edges}
+replaces them by a straight cut:
+
+\begin{lstlisting}
+edges = nf.edges_between(shell, "top", "front")      # edges between two labelled faces
+rounded = nf.fillet_edges(shell, edges, radius, label="fillet", tolerance=0.0)
+bevelled = nf.chamfer_edges(shell, edges, distance, label="chamfer", tolerance=0.0)
+\end{lstlisting}
+
+Edges are given by their indices in \code{shell.edges}; \apiref{edges_between} finds them
+from the labels of the two adjacent faces. The result is a new closed shell. The new faces are
+labelled \code{"fillet"} or \code{"chamfer"}, all other faces keep their labels.
+
+\paragraph{How it works.} The selected edges are grouped by their two adjacent faces. Each
+group, which can be a single edge, a chain of edges, or a closed loop such as the rim of a
+cylinder or the edge of a bore, gets one blend surface:
+
+\begin{itemize}
+  \item \emph{Fillet}: the rolling-ball surface between the two face surfaces
+    (\apiref{fillet_surfaces}), with the ball inside the material at a convex edge and outside
+    at a concave edge. A concave edge, such as the base of a boss, therefore \emph{gains}
+    material.
+  \item \emph{Chamfer}: a ruled surface between the two curves at the geodesic distance
+    \code{distance} from the edge on both faces (as \apiref{offset_on_surface}). For planar
+    faces the chamfer of a right-angled edge removes the triangle with legs \code{distance}.
+\end{itemize}
+
+The surfaces are computed on the face surfaces extended beyond their boundaries, so they run
+past the ends of the edge. The two faces are then cut back along the contact curves: their
+boundary loops are rerouted, not split, which stays exact even where the fillet touches a
+boundary edge tangentially. An open chain must end at a vertex where exactly one further face
+meets the two faces, e.g. the side face at the end of a box edge. There the blend surface is
+trimmed by the exact intersection curve with that face, and the face's boundary is rerouted
+along the same curve. At a convex edge the corner is cut off; at a concave edge the end face
+grows into the corner. All curves are computed to a twentieth of the sewing tolerance
+(\code{tolerance}, by default that of the shell), and the result is sewn again.
+
+\paragraph{Limitations.} Edges of different face pairs must not share a vertex: rounding all
+edges of a box corner needs a vertex blend (a spherical patch where three fillets meet), which
+is not implemented yet. Fillet or chamfer one edge first, then the next ones in turn.
+\code{GeometryError} is raised for a shared vertex, for an end vertex that touches more than
+one further face, and for a radius or distance larger than the faces allow, i.e. when the
+contact curve leaves a face through another edge.
+
+\example{11_edge_blends.py}
+
+Output:
+
+\begin{lstlisting}[style=text]
+box edge [4]: fillet r = 0.5: 7 faces, closed=True, volume 23.78539817 (24 - 4 r^2 (1 - pi/4) = 23.78539816)
+chamfer d = 0.5: volume 23.50000000 (24 - 4 d^2/2 = 23.5), labels ['back', 'bottom', 'chamfer', 'front', 'left', 'right', 'top']
+cylinder rim: 4 faces, fillet face area 7.321856
+boss base fillet: volume 42.283185 -> 42.412672 (material added)
+\end{lstlisting}
+
+The fillet face of the cylinder rim is part of a torus. Its area $2\pi(R - r + 2r/\pi)\,\pi r/2
+= 7.321856$ for $R = 2$, $r = 0.4$ follows from Pappus' theorem.
+
 \section{Face labels}\label{sec:face-labels}
 
 Labels give faces stable names across operations -- for boundary conditions, physical groups

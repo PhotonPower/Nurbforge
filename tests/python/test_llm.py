@@ -408,3 +408,16 @@ def test_curve_tools():
     call_tool(ws, "offset_on_surface", {"name": "o", "curve_uv": "uv", "surface": "s",
                                         "distance": 1.0})
     assert abs(ws.get("o")(0.5).y - 3.0) < 1e-6 and "o_uv" in ws.objects
+
+
+def test_round_edges_tool():
+    ws = Workspace()
+    call_tool(ws, "solid", {"name": "b", "kind": "box", "point": [0, 0, 0], "size": [4, 3, 2]})
+    out = call_tool(ws, "round_edges", {"name": "r", "solid": "b", "label_a": "top",
+                                        "label_b": "front", "size": 0.5})
+    assert "closed shell" in out and "'fillet'" in out
+    out = call_tool(ws, "round_edges", {"name": "c", "solid": "b", "label_a": "top",
+                                        "label_b": "front", "size": 0.5, "kind": "chamfer"})
+    assert "volume 23.5" in out
+    assert "no edge" in call_tool(ws, "round_edges", {"name": "x", "solid": "b", "label_a": "top",
+                                                      "label_b": "bottom", "size": 0.1})

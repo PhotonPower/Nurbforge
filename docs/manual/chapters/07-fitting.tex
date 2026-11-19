@@ -140,7 +140,8 @@ approximate_surface(points, degree_u, degree_v, ctrl_u, ctrl_v,
 
 Surface fits work on a \emph{grid} of points, a NumPy array of shape $(n_u, n_v, 3)$: \code{points[i, j]}
 is the point at the $i$-th position along $u$ and the $j$-th along $v$ (build it with
-\code{np.meshgrid(..., indexing="ij")}). Scattered points must first be resampled onto a grid.
+\code{np.meshgrid(..., indexing="ij")}). For unordered points use \apiref{fit_surface}
+(\cref{sec:scattered-fitting}).
 
 \apiref{interpolate_surface} interpolates all grid points (A9.4) with an $n_u\times n_v$ control
 net. The $u$ parameters are averaged over all columns and the $v$ parameters over all rows;
@@ -164,6 +165,68 @@ interpolate_surface: net 12 x 10, max distance to z = sin(x) cos(y) 3.0e-05, cor
 approximate_surface: net 6 x 5, max distance to z = sin(x) cos(y) 6.5e-04, corner error 0.0e+00
 interpolant: max distance of the 120 grid points 3.8e-14
 \end{lstlisting}
+
+\section{Fitting scattered points}\label{sec:scattered-fitting}
+
+\begin{lstlisting}[style=text]
+fit_surface(points, num_u=0, num_v=0, degree_u=3, degree_v=3, smoothing=1e-3,
+            iterations=2, base=None, boundary=[]) -> FittedSurface
+\end{lstlisting}
+
+\apiref{fit_surface} fits a non-rational B-spline surface (uniform clamped knots, domain
+$[0,1]^2$) to \emph{unordered} points, an array of shape $(n, 3)$, e.g.\ the measurement of an
+optical freeform surface or a topography. It minimises
+\[
+  \frac1n\sum_k \bigl|\mathbf S(u_k, v_k) - \mathbf P_k\bigr|^2
+  + \lambda \iint |\mathbf S_{uu}|^2 + 2|\mathbf S_{uv}|^2 + |\mathbf S_{vv}|^2 \,du\,dv ,
+\]
+the mean squared deviation plus a thin-plate energy, as one banded linear system for the
+control points. The weight $\lambda$ is \code{smoothing} times the ratio of the traces of the
+two matrices, so the value is relative and does not depend on the size of the data or on the
+number of points. It also fills regions without data smoothly (the corners of the parameter
+rectangle over a round aperture in the example). Plane-like data are reproduced exactly for
+any smoothing, since planes have no bending energy.
+
+The point parameters $(u_k, v_k)$ come from
+\begin{itemize}
+  \item the best-fit plane of the points (default): their coordinates in the plane, aligned with
+    the principal direction of the points and scaled to the bounding rectangle. This suits
+    height fields over a plane;
+  \item \code{base}, a surface close to the data: the closest points on it. Use this for data
+    that fold over the best-fit plane, such as a cylinder segment;
+  \item \code{boundary}, four curves \code{[c0, c1, d0, d1]} as for \code{coons}: the Coons
+    patch of the curves is the base, and the fitted surface \emph{interpolates the curves
+    exactly} (its boundary control rows are those of the refined patch; the curves must be
+    non-rational).
+\end{itemize}
+After each fit the points are projected onto the surface (\code{closest_point_local}) and the
+surface is fitted again with the corrected parameters, \code{iterations} times. The result
+\apiref{FittedSurface} holds the \code{surface}, the largest and rms distances of the points from
+it (\code{max_error}, \code{rms_error}) and the foot point \code{parameters} as an $(n, 2)$
+array.
+
+The control net has \code{num_u} $\times$ \code{num_v} points (0: about $\sqrt{n/4}$ per
+direction, at most 40). For smooth, exact data keep the default \code{smoothing}: $10^{-3}$ barely
+changes the fit. For noisy data, use fewer control points and/or more smoothing (0.1 to 1),
+and compare the rms residual with the expected noise level: a residual far below it means the
+surface follows the noise.
+
+\example{07_scattered_fitting.py}
+
+Output:
+
+\begin{lstlisting}[style=text]
+exact data: 27 x 27 control points, max error 2.2e-05, rms 2.1e-06
+  deviation from f between the points (inner disc): 2.8e-06
+noisy data, 27 x 27, smoothing 0.001: rms residual 1.76e-03, deviation from f 3.2e-03
+noisy data, 27 x 27, smoothing 1: rms residual 1.83e-03, deviation from f 1.7e-03
+noisy data, 12 x 12, smoothing 0.1: rms residual 1.93e-03, deviation from f 7.2e-04
+boundary curves: max error 1.2e-05, rim height 0.0e+00
+half cylinder with base: max error 8.4e-05
+\end{lstlisting}
+
+With noise $\sigma = 0.002$, the residuals stay near $\sigma$ in all three fits, but only the
+smoothed and coarser fits are closer to the true surface than the noise itself.
 
 \section{Practical advice}\label{sec:fitting-advice}
 

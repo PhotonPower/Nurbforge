@@ -24,6 +24,7 @@ add_executable(nurbforge_tests
   test_closest_point.cpp
   test_properties.cpp
   test_fitting.cpp
+  test_fit_surface.cpp
   test_extend.cpp
   test_loft.cpp
   test_sweep.cpp

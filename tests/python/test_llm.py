@@ -462,5 +462,7 @@ def test_surface_tool_tools():
                                                           "side": "umin", "target": "pa",
                                                           "target_side": "umax",
                                                           "continuity": 1})
+    pts = [[x / 4, y / 4, 0.1 * x * y / 16] for x in range(5) for y in range(5)]
+    assert "max deviation" in call_tool(ws, "fit_surface", {"name": "fs", "points": pts})
     assert "stored rb" in call_tool(ws, "ribbon", {"name": "rb", "curve": "path", "width": 0.5,
                                                    "plane_normal": [1, 0, 0]})

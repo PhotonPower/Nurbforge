@@ -2,6 +2,7 @@
 /// @file fit.hpp
 /// Interpolation and least-squares approximation of point data (Piegl & Tiller, chapter 9).
 
+#include <array>
 #include <cstddef>
 #include <optional>
 #include <utility>
@@ -79,6 +80,48 @@ enum class Parametrization {
     const std::vector<Vec3>& points, std::size_t num_u, std::size_t num_v, std::size_t degree_u,
     std::size_t degree_v, std::size_t ctrl_u, std::size_t ctrl_v,
     Parametrization method = Parametrization::Centripetal);
+
+/// Options for fit_surface.
+struct SurfaceFitOptions {
+  std::size_t degree_u{3}, degree_v{3};
+  /// Control points in u and v; 0 chooses about sqrt(points / 4) (at least degree + 1, at most
+  /// 40). With boundary curves the count is reached by refining the Coons patch's knots.
+  std::size_t num_u{0}, num_v{0};
+  /// Weight of the thin-plate energy  int |S_uu|^2 + 2 |S_uv|^2 + |S_vv|^2 du dv  relative to
+  /// the least-squares term (scaled by the ratio of the matrix traces, so the value does not
+  /// depend on the size of the data or the number of points and control points). 0: plain least
+  /// squares (a tiny energy still keeps control points without data defined); about 1e-3 barely
+  /// changes smooth data; 0.1 ... 1 smooths noisy data. Regions without data are filled smoothly.
+  double smoothing{1e-3};
+  /// Parameter correction rounds: the points are projected onto the fitted surface and the
+  /// surface is fitted again.
+  std::size_t iterations{2};
+  /// Optional base surface for the initial parameters (closest points). Without base and
+  /// boundary the points are projected onto their best-fit plane and the parameters are the
+  /// plane coordinates scaled to [0, 1] over the bounding rectangle (a height field).
+  std::optional<NurbsSurface> base;
+  /// Optional boundary curves {c0 (v = 0), c1 (v = 1), d0 (u = 0), d1 (u = 1)} as for coons():
+  /// the surface interpolates them exactly (non-rational curves) and the Coons patch is the
+  /// base for the parameters.
+  std::vector<NurbsCurve> boundary;
+};
+
+/// Result of fit_surface.
+struct FittedSurface {
+  NurbsSurface surface;
+  double max_error{0.0};  ///< largest distance of a point from the surface (closest point)
+  double rms_error{0.0};  ///< root mean square of these distances
+  std::vector<std::array<double, 2>> parameters;  ///< (u, v) of each point's foot point
+};
+
+/// Fits a non-rational B-spline surface (domain [0, 1]^2, uniform clamped knots) to unordered
+/// points: penalised least squares (data deviation + smoothing x thin-plate energy) solved as a
+/// banded system, followed by parameter correction. Suited to height-field-like data
+/// (measurements of optical surfaces, topographies) or, with a base surface or boundary
+/// curves, to data over a known shape. Throws GeometryError for fewer than 3 points or data
+/// that cannot be parametrised.
+[[nodiscard]] FittedSurface fit_surface(const std::vector<Vec3>& points,
+                                        const SurfaceFitOptions& options = {});
 
 /// Best-fit line through points (orthogonal regression: minimises the sum of squared
 /// perpendicular distances).

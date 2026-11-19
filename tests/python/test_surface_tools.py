@@ -1,5 +1,6 @@
 import math
 
+import numpy as np
 import nurbforge as nf
 import pytest
 
@@ -86,3 +87,21 @@ def test_blend_and_match_surfaces():
         assert nf.distance(m(1.0, t), b(1.0, t)) < 1e-12
     with pytest.raises(nf.GeometryError):
         nf.blend_surfaces(a, nf.SurfaceSide.UMax, b, nf.SurfaceSide.UMin, continuity=3)
+
+
+def test_fit_surface_scattered():
+    rng = np.random.default_rng(3)
+    xy = rng.random((600, 2)) * [3, 2]
+    pts = np.column_stack([xy, 0.1 * np.sin(xy[:, 0]) * np.cos(xy[:, 1])])
+    f = nf.fit_surface(pts)
+    assert f.max_error < 1e-4
+    assert f.parameters.shape == (600, 2)
+    assert "FittedSurface" in repr(f)
+    edges = [nf.make_line((0, 0, 0), (1, 0, 0)), nf.make_line((0, 1, 0), (1, 1, 0)),
+             nf.make_line((0, 0, 0), (0, 1, 0)), nf.make_line((1, 0, 0), (1, 1, 0))]
+    uv = rng.random((400, 2))
+    bump = np.column_stack([uv, 0.1 * np.sin(np.pi * uv[:, 0]) * np.sin(np.pi * uv[:, 1])])
+    g = nf.fit_surface(bump, boundary=edges, num_u=8, num_v=8)
+    assert abs(g.surface(0.5, 0.0).z) < 1e-15
+    with pytest.raises(nf.GeometryError):
+        nf.fit_surface(pts[:2])

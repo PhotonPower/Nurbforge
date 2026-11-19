@@ -24,7 +24,7 @@ GROUPS: list[tuple[str, list[str]]] = [
         "join", "join_u", "join_v", "extend", "offset_curve", "offset_surface", "fillet_curves",
         "fillet_corners", "fillet_surfaces", "chamfer_curves", "chamfer_corners"]),
     ("Fitting", ["interpolate_curve", "approximate_curve", "approximate_curve_tol",
-                 "interpolate_surface", "approximate_surface", "data_parameters", "fit_line",
+                 "interpolate_surface", "approximate_surface", "fit_surface", "data_parameters", "fit_line",
                  "fit_plane"]),
     ("Analysis and properties", [
         "closest_point", "closest_point_local", "curvature", "torsion", "length", "arc_length",

@@ -14,6 +14,11 @@ versioning: [SemVer](https://semver.org).
   NURBS when the weights do not vary across the sides (non-rational surfaces, extrusions,
   revolutions at profile ends), otherwise the boundary data are interpolated to a tolerance.
   LLM tools `blend_surfaces` and `match_surface`.
+- Fitting to scattered points (#17): `fit_surface(points, ...)` fits a B-spline surface to
+  unordered points by least squares with a thin-plate smoothing term (relative weight), solved
+  as a banded system, with parameter correction. Parameters from the best-fit plane (height
+  fields), a base surface, or four boundary curves, which are then interpolated exactly.
+  Returns `FittedSurface` (surface, max / rms error, parameters). LLM tool `fit_surface`.
 
 ## [0.15.0] – 2026-11-19
 Vertex blends and variable-radius fillets and chamfers of solid edges (#18), and surface tools

@@ -191,6 +191,21 @@ def _build_tools() -> list[Tool]:
         pts = np.asarray(points, dtype=float)
         return ws.put(name, nf.interpolate_curve(pts, min(int(degree), len(pts) - 1)))
 
+    @add("fit_surface", "Fit a smooth surface to unordered measured points (e.g. a height "
+         "map). smoothing: 0.001 follows the points closely, 0.1-1 smooths noisy data. Reports "
+         "the max and rms deviation.",
+         {"name": _NAME, "points": {"type": "array", "items": _VEC, "minItems": 3},
+          "smoothing": {"type": "number"},
+          "num_ctrl": {"type": "integer", "description": "control points per direction, "
+                                                         "0 = automatic"}},
+         ["name", "points"])
+    def _(ws, name, points, smoothing=1e-3, num_ctrl=0):
+        f = nf.fit_surface(np.asarray(points, dtype=float), num_u=int(num_ctrl),
+                           num_v=int(num_ctrl), smoothing=smoothing)
+        ws.put(name, f.surface)
+        return (f"stored {name}: max deviation {f.max_error:.3g}, rms {f.rms_error:.3g}, "
+                f"{f.surface.num_u} x {f.surface.num_v} control points")
+
     @add("loft", "Create a smooth surface through several section curves (in the given order).",
          {"name": _NAME, "sections": {"type": "array", "items": _NAME, "minItems": 2},
           "degree": {"type": "integer", "description": "degree across the sections, default 3"}},

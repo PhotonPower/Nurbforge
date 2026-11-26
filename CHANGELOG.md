@@ -58,6 +58,16 @@ versioning: [SemVer](https://semver.org).
   for a parallel view, projected exactly onto a plane normal to the view: edges and
   silhouettes, split by visibility, with duplicates removed (visible lines take precedence)
   and smooth edges such as seams left out (`tangent_edges`).
+  With `View::perspective(eye)` (Python `eye=`) the drawing is the central projection onto
+  the plane through `origin` normal to the line to the eye, an exact projective map of the
+  curves; `outline` takes an eye point as well.
+- Visibility events (#95): the curves are cut exactly where their projections cross the
+  projected edges and silhouettes of the occluders, so pieces end at these crossings to the
+  accuracy of the curve intersection and short hidden stretches are found whatever the
+  sampling. The sampling remains for curves passing through faces
+  (`VisibilityOptions::events`, `samples`).
+- LLM tools `silhouette`, `make2d`, `outline`, `unroll`, `analyze_curve`, `analyze_surface`,
+  `continuity` and `find_duplicates`.
 - Outline (#95): `outline(shells, direction)` gives the contour of shells seen along a
   direction as closed loops (a `Region`: outer contours counter-clockwise, holes clockwise),
   the boundary of the union of their projections.

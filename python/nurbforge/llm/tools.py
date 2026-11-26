@@ -780,6 +780,175 @@ def _build_tools() -> list[Tool]:
         return (f"NOT solved after {res['iterations']} iterations: {vals} (max relative target "
                 f"error {worst:.2e}); nothing was created – check the recipe, bounds or targets")
 
+    def _view(direction, eye):
+        if (direction is None) == (eye is None):
+            raise ValueError("give either 'direction' (parallel view) or 'eye' (perspective)")
+        return {"direction": direction} if eye is None else {"eye": eye}
+
+    _VIEW = {"direction": {**_VEC, "description": "parallel view: direction from the viewer "
+                                                  "into the scene"},
+             "eye": {**_VEC, "description": "perspective view: position of the eye"}}
+
+    def _shells(ws, names):
+        out = []
+        for n in names:
+            o = ws.get(n)
+            if isinstance(o, nf.NurbsSurface):
+                o = nf.TrimmedSurface(o)
+            out.append(o if isinstance(o, nf.Shell) else nf.Shell.sew([o]))
+        return out
+
+    @add("silhouette", "Silhouette curves of a surface or solid for a view: where it turns "
+         "away from the viewer. The curves are stored as name_1, name_2, ...",
+         {"name": {"type": "string"}, "source": _NAME, **_VIEW}, ["name", "source"])
+    def _(ws, name, source, direction=None, eye=None):
+        curves = nf.silhouette(ws.get(source), **_view(direction, eye))
+        out = []
+        for i, c in enumerate(curves, 1):
+            ws.put(f"{name}_{i}", c.curve)
+            out.append(f"{name}_{i}: {'closed' if c.closed else 'open'}, length "
+                       f"{nf.length(c.curve):.6g}" + (f", {len(c.cusps)} cusps" if c.cusps else ""))
+        return "; ".join(out) if out else "no silhouette (seen edge-on or facing one way)"
+
+    @add("make2d", "2D drawing of solids for a view: their edges and silhouettes projected "
+         "onto the drawing plane and split into visible and hidden lines. The plane curves "
+         "(x to the right, y up, seen from the viewer) are stored as name_visible_1, ... and "
+         "name_hidden_1, ...",
+         {"name": {"type": "string"}, "sources": {"type": "array", "items": _NAME, "minItems": 1},
+          **_VIEW, "hidden": {"type": "boolean", "description": "also hidden lines, default true"}},
+         ["name", "sources"])
+    def _(ws, name, sources, direction=None, eye=None, hidden=True):
+        d = nf.make2d(_shells(ws, sources), hidden=bool(hidden), **_view(direction, eye))
+        for kind, curves in (("visible", d.visible), ("hidden", d.hidden)):
+            for i, c in enumerate(curves, 1):
+                ws.put(f"{name}_{kind}_{i}", c.curve)
+        return (f"{len(d.visible)} visible lines {name}_visible_1.., total length "
+                f"{sum(nf.length(c.curve) for c in d.visible):.6g}; {len(d.hidden)} hidden lines"
+                + (f" {name}_hidden_1.., total length "
+                   f"{sum(nf.length(c.curve) for c in d.hidden):.6g}" if d.hidden else ""))
+
+    @add("outline", "Contour of solids seen in a view: the boundary of their projection as "
+         "closed loops in the drawing plane. The curves of loop k are stored as name_k_1, "
+         "name_k_2, ...; reports the enclosed area (holes subtracted).",
+         {"name": {"type": "string"}, "sources": {"type": "array", "items": _NAME, "minItems": 1},
+          **_VIEW}, ["name", "sources"])
+    def _(ws, name, sources, direction=None, eye=None):
+        o = nf.outline(_shells(ws, sources), **_view(direction, eye))
+        for k, loop in enumerate(o.loops, 1):
+            for i, c in enumerate(loop, 1):
+                ws.put(f"{name}_{k}_{i}", c)
+        return (f"{len(o.loops)} loops ({', '.join(str(len(loop)) for loop in o.loops)} curves), "
+                f"area {nf.region_area(o.loops):.8g}")
+
+    @add("unroll", "Unroll a developable surface (cylinder, cone, extrusion, ruled surface "
+         "with constant normals along its lines) into the plane without stretching; the flat "
+         "pattern is stored as name. Fails with the reason if the surface is not developable.",
+         {"name": _NAME, "source": _NAME}, ["name", "source"])
+    def _(ws, name, source):
+        s = ws.get(source)
+        d = nf.developability(s)
+        if not d.developable:
+            raise ValueError("not developable: " + (
+                "no straight parameter lines" if d.rulings == nf.RulingDirection.None_ else
+                f"the normal turns by {math.degrees(d.max_twist):.3g} deg along a ruling") +
+                f" (max |Gaussian curvature| {d.max_gaussian_curvature:.3g})")
+        r = nf.unroll(s)
+        return ws.put(name, r.pattern) + f"; area {nf.area(r.pattern):.8g}"
+
+    @add("analyze_curve", "Analysis of a curve: length, degree, direction (start, end, closed, "
+         "clockwise / counter-clockwise), largest curvature and smallest radius, corners and "
+         "tangent joints (knots where it is not curvature continuous). With u: curvature, "
+         "radius and centre of the osculating circle there.",
+         {"name": _NAME, "u": {"type": "number"}}, ["name"])
+    def _(ws, name, u=None):
+        c = ws.get(name)
+        d = nf.curve_direction(c)
+        g = nf.curvature_graph(c, 1.0, 16)
+        fmt = lambda p: f"({p.x:.6g}, {p.y:.6g}, {p.z:.6g})"
+        out = [f"length {nf.length(c):.8g}", f"degree {c.degree}",
+               f"from {fmt(d.start)} to {fmt(d.end)}",
+               ("closed, " + {1: "counter-clockwise", -1: "clockwise", 0: "no sense of rotation"}
+                [d.orientation] + (f" about normal {fmt(d.plane_normal)}" if d.orientation else ""))
+               if d.closed else "open",
+               "planar" if d.planar else "not planar",
+               f"max curvature {g.max_curvature:.6g}" + (
+                   f" (min radius {1 / g.max_curvature:.6g}) at u = {g.max_parameter:.6g}"
+                   if g.max_curvature > 0 else " (straight)")]
+        breaks = nf.continuity_breaks(c)
+        out.append("curvature continuous" if not breaks else "breaks: " + ", ".join(
+            f"G{b.continuity.geometric} at u = {b.parameter:.6g}"
+            + (f" (angle {math.degrees(b.continuity.tangent_angle):.4g} deg)"
+               if b.continuity.geometric == 0 else "") for b in breaks))
+        if u is not None:
+            k = nf.curve_curvature(c, u)
+            out.append(f"at u = {u:.6g}: curvature {k.curvature:.6g}" + (
+                f", radius {k.radius:.6g}, centre {fmt(k.center)}" if k.curvature > 0 else ""))
+        return "; ".join(out)
+
+    @add("analyze_surface", "Analysis of a surface: Gaussian and mean curvature ranges, "
+         "smallest radius of curvature, normal direction, closed directions and poles, whether "
+         "it is planar or developable. With pull_direction: the range of the draft angle in "
+         "degrees (negative: undercut).",
+         {"name": _NAME, "pull_direction": _VEC}, ["name"])
+    def _(ws, name, pull_direction=None):
+        o = ws.get(name)
+        s = o.surface if isinstance(o, nf.TrimmedSurface) else o
+        m = nf.curvature_map(o, 8)
+        d = nf.surface_direction(s)
+        dev = nf.developability(s)
+        fmt = lambda p: f"({p.x:.6g}, {p.y:.6g}, {p.z:.6g})"
+        z = lambda x: x + 0.0  # no "-0"
+        out = [(f"Gaussian curvature {z(m.gaussian_range.min):.6g} .. "
+                f"{z(m.gaussian_range.max):.6g}"),
+               f"mean curvature {z(m.mean_range.min):.6g} .. {z(m.mean_range.max):.6g}",
+               f"min radius of curvature {m.min_radius:.6g}",
+               f"normal {fmt(d.normal)} at the middle {fmt(d.point)}",
+               "closed in " + ("u" if d.closed_u else "") + ("v" if d.closed_v else "")
+               if d.closed_u or d.closed_v else "open",
+               f"{sum(d.poles)} poles", "planar" if d.planar else
+               ("developable" if dev.developable else "not developable")]
+        if pull_direction is not None:
+            a = nf.draft_angle_map(o, pull_direction, 8).range
+            out.append(f"draft angle {z(math.degrees(a.min)):.6g} .. "
+                       f"{z(math.degrees(a.max)):.6g} deg")
+        return "; ".join(out)
+
+    @add("continuity", "Continuity of two curves at their nearest ends, or of surface a along "
+         "one of its sides with surface b: G0 (touching), G1 (tangent), G2 (curvature), with "
+         "the gap, the angle and the curvatures.",
+         {"a": _NAME, "b": _NAME,
+          "side": {"type": "string", "enum": ["umin", "umax", "vmin", "vmax"],
+                   "description": "surfaces only: the side of a"}}, ["a", "b"])
+    def _(ws, a, b, side=None):
+        oa, ob = ws.get(a), ws.get(b)
+        level = lambda g: "no contact" if g < 0 else f"G{g}"
+        if isinstance(oa, nf.NurbsCurve):
+            k = nf.continuity(oa, ob)
+            return (f"{level(k.geometric)}: gap {k.gap:.3g}, tangent angle "
+                    f"{math.degrees(k.tangent_angle):.6g} deg, curvatures {k.curvature_a:.6g} / "
+                    f"{k.curvature_b:.6g}")
+        if side is None:
+            raise ValueError("give 'side' (umin, umax, vmin or vmax of surface a)")
+        sides = {"umin": nf.SurfaceSide.UMin, "umax": nf.SurfaceSide.UMax,
+                 "vmin": nf.SurfaceSide.VMin, "vmax": nf.SurfaceSide.VMax}
+        k = nf.continuity(oa, sides[side], ob)
+        return (f"{level(k.geometric)}: max gap {k.max_gap:.3g}, max angle "
+                f"{math.degrees(k.max_angle):.6g} deg, max curvature difference "
+                f"{k.max_curvature_difference:.6g}")
+
+    @add("find_duplicates", "Find geometrically identical objects among curves or among "
+         "surfaces (same shape, whatever the direction or parametrisation).",
+         {"names": {"type": "array", "items": _NAME, "minItems": 2},
+          "tolerance": {"type": "number"}}, ["names"])
+    def _(ws, names, tolerance=1e-6):
+        objs = [ws.get(n) for n in names]
+        find = (nf.find_duplicate_curves if isinstance(objs[0], nf.NurbsCurve)
+                else nf.find_duplicate_surfaces)
+        groups = find(objs, tolerance)
+        if not groups:
+            return "no duplicates"
+        return "; ".join(" = ".join(names[i] for i in g) for g in groups)
+
     @add("inspect", "Measured properties of an object (type, bounding box, length / area / "
          "volume, closed, free edges, ...) and detected issues. Use it to verify results.",
          {"name": _NAME}, ["name"])

@@ -552,19 +552,25 @@ PYBIND11_MODULE(_core, m) {
       "visibility",
       [view_of](const std::vector<NurbsCurve>& curves, const std::vector<Shell>& occluders,
                 const std::optional<Vec3>& direction, const std::optional<Vec3>& eye,
-                double tolerance, std::size_t samples) {
+                double tolerance, std::size_t samples, bool events, std::size_t resolution) {
         const View view = view_of(direction, eye, "visibility");
         VisibilityOptions o;
         o.tolerance = tolerance;
         o.samples = samples;
+        o.events = events;
+        o.resolution = resolution;
         py::gil_scoped_release release;
         return visibility(curves, view, occluders, o);
       },
       py::arg("curves"), py::arg("occluders"), py::arg("direction") = std::optional<Vec3>{},
       py::arg("eye") = std::optional<Vec3>{}, py::arg("tolerance") = 1e-6, py::arg("samples") = 64,
+      py::arg("events") = true, py::arg("resolution") = 8,
       "Hidden-line removal: split every curve where its visibility against the shells changes "
       "and classify the pieces (CurvePiece.visible). Parallel view along `direction` or "
-      "perspective view from `eye`. Curves lying on a face are not hidden by that face.");
+      "perspective view from `eye`. Curves lying on a face are not hidden by that face. "
+      "events: cut the curves exactly where their projections cross the projected edges and "
+      "silhouettes of the shells (resolution: search cells of the silhouettes); the intervals "
+      "in between are classified by `samples` samples per curve.");
   py::enum_<DrawingCurveKind>(m, "DrawingCurveKind")
       .value("Edge", DrawingCurveKind::Edge)
       .value("Silhouette", DrawingCurveKind::Silhouette);
@@ -611,41 +617,50 @@ PYBIND11_MODULE(_core, m) {
   };
   m.def(
       "make2d",
-      [drawing_options](const std::vector<Shell>& shells, const Vec3& direction, const Vec3& s_axis,
-                        const Vec3& origin, double tolerance, std::size_t samples,
-                        std::size_t resolution, double join_tolerance, bool hidden,
-                        bool tangent_edges) {
+      [drawing_options, view_of](const std::vector<Shell>& shells,
+                                 const std::optional<Vec3>& direction, const Vec3& s_axis,
+                                 const Vec3& origin, double tolerance, std::size_t samples,
+                                 std::size_t resolution, double join_tolerance, bool hidden,
+                                 bool tangent_edges, const std::optional<Vec3>& eye) {
+        const View view = view_of(direction, eye, "make2d");
         const DrawingOptions o = drawing_options(s_axis, origin, tolerance, samples, resolution,
                                                  join_tolerance, hidden, tangent_edges);
         py::gil_scoped_release release;
-        return make2d(shells, direction, o);
+        return make2d(shells, view, o);
       },
-      py::arg("shells"), py::arg("direction"), py::arg("s_axis") = Vec3{0, 0, 0},
-      py::arg("origin") = Vec3{0, 0, 0}, py::arg("tolerance") = 1e-6, py::arg("samples") = 64,
-      py::arg("resolution") = 8, py::arg("join_tolerance") = 0.0, py::arg("hidden") = true,
-      py::arg("tangent_edges") = false,
+      py::arg("shells"), py::arg("direction") = std::optional<Vec3>{},
+      py::arg("s_axis") = Vec3{0, 0, 0}, py::arg("origin") = Vec3{0, 0, 0},
+      py::arg("tolerance") = 1e-6, py::arg("samples") = 64, py::arg("resolution") = 8,
+      py::arg("join_tolerance") = 0.0, py::arg("hidden") = true, py::arg("tangent_edges") = false,
+      py::arg("eye") = std::optional<Vec3>{},
       "2D drawing of shells for a parallel view along `direction` (from the viewer into the "
       "scene): all edges and silhouettes, split by visibility and projected onto the plane "
       "through `origin` normal to the direction, in the coordinates (s, t) with s along "
       "`s_axis` (zero: automatic) and t = normal x s. Returns a Drawing with the visible and "
       "the hidden lines; duplicates are removed, visible lines taking precedence. "
-      "tangent_edges: also draw smooth edges (seams, borders of fillets).");
+      "tangent_edges: also draw smooth edges (seams, borders of fillets). With `eye` instead "
+      "of `direction`: perspective view from that point, drawn in the plane through `origin` "
+      "normal to the line from the origin to the eye (exact projective map).");
   m.def(
       "outline",
-      [drawing_options](const std::vector<Shell>& shells, const Vec3& direction, const Vec3& s_axis,
-                        const Vec3& origin, double tolerance, std::size_t resolution,
-                        double join_tolerance) {
+      [drawing_options, view_of](const std::vector<Shell>& shells,
+                                 const std::optional<Vec3>& direction, const Vec3& s_axis,
+                                 const Vec3& origin, double tolerance, std::size_t resolution,
+                                 double join_tolerance, const std::optional<Vec3>& eye) {
+        const View view = view_of(direction, eye, "outline");
         const DrawingOptions o =
             drawing_options(s_axis, origin, tolerance, 64, resolution, join_tolerance, true, false);
         py::gil_scoped_release release;
-        return outline(shells, direction, o);
+        return outline(shells, view, o);
       },
-      py::arg("shells"), py::arg("direction"), py::arg("s_axis") = Vec3{0, 0, 0},
-      py::arg("origin") = Vec3{0, 0, 0}, py::arg("tolerance") = 1e-6, py::arg("resolution") = 8,
-      py::arg("join_tolerance") = 0.0,
-      "Contour of shells seen along `direction`: the boundary of the union of their parallel "
-      "projections, as closed loops in the plane coordinates of make2d (Outline.loops, a region "
-      "for region_boolean / region_area: outer contours counter-clockwise, holes clockwise).");
+      py::arg("shells"), py::arg("direction") = std::optional<Vec3>{},
+      py::arg("s_axis") = Vec3{0, 0, 0}, py::arg("origin") = Vec3{0, 0, 0},
+      py::arg("tolerance") = 1e-6, py::arg("resolution") = 8, py::arg("join_tolerance") = 0.0,
+      py::arg("eye") = std::optional<Vec3>{},
+      "Contour of shells seen along `direction` (or from the point `eye`): the boundary of the "
+      "union of their projections, as closed loops in the plane coordinates of make2d "
+      "(Outline.loops, a region for region_boolean / region_area: outer contours "
+      "counter-clockwise, holes clockwise).");
 
   // hatching of section loops (contour and hatch lines of a layer)
   py::class_<HatchSegment>(m, "HatchSegment",

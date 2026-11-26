@@ -23,6 +23,8 @@ struct View {
   /// Eye point of a perspective view.
   std::optional<Vec3> eye{};
 
+  View() = default;  // not an aggregate: {x, y, z} is a direction (Vec3), never a View
+
   [[nodiscard]] static View parallel(const Vec3& direction);
   [[nodiscard]] static View perspective(const Vec3& eye);
   /// Unit vector from p towards the viewer. Throws GeometryError for a zero direction or if p

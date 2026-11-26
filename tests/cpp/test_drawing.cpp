@@ -219,3 +219,61 @@ TEST_CASE("drawing and outline of a plate with a through hole", "[drawing]") {
   REQUIRE(side.loops.size() == 1);
   CHECK(std::abs(region_area(side.loops) - 4.0) < 1e-6);
 }
+
+TEST_CASE("perspective drawing and outline", "[drawing]") {
+  // cube of edge 2 about the origin, eye on the z axis at distance 10, plane z = 0
+  const Shell cube = make_box({-1, -1, -1}, {2, 2, 2});
+  const View view = View::perspective({0, 0, 10});
+  DrawingOptions opt;
+  opt.s_axis = {1, 0, 0};
+  const Drawing d = make2d({cube}, view, opt);
+  const double near = 10.0 / 9.0, far = 10.0 / 11.0;  // half sizes of the projected faces
+  CHECK(std::abs(total_length(d.visible) - 8 * near) < 1e-6);
+  CHECK(std::abs(total_length(d.hidden) - (8 * far + 4 * std::sqrt(2.0) * (near - far))) < 1e-6);
+  CHECK(distance(d.normal, {0, 0, 1}) < 1e-12);
+  for (const auto& c : d.visible) {
+    const Vec3 q = c.curve.evaluate(0.5 * (c.curve.domain_start() + c.curve.domain_end()));
+    CHECK(std::abs(std::max(std::abs(q.x), std::abs(q.y)) - near) < 1e-9);
+    // the plane curve is the central projection of the 3D piece
+    const double t = c.curve.domain_start() + 0.3 * (c.curve.domain_end() - c.curve.domain_start());
+    const Vec3 p = c.curve3d.evaluate(t), r = c.curve.evaluate(t);
+    CHECK(std::abs(r.x - 10 * p.x / (10 - p.z)) < 1e-9);
+    CHECK(std::abs(r.y - 10 * p.y / (10 - p.z)) < 1e-9);
+  }
+  const Outline square = outline({cube}, view, opt);
+  REQUIRE(square.loops.size() == 1);
+  CHECK(std::abs(region_area(square.loops) - 4 * near * near) < 1e-9);
+
+  // a unit sphere from distance 5: a circle of radius 1 / sqrt(1 - 1/25)
+  const Outline disc = outline({make_sphere({0, 0, 0}, 1.0)}, View::perspective({3, 0, 4}));
+  REQUIRE(disc.loops.size() == 1);
+  CHECK(std::abs(region_area(disc.loops) - pi / 0.96) < 1e-4);
+
+  CHECK_THROWS_AS(make2d({cube}, View::perspective({0, 0, 0.5})), GeometryError);  // eye inside
+  CHECK_THROWS_AS(make2d({cube}, View::perspective({0, 0, 0})), GeometryError);    // at the origin
+}
+
+TEST_CASE("visibility changes are found at the crossings with the occluder's outline",
+          "[drawing]") {
+  // a strip 1 mm wide above a line 3 m long: far narrower than the sample spacing
+  const Shell strip = make_box({1.2345, -1, 1}, {0.001, 2, 0.1});
+  const NurbsCurve line = make_line({0, 0, 0}, {3, 0, 0});
+  VisibilityOptions opt;
+  opt.samples = 8;
+  const auto pieces = visibility({line}, View::parallel({0, 0, -1}), {strip}, opt);
+  REQUIRE(pieces.size() == 3);
+  CHECK(!pieces[1].visible);
+  CHECK(std::abs(pieces[1].t0 - 1.2345 / 3) < 1e-9);
+  CHECK(std::abs(pieces[1].t1 - 1.2355 / 3) < 1e-9);
+  // sampling alone misses it
+  opt.events = false;
+  CHECK(visibility({line}, View::parallel({0, 0, -1}), {strip}, opt).size() == 1);
+  // a line passing through a face changes its visibility away from any outline
+  const Shell plate = make_box({-1, -1, 0}, {2, 2, 0.1});
+  const NurbsCurve needle = make_line({0.2, 0.1, -1}, {0.3, 0.2, 1});
+  const auto through = visibility({needle}, View::parallel({0, 0, -1}), {plate});
+  REQUIRE(through.size() == 2);
+  CHECK(!through[0].visible);
+  CHECK(through[1].visible);
+  CHECK(std::abs(needle.evaluate(through[0].t1).z - 0.1) < 1e-5);  // leaves through the top
+}

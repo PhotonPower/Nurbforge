@@ -64,3 +64,22 @@ def test_isometric_cube():
     hexagon = nf.outline([cube], (-1, -1, -1))
     assert len(hexagon.loops) == 1 and len(hexagon.loops[0]) == 6
     assert nf.region_area(hexagon.loops) == pytest.approx(math.sqrt(3), abs=1e-9)
+
+
+def test_perspective_drawing_and_events():
+    cube = nf.make_box((-1, -1, -1), (2, 2, 2))
+    d = nf.make2d([cube], eye=(0, 0, 10), s_axis=(1, 0, 0))
+    near, far = 10 / 9, 10 / 11
+    assert _length(d.visible) == pytest.approx(8 * near, abs=1e-6)
+    assert _length(d.hidden) == pytest.approx(8 * far + 4 * math.sqrt(2) * (near - far), abs=1e-6)
+    assert nf.region_area(nf.outline([cube], eye=(0, 0, 10)).loops) == pytest.approx(
+        4 * near * near, abs=1e-9)
+    with pytest.raises(nf.GeometryError):
+        nf.make2d([cube])
+    # a strip far narrower than the sample spacing is found from the crossings
+    strip = nf.make_box((1.2345, -1, 1), (0.001, 2, 0.1))
+    line = nf.make_line((0, 0, 0), (3, 0, 0))
+    pieces = nf.visibility([line], [strip], direction=(0, 0, -1), samples=8)
+    assert [p.visible for p in pieces] == [True, False, True]
+    assert pieces[1].t0 == pytest.approx(1.2345 / 3, abs=1e-9)
+    assert len(nf.visibility([line], [strip], direction=(0, 0, -1), samples=8, events=False)) == 1

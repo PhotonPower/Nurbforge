@@ -8,6 +8,7 @@
 #include "nurbforge/analysis/properties.hpp"
 #include "nurbforge/analysis/section.hpp"
 #include "nurbforge/analysis/shell_section.hpp"
+#include "nurbforge/analysis/silhouette.hpp"
 #include "nurbforge/analysis/surface_intersect.hpp"
 #include "nurbforge/core/error.hpp"
 #include "nurbforge/core/tolerance.hpp"

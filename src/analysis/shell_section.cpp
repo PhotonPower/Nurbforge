@@ -8,10 +8,13 @@
 #include <optional>
 #include <string>
 
+#include "clip_detail.hpp"
 #include "nurbforge/core/error.hpp"
 #include "nurbforge/geometry/transform.hpp"
 
 namespace nf {
+
+using detail::inside_intervals;
 
 namespace {
 
@@ -133,47 +136,6 @@ std::vector<Piece> surface_section(const NurbsSurface& s, const Plane& plane, co
   so.fit_tolerance = opt.fit_tolerance > 0.0 ? opt.fit_tolerance : 1e-9 * size;
   for (auto& ic : planar_section(s, plane, so).curves)
     out.push_back({std::move(ic.curve), std::move(ic.pcurve1), false});
-  return out;
-}
-
-/// Parameter intervals of the p-curve inside the trimmed region (bisection on contains()).
-std::vector<std::array<double, 2>> inside_intervals(const TrimmedSurface& f, const NurbsCurve& pc) {
-  const double t0 = pc.domain_start(), t1 = pc.domain_end();
-  if (f.is_untrimmed()) return {{t0, t1}};
-  const auto in = [&](double t) {
-    const Vec3 p = pc.evaluate(t);
-    return f.contains(p.x, p.y);
-  };
-  const std::size_t spans = std::max<std::size_t>(1, unique_knots(pc.knots()).first.size() - 1);
-  const std::size_t n = std::max<std::size_t>(128, 32 * spans);
-  const auto refine = [&](double a, double b, bool ina) {  // a has state ina, b the other state
-    for (int it = 0; it < 200 && b - a > 4 * std::numeric_limits<double>::epsilon() *
-                                             std::max(1.0, std::abs(a));
-         ++it) {
-      const double m = 0.5 * (a + b);
-      (in(m) == ina ? a : b) = m;
-    }
-    return 0.5 * (a + b);
-  };
-  std::vector<std::array<double, 2>> out;
-  double ta = t0;
-  bool ina = in(t0);
-  double start = ina ? t0 : 0.0;
-  for (std::size_t k = 1; k <= n; ++k) {
-    const double tb =
-        k == n ? t1 : t0 + (t1 - t0) * static_cast<double>(k) / static_cast<double>(n);
-    const bool inb = in(tb);
-    if (inb != ina) {
-      const double x = refine(ta, tb, ina);
-      if (ina)
-        out.push_back({start, x});
-      else
-        start = x;
-    }
-    ta = tb;
-    ina = inb;
-  }
-  if (ina) out.push_back({start, t1});
   return out;
 }
 
@@ -496,5 +458,49 @@ bool is_extrusion_band(const Shell& sh, const Vec3& dir, double h0, double h1,
   }
   return true;
 }
+
+namespace detail {
+
+std::vector<std::array<double, 2>> inside_intervals(const TrimmedSurface& f, const NurbsCurve& pc) {
+  const double t0 = pc.domain_start(), t1 = pc.domain_end();
+  if (f.is_untrimmed()) return {{t0, t1}};
+  const auto in = [&](double t) {
+    const Vec3 p = pc.evaluate(t);
+    return f.contains(p.x, p.y);
+  };
+  const std::size_t spans = std::max<std::size_t>(1, unique_knots(pc.knots()).first.size() - 1);
+  const std::size_t n = std::max<std::size_t>(128, 32 * spans);
+  const auto refine = [&](double a, double b, bool ina) {  // a has state ina, b the other state
+    for (int it = 0; it < 200 && b - a > 4 * std::numeric_limits<double>::epsilon() *
+                                             std::max(1.0, std::abs(a));
+         ++it) {
+      const double m = 0.5 * (a + b);
+      (in(m) == ina ? a : b) = m;
+    }
+    return 0.5 * (a + b);
+  };
+  std::vector<std::array<double, 2>> out;
+  double ta = t0;
+  bool ina = in(t0);
+  double start = ina ? t0 : 0.0;
+  for (std::size_t k = 1; k <= n; ++k) {
+    const double tb =
+        k == n ? t1 : t0 + (t1 - t0) * static_cast<double>(k) / static_cast<double>(n);
+    const bool inb = in(tb);
+    if (inb != ina) {
+      const double x = refine(ta, tb, ina);
+      if (ina)
+        out.push_back({start, x});
+      else
+        start = x;
+    }
+    ta = tb;
+    ina = inb;
+  }
+  if (ina) out.push_back({start, t1});
+  return out;
+}
+
+}  // namespace detail
 
 }  // namespace nf

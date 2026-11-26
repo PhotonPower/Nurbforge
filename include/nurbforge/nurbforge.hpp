@@ -3,6 +3,7 @@
 /// Umbrella header for the Nurbforge kernel.
 
 #include "nurbforge/analysis/closest_point.hpp"
+#include "nurbforge/analysis/curve_analysis.hpp"
 #include "nurbforge/analysis/drawing.hpp"
 #include "nurbforge/analysis/hatch.hpp"
 #include "nurbforge/analysis/intersect.hpp"

@@ -67,6 +67,7 @@ add_library(nurbforge_core STATIC
   src/analysis/hatch.cpp
   src/analysis/silhouette.cpp
   src/analysis/drawing.cpp
+  src/analysis/curve_analysis.cpp
   src/fitting/fit.cpp
   src/fitting/fit_surface.cpp
   src/optics/surfaces.cpp

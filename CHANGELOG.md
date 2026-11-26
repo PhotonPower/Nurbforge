@@ -23,6 +23,17 @@ versioning: [SemVer](https://semver.org).
   `unroll(surface, tolerance)` returns the flat pattern of a developable surface (cylinders,
   cones, general ruled developables) in the plane, without stretching and on the same parameter
   domain, so curves on the surface map to the pattern through their parameters.
+- Curve analysis (`analysis/curve_analysis.hpp`), the counterparts of the analysis commands of
+  an interactive modeller: `curve_curvature(c, u)` gives the curvature with radius, principal
+  normal and centre of the osculating circle; `curvature_graph(c, scale, samples_per_span)`
+  the hairs and graph line of a curvature comb, with both values at knots where the curvature
+  jumps; `curve_direction(c, plane_normal)` the end points and tangents and, for closed curves,
+  the sense of rotation and the enclosed area; `is_closed`, `is_planar`;
+  `continuity(a, b)` / `continuity(a, end_a, b, end_b)` the geometric (G0/G1/G2) and parametric
+  continuity of a joint with gap, tangent angle and curvatures, and `continuity_breaks(c)` the
+  knots where a curve is not curvature continuous; `find_duplicate_curves(curves, tolerance)`
+  the groups of geometrically identical curves, whatever their direction or parametrisation.
+  Length (`arc_length`) and degree were already available.
 - Silhouette curves (#95): `silhouette(surface | face | shell, view)` gives the curves where
   the normal is perpendicular to the view ray, for parallel views (`View::parallel(direction)`)
   and perspective views (`View::perspective(eye)`), as 3D curves with p-curves fitted to a

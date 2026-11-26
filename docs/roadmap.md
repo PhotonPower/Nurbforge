@@ -105,6 +105,7 @@
 - Silhouette curves of surfaces, trimmed surfaces and shells for parallel and perspective views, with cusps and creases ✅
 - Visibility of curves against shells (hidden-line removal) ✅
 - Make2D (visible and hidden lines in a drawing plane) and outline (contour loops) for parallel views ✅
+- Curve analysis: osculating circle, curvature graph, direction, continuity (G0/G1/G2), duplicate curves ✅
 - Later: Make2D and outline for perspective views; exact event parameters for the visibility (crossings of projected curves) instead of sampling
 
 ## Infrastructure

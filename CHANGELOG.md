@@ -5,7 +5,7 @@ versioning: [SemVer](https://semver.org).
 
 ## [Unreleased]
 
-## [0.17.0] – 2026-11-26
+## [0.17.0] – 2026-11-27
 The remaining surface tools of #17 (two-rail sweeps with several profiles, variable offset,
 chamfers between surfaces, unrolling), silhouettes, hidden-line removal, Make2D and outlines
 (#95), and analysis of curves and surfaces. The API is not yet stable (0.x).

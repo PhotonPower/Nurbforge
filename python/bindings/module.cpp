@@ -964,6 +964,117 @@ PYBIND11_MODULE(_core, m) {
         py::call_guard<py::gil_scoped_release>(), py::arg("curve"), py::arg("end"),
         py::arg("length"), py::arg("type") = Extension::Natural,
         "Extend a curve at one end by an arc length; original parameters are kept.");
+  // ------------------------------------------------------------------ curve analysis
+  py::class_<CurveCurvature>(m, "CurveCurvature",
+                             "Curvature of a curve at a parameter, with the osculating circle.")
+      .def_readonly("point", &CurveCurvature::point)
+      .def_readonly("tangent", &CurveCurvature::tangent, "unit tangent")
+      .def_readonly("normal", &CurveCurvature::normal,
+                    "unit principal normal, towards the centre of curvature")
+      .def_readonly("vector", &CurveCurvature::vector, "curvature vector: curvature * normal")
+      .def_readonly("curvature", &CurveCurvature::curvature)
+      .def_readonly("radius", &CurveCurvature::radius, "1 / curvature (inf where it vanishes)")
+      .def_readonly("center", &CurveCurvature::center, "centre of the osculating circle")
+      .def("__repr__", [](const CurveCurvature& k) {
+        return "<CurveCurvature curvature=" + std::to_string(k.curvature) +
+               " radius=" + std::to_string(k.radius) + ">";
+      });
+  m.def("curve_curvature", &curve_curvature, py::arg("curve"), py::arg("u"),
+        "Curvature, radius of curvature, unit tangent, principal normal and centre of the "
+        "osculating circle at u.");
+  py::class_<CurvatureGraph>(m, "CurvatureGraph", "Curvature graph (comb) of a curve.")
+      .def_readonly("parameters", &CurvatureGraph::parameters)
+      .def_readonly("points", &CurvatureGraph::points, "curve points (feet of the hairs)")
+      .def_readonly("tips", &CurvatureGraph::tips, "ends of the hairs; in order, the graph line")
+      .def_readonly("curvatures", &CurvatureGraph::curvatures)
+      .def_readonly("max_curvature", &CurvatureGraph::max_curvature)
+      .def_readonly("max_parameter", &CurvatureGraph::max_parameter)
+      .def("__repr__", [](const CurvatureGraph& g) {
+        return "<CurvatureGraph samples=" + std::to_string(g.points.size()) +
+               " max_curvature=" + std::to_string(g.max_curvature) + ">";
+      });
+  m.def("curvature_graph", &curvature_graph, py::arg("curve"), py::arg("scale") = 1.0,
+        py::arg("samples_per_span") = 16,
+        "Curvature graph: hairs from the curve points to point - scale * curvature vector (on "
+        "the convex side, length proportional to the curvature), samples_per_span + 1 per knot "
+        "span. Knots where the curvature jumps appear twice, with both values.");
+  m.def("is_closed", &is_closed, py::arg("curve"), py::arg("tolerance") = 1e-9,
+        "True if the end points of the curve agree within the tolerance.");
+  m.def("is_planar", &is_planar, py::arg("curve"), py::arg("tolerance") = 1e-9,
+        "True if the curve lies in a plane within the tolerance.");
+  py::class_<CurveDirection>(m, "CurveDirection",
+                             "Direction of a curve and sense of rotation of a closed curve.")
+      .def_readonly("start", &CurveDirection::start)
+      .def_readonly("end", &CurveDirection::end)
+      .def_readonly("start_tangent", &CurveDirection::start_tangent)
+      .def_readonly("end_tangent", &CurveDirection::end_tangent)
+      .def_readonly("closed", &CurveDirection::closed)
+      .def_readonly("planar", &CurveDirection::planar)
+      .def_readonly("plane_normal", &CurveDirection::plane_normal)
+      .def_readonly("orientation", &CurveDirection::orientation,
+                    "+1 counter-clockwise, -1 clockwise seen from the tip of plane_normal; 0 open")
+      .def_readonly("signed_area", &CurveDirection::signed_area)
+      .def("__repr__", [](const CurveDirection& d) {
+        return std::string("<CurveDirection ") + (d.closed ? "closed" : "open") +
+               (d.orientation > 0   ? " counter-clockwise"
+                : d.orientation < 0 ? " clockwise"
+                                    : "") +
+               ">";
+      });
+  m.def("curve_direction", &curve_direction, py::arg("curve"),
+        py::arg("plane_normal") = Vec3{0, 0, 0}, py::arg("tolerance") = 1e-6,
+        "Direction of a curve: end points, end tangents, and for a closed curve the sense of "
+        "rotation seen from the tip of plane_normal (zero: the normal of the curve's own plane). "
+        "curve.reversed() flips the direction.");
+  py::class_<CurveContinuity>(m, "CurveContinuity", "Continuity of curves at a joint.")
+      .def_readonly("geometric", &CurveContinuity::geometric,
+                    "-1 no contact, 0 position (G0), 1 tangent (G1), 2 curvature (G2)")
+      .def_readonly("parametric", &CurveContinuity::parametric, "-1, 0 (C0), 1 (C1), 2 (C2)")
+      .def_readonly("gap", &CurveContinuity::gap)
+      .def_readonly("tangent_angle", &CurveContinuity::tangent_angle, "radians")
+      .def_readonly("curvature_a", &CurveContinuity::curvature_a)
+      .def_readonly("curvature_b", &CurveContinuity::curvature_b)
+      .def_readonly("curvature_difference", &CurveContinuity::curvature_difference)
+      .def("__repr__", [](const CurveContinuity& k) {
+        return std::string("<CurveContinuity ") +
+               (k.geometric < 0 ? "no contact" : "G" + std::to_string(k.geometric)) + ">";
+      });
+  py::class_<CurveBreak>(m, "CurveBreak", "Parameter of a curve with its continuity there.")
+      .def_readonly("parameter", &CurveBreak::parameter)
+      .def_readonly("continuity", &CurveBreak::continuity);
+  m.def(
+      "continuity",
+      [](const NurbsCurve& a, const NurbsCurve& b, double position, double angle,
+         double curvature) {
+        return continuity(a, b, ContinuityTolerance{position, angle, curvature});
+      },
+      py::arg("a"), py::arg("b"), py::arg("position") = 1e-6, py::arg("angle") = 1e-6,
+      py::arg("curvature") = 1e-4,
+      "Continuity of two curves at their nearest pair of ends: G0 / G1 / G2 (and C0 / C1 / C2) "
+      "with the gap, the angle between the tangents and the curvatures on both sides. "
+      "Tolerances: position (gap), angle (radians), curvature (relative).");
+  m.def(
+      "continuity",
+      [](const NurbsCurve& a, CurveEnd end_a, const NurbsCurve& b, CurveEnd end_b, double position,
+         double angle, double curvature) {
+        return continuity(a, end_a, b, end_b, ContinuityTolerance{position, angle, curvature});
+      },
+      py::arg("a"), py::arg("end_a"), py::arg("b"), py::arg("end_b"), py::arg("position") = 1e-6,
+      py::arg("angle") = 1e-6, py::arg("curvature") = 1e-4,
+      "Continuity at the joint of the given ends of a and b.");
+  m.def(
+      "continuity_breaks",
+      [](const NurbsCurve& c, double position, double angle, double curvature) {
+        return continuity_breaks(c, ContinuityTolerance{position, angle, curvature});
+      },
+      py::arg("curve"), py::arg("position") = 1e-6, py::arg("angle") = 1e-6,
+      py::arg("curvature") = 1e-4,
+      "Knots of a curve where it is not curvature continuous (corners, tangent joints), with "
+      "the continuity there; for a closed curve also the seam.");
+  m.def("find_duplicate_curves", &find_duplicate_curves, py::call_guard<py::gil_scoped_release>(),
+        py::arg("curves"), py::arg("tolerance") = 1e-6,
+        "Groups of geometrically identical curves (same shape within the tolerance, whatever "
+        "the direction or parametrisation): lists of indices, the first being the one to keep.");
   m.def("extend", py::overload_cast<const NurbsSurface&, SurfaceSide, double, Extension>(&extend),
         py::call_guard<py::gil_scoped_release>(), py::arg("surface"), py::arg("side"),
         py::arg("length"), py::arg("type") = Extension::Natural,

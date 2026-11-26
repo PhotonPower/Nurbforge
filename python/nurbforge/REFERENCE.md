@@ -188,6 +188,18 @@ arguments after `*` are keyword-only; `(1) … (2) …` are overloads.
   `area(surface: NurbsSurface, u0: float, u1: float, v0: float, v1: float, rel_tol: float = 1e-10) -> float` — Area of an (untrimmed) surface, or of the parameter rectangle [`u0`, `u1`] x [`v0`, `v1`], by adaptive quadrature of `|S_u x S_v|`.
 - `integrate(f: Callable[[float], float], a: float, b: float, rel_tol: float = 1e-10, breaks: Sequence[float] = [], abs_tol: float = 0.0) -> float` — Globally adaptive Gauss-Kronrod integral of f over [a, b].
 
+**Curve analysis**
+
+- `curve_curvature(curve: NurbsCurve, u: float) -> CurveCurvature` — Curvature, radius of curvature, unit tangent, principal normal and centre of the osculating circle at u.
+- `curvature_graph(curve: NurbsCurve, scale: float = 1.0, samples_per_span: int = 16) -> CurvatureGraph` — Curvature graph: hairs from the curve points to point - scale * curvature vector (on the convex side, length proportional to the curvature), samples_per_span + 1 per knot span. Knots where the curvature jumps appear twice, with both values.
+- `curve_direction(curve: NurbsCurve, plane_normal: Vec3 = (0, 0, 0), tolerance: float = 1e-06) -> CurveDirection` — Direction of a curve: end points, end tangents, and for a closed curve the sense of rotation seen from the tip of plane_normal (zero: the normal of the curve's own plane). curve.reversed() flips the direction.
+- `is_closed(curve: NurbsCurve, tolerance: float = 1e-09) -> bool` — True if the end points of the curve agree within the tolerance.
+- `is_planar(curve: NurbsCurve, tolerance: float = 1e-09) -> bool` — True if the curve lies in a plane within the tolerance.
+- `(1) continuity(a: NurbsCurve, b: NurbsCurve, position: float = 1e-06, angle: float = 1e-06, curvature: float = 0.0001) -> CurveContinuity`  
+  `(2) continuity(a: NurbsCurve, end_a: CurveEnd, b: NurbsCurve, end_b: CurveEnd, position: float = 1e-06, angle: float = 1e-06, curvature: float = 0.0001) -> CurveContinuity` — (1) Continuity of two curves at their nearest pair of ends: G0 / G1 / G2 (and C0 / C1 / C2) with the gap, the angle between the tangents and the curvatures on both sides. Tolerances: position (gap), angle (radians), curvature (relative). (2) Continuity at the joint of the given ends of a and b.
+- `continuity_breaks(curve: NurbsCurve, position: float = 1e-06, angle: float = 1e-06, curvature: float = 0.0001) -> list[CurveBreak]` — Knots of a curve where it is not curvature continuous (corners, tangent joints), with the continuity there; for a closed curve also the seam.
+- `find_duplicate_curves(curves: Sequence[NurbsCurve], tolerance: float = 1e-06) -> list[list[int]]` — Groups of geometrically identical curves (same shape within the tolerance, whatever the direction or parametrisation): lists of indices, the first being the one to keep.
+
 **Intersections and sections**
 
 - `(1) intersect(a: NurbsCurve, b: NurbsCurve, tolerance: Tolerance = Tolerance()) -> list[CurveCurveIntersection]`  
@@ -297,6 +309,24 @@ Rotationally symmetric sag: conic + even (r^4, r^6, ...) + odd (r, r^2, ...) ter
 - `.odd: list[float]` (settable) — Odd/general polynomial coefficients B1, B2, B3, ... of r, r^2, r^3, …
 - `.sag(r: float) -> float` — Sag z at radius r.
 
+### `CurvatureGraph`
+
+Curvature graph (comb) of a curve.
+
+- `.curvatures: list[float]` — Curvature \kappa at the samples.
+- `.max_curvature: float` — Largest curvature among the samples.
+- `.max_parameter: float` — Parameter of the sample with the largest curvature.
+- `.parameters: list[float]` — Parameters of the samples (a knot with a curvature jump appears twice).
+- `.points: list[Vec3]` — curve points (feet of the hairs)
+- `.tips: list[Vec3]` — ends of the hairs; in order, the graph line
+
+### `CurveBreak`
+
+Parameter of a curve with its continuity there.
+
+- `.continuity: CurveContinuity` — `CurveContinuity` at the parameter, from the one-sided derivatives.
+- `.parameter: float` — Parameter of the knot (domain end for the seam of a closed curve).
+
 ### `CurveChamfer`
 
 Chamfer (straight cut) between two curves.
@@ -309,6 +339,30 @@ Chamfer (straight cut) between two curves.
 - `.trimmed_a: NurbsCurve | None` — kept part of a ending at point_a (None if trim=False)
 - `.trimmed_b: NurbsCurve | None` — kept part of b starting at point_b (None if trim=False)
 
+### `CurveContinuity`
+
+Continuity of curves at a joint.
+
+- `.curvature_a: float` — Curvature on the side of the first curve.
+- `.curvature_b: float` — Curvature on the side of the second curve.
+- `.curvature_difference: float` — Norm of the difference of the two curvature vectors.
+- `.gap: float` — Distance of the two end points.
+- `.geometric: int` — -1 no contact, 0 position (G0), 1 tangent (G1), 2 curvature (G2)
+- `.parametric: int` — -1, 0 (C0), 1 (C1), 2 (C2)
+- `.tangent_angle: float` — radians
+
+### `CurveCurvature`
+
+Curvature of a curve at a parameter, with the osculating circle.
+
+- `.center: Vec3` — centre of the osculating circle
+- `.curvature: float` — Curvature \kappa ≥ 0.
+- `.normal: Vec3` — unit principal normal, towards the centre of curvature
+- `.point: Vec3` — The curve point C(u).
+- `.radius: float` — 1 / curvature (inf where it vanishes)
+- `.tangent: Vec3` — unit tangent
+- `.vector: Vec3` — curvature vector: curvature * normal
+
 ### `CurveCurveIntersection`
 
 One intersection of two curves: parameters `s` on the first and `t` on the second curve, the point and the remaining distance between the curves there.
@@ -317,6 +371,20 @@ One intersection of two curves: parameters `s` on the first and `t` on the secon
 - `.point: Vec3` — Intersection point (midpoint of the two curve points).
 - `.s: float` — Parameter on the first curve.
 - `.t: float` — Parameter on the second curve.
+
+### `CurveDirection`
+
+Direction of a curve and sense of rotation of a closed curve.
+
+- `.closed: bool` — True if the end points agree within the tolerance.
+- `.end: Vec3` — End point.
+- `.end_tangent: Vec3` — Unit tangent at the end, in the direction of travel.
+- `.orientation: int` — +1 counter-clockwise, -1 clockwise seen from the tip of plane_normal; 0 open
+- `.planar: bool` — True if the curve lies in a plane within the tolerance.
+- `.plane_normal: Vec3` — Normal the sense of rotation refers to: the given one, or that of the curve's plane with its largest component positive.
+- `.signed_area: float` — Enclosed area of the projection along the plane normal, positive for counter-clockwise curves.
+- `.start: Vec3` — Start point.
+- `.start_tangent: Vec3` — Unit tangent at the start.
 
 ### `CurveFillet`
 

@@ -482,6 +482,171 @@ PYBIND11_MODULE(_core, m) {
         py::arg("plane"), py::arg("options") = SectionOptions{},
         "Section of a closed shell with a plane: closed loops oriented with the solid on the left "
         "(outer counter-clockwise, holes clockwise in the plane coordinates).");
+  // ------------------------------------------------------------------ silhouettes, drawings
+  const auto view_of = [](const std::optional<Vec3>& direction, const std::optional<Vec3>& eye,
+                          const char* who) {
+    if (direction.has_value() == eye.has_value())
+      throw GeometryError(std::string(who) +
+                          ": give either direction (parallel view) or eye "
+                          "(perspective view)");
+    return direction ? View::parallel(*direction) : View::perspective(*eye);
+  };
+  py::class_<SilhouetteCurve>(m, "SilhouetteCurve",
+                              "Silhouette curve of a surface for a view; curve and pcurve share "
+                              "their parameter.")
+      .def_readonly("curve", &SilhouetteCurve::curve, "3D curve on the surface")
+      .def_readonly("pcurve", &SilhouetteCurve::pcurve, "(u, v, 0) on the surface")
+      .def_readonly("closed", &SilhouetteCurve::closed)
+      .def_readonly("crease", &SilhouetteCurve::crease,
+                    "crease of the surface between a part facing the viewer and one facing away")
+      .def_readonly("face", &SilhouetteCurve::face, "index of the source face (shells)")
+      .def_readonly(
+          "cusps", &SilhouetteCurve::cusps,
+          "parameters where the view ray is tangent to the curve (cusps of the projection)")
+      .def("__repr__", [](const SilhouetteCurve& c) {
+        return std::string("<SilhouetteCurve face=") + std::to_string(c.face) +
+               (c.closed ? " closed" : "") + (c.crease ? " crease" : "") +
+               " cusps=" + std::to_string(c.cusps.size()) + ">";
+      });
+  m.def(
+      "silhouette",
+      [view_of](const py::object& obj, const std::optional<Vec3>& direction,
+                const std::optional<Vec3>& eye, double tolerance, std::size_t resolution) {
+        const View view = view_of(direction, eye, "silhouette");
+        SilhouetteOptions o;
+        o.tolerance = tolerance;
+        o.resolution = resolution;
+        if (py::isinstance<Shell>(obj)) {
+          const Shell& sh = obj.cast<const Shell&>();
+          py::gil_scoped_release release;
+          return silhouette(sh, view, o);
+        }
+        if (py::isinstance<TrimmedSurface>(obj)) {
+          const TrimmedSurface& f = obj.cast<const TrimmedSurface&>();
+          py::gil_scoped_release release;
+          return silhouette(f, view, o);
+        }
+        const NurbsSurface& s = obj.cast<const NurbsSurface&>();
+        py::gil_scoped_release release;
+        return silhouette(s, view, o);
+      },
+      py::arg("object"), py::arg("direction") = std::optional<Vec3>{},
+      py::arg("eye") = std::optional<Vec3>{}, py::arg("tolerance") = 1e-6,
+      py::arg("resolution") = 8,
+      "Silhouette curves of a surface, trimmed face or shell: where the normal is perpendicular "
+      "to the view ray. Parallel view along `direction` (from the viewer into the scene) or "
+      "perspective view from the point `eye`. Curves are fitted to `tolerance`; `resolution` is "
+      "the number of search cells per knot span. Faces seen edge-on have none.");
+  py::class_<CurvePiece>(m, "CurvePiece", "Piece of a curve with constant visibility.")
+      .def_readonly("curve", &CurvePiece::curve)
+      .def_readonly("visible", &CurvePiece::visible)
+      .def_readonly("source", &CurvePiece::source, "index of the source curve")
+      .def_readonly("t0", &CurvePiece::t0)
+      .def_readonly("t1", &CurvePiece::t1)
+      .def("__repr__", [](const CurvePiece& p) {
+        return std::string("<CurvePiece source=") + std::to_string(p.source) +
+               (p.visible ? " visible" : " hidden") + " [" + std::to_string(p.t0) + ", " +
+               std::to_string(p.t1) + "]>";
+      });
+  m.def(
+      "visibility",
+      [view_of](const std::vector<NurbsCurve>& curves, const std::vector<Shell>& occluders,
+                const std::optional<Vec3>& direction, const std::optional<Vec3>& eye,
+                double tolerance, std::size_t samples) {
+        const View view = view_of(direction, eye, "visibility");
+        VisibilityOptions o;
+        o.tolerance = tolerance;
+        o.samples = samples;
+        py::gil_scoped_release release;
+        return visibility(curves, view, occluders, o);
+      },
+      py::arg("curves"), py::arg("occluders"), py::arg("direction") = std::optional<Vec3>{},
+      py::arg("eye") = std::optional<Vec3>{}, py::arg("tolerance") = 1e-6, py::arg("samples") = 64,
+      "Hidden-line removal: split every curve where its visibility against the shells changes "
+      "and classify the pieces (CurvePiece.visible). Parallel view along `direction` or "
+      "perspective view from `eye`. Curves lying on a face are not hidden by that face.");
+  py::enum_<DrawingCurveKind>(m, "DrawingCurveKind")
+      .value("Edge", DrawingCurveKind::Edge)
+      .value("Silhouette", DrawingCurveKind::Silhouette);
+  py::class_<DrawingCurve>(m, "DrawingCurve", "One line of a drawing.")
+      .def_readonly("curve", &DrawingCurve::curve, "in the drawing plane: (s, t, 0)")
+      .def_readonly("curve3d", &DrawingCurve::curve3d, "the same piece in 3D")
+      .def_readonly("visible", &DrawingCurve::visible)
+      .def_readonly("kind", &DrawingCurve::kind)
+      .def_readonly("shell", &DrawingCurve::shell, "index of the source shell")
+      .def_readonly("index", &DrawingCurve::index, "edge index, or face index of a silhouette");
+  py::class_<Drawing>(m, "Drawing", "Visible and hidden lines of shells in a drawing plane.")
+      .def_readonly("origin", &Drawing::origin)
+      .def_readonly("s_axis", &Drawing::s_axis)
+      .def_readonly("t_axis", &Drawing::t_axis)
+      .def_readonly("normal", &Drawing::normal)
+      .def_readonly("visible", &Drawing::visible)
+      .def_readonly("hidden", &Drawing::hidden)
+      .def("__repr__", [](const Drawing& d) {
+        return "<Drawing visible=" + std::to_string(d.visible.size()) +
+               " hidden=" + std::to_string(d.hidden.size()) + ">";
+      });
+  py::class_<Outline>(m, "Outline", "Contour of shells seen along a direction.")
+      .def_readonly("origin", &Outline::origin)
+      .def_readonly("s_axis", &Outline::s_axis)
+      .def_readonly("t_axis", &Outline::t_axis)
+      .def_readonly("normal", &Outline::normal)
+      .def_readonly("loops", &Outline::loops)
+      .def("__repr__", [](const Outline& o) {
+        return "<Outline loops=" + std::to_string(o.loops.size()) + ">";
+      });
+  const auto drawing_options = [](const Vec3& s_axis, const Vec3& origin, double tolerance,
+                                  std::size_t samples, std::size_t resolution,
+                                  double join_tolerance, bool hidden, bool tangent_edges) {
+    DrawingOptions o;
+    o.s_axis = s_axis;
+    o.origin = origin;
+    o.tolerance = tolerance;
+    o.samples = samples;
+    o.resolution = resolution;
+    o.join_tolerance = join_tolerance;
+    o.hidden = hidden;
+    o.tangent_edges = tangent_edges;
+    return o;
+  };
+  m.def(
+      "make2d",
+      [drawing_options](const std::vector<Shell>& shells, const Vec3& direction, const Vec3& s_axis,
+                        const Vec3& origin, double tolerance, std::size_t samples,
+                        std::size_t resolution, double join_tolerance, bool hidden,
+                        bool tangent_edges) {
+        const DrawingOptions o = drawing_options(s_axis, origin, tolerance, samples, resolution,
+                                                 join_tolerance, hidden, tangent_edges);
+        py::gil_scoped_release release;
+        return make2d(shells, direction, o);
+      },
+      py::arg("shells"), py::arg("direction"), py::arg("s_axis") = Vec3{0, 0, 0},
+      py::arg("origin") = Vec3{0, 0, 0}, py::arg("tolerance") = 1e-6, py::arg("samples") = 64,
+      py::arg("resolution") = 8, py::arg("join_tolerance") = 0.0, py::arg("hidden") = true,
+      py::arg("tangent_edges") = false,
+      "2D drawing of shells for a parallel view along `direction` (from the viewer into the "
+      "scene): all edges and silhouettes, split by visibility and projected onto the plane "
+      "through `origin` normal to the direction, in the coordinates (s, t) with s along "
+      "`s_axis` (zero: automatic) and t = normal x s. Returns a Drawing with the visible and "
+      "the hidden lines; duplicates are removed, visible lines taking precedence. "
+      "tangent_edges: also draw smooth edges (seams, borders of fillets).");
+  m.def(
+      "outline",
+      [drawing_options](const std::vector<Shell>& shells, const Vec3& direction, const Vec3& s_axis,
+                        const Vec3& origin, double tolerance, std::size_t resolution,
+                        double join_tolerance) {
+        const DrawingOptions o =
+            drawing_options(s_axis, origin, tolerance, 64, resolution, join_tolerance, true, false);
+        py::gil_scoped_release release;
+        return outline(shells, direction, o);
+      },
+      py::arg("shells"), py::arg("direction"), py::arg("s_axis") = Vec3{0, 0, 0},
+      py::arg("origin") = Vec3{0, 0, 0}, py::arg("tolerance") = 1e-6, py::arg("resolution") = 8,
+      py::arg("join_tolerance") = 0.0,
+      "Contour of shells seen along `direction`: the boundary of the union of their parallel "
+      "projections, as closed loops in the plane coordinates of make2d (Outline.loops, a region "
+      "for region_boolean / region_area: outer contours counter-clockwise, holes clockwise).");
+
   // hatching of section loops (contour and hatch lines of a layer)
   py::class_<HatchSegment>(m, "HatchSegment",
                            "Hatch segment inside the region bounded by the loops.")

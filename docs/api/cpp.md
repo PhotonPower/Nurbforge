@@ -87,6 +87,36 @@ distance from the loops are chained. So contours are trimmed at convex corners, 
 narrower than twice the distance, merge where holes come close (`HatchContour::loops` lists the
 source loops), and vanish where the region is too thin.
 
+## Silhouettes, hidden lines and outlines
+
+`analysis/silhouette.hpp` and `analysis/drawing.hpp` compute what a viewer sees of a model, for
+2D drawings and figures:
+
+```cpp
+#include <nurbforge/analysis/drawing.hpp>
+
+const nf::View view = nf::View::parallel({0, 1, 0});            // or View::perspective(eye)
+for (const nf::SilhouetteCurve& c : nf::silhouette(shell, view))   // per face: c.face
+  use(c.curve, c.pcurve, c.cusps);
+
+// hidden-line removal for any curves against occluding shells
+for (const nf::CurvePiece& p : nf::visibility(curves, view, {shell}))
+  (p.visible ? solid : dashed).push_back(p.curve);
+
+nf::DrawingOptions opt;
+opt.s_axis = {1, 0, 0};                                            // x to the right
+const nf::Drawing d = nf::make2d({shell}, {0, 1, 0}, opt);         // d.visible, d.hidden: (s, t, 0)
+const nf::Outline o = nf::outline({shell}, {0, 0, -1}, opt);       // o.loops: a nf::Region
+```
+
+Silhouettes are the zero set of N · w (w the unit vector to the viewer): sign changes are
+searched on a grid over the parameter domain (`SilhouetteOptions::resolution` cells per knot
+span), and the traced points are moved onto the exact zero set and fitted to the tolerance.
+A point of a curve is hidden if the ray from it to the viewer crosses a face, i.e. if the point
+lies more than the tolerance off the tangent plane of the face where the ray meets it; curves
+lying on a face are therefore not hidden by it. `make2d` and `outline` are for parallel views:
+the projection onto the drawing plane is then an exact affine map of the control points.
+
 Reference documentation: `doxygen docs/Doxyfile` → `build/docs/html/index.html`.
 
 The same Doxygen output (XML) is rendered on the documentation site: [C++ API reference](cpp-reference.md).

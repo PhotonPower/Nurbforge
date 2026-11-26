@@ -331,6 +331,41 @@ print(call_tool(ws, "closest_point", {"name": "c", "point": [3, 0, 0]}))  # ... 
 
 Details and the tool list: [LLM interface](llm.md).
 
+## 10. Silhouettes, hidden lines and outlines
+
+For drawings and figures of a part, the kernel computes what a viewer sees along a direction
+([12_drawing.py](https://github.com/PhotonPower/Nurbforge/blob/main/examples/python/12_drawing.py)).
+`silhouette` gives the curves where a surface turns away from the viewer, for a parallel view
+(`direction`, from the viewer into the scene) or a perspective view (`eye`):
+
+```python
+# from examples/python/12_drawing.py
+side = nf.silhouette(stud, direction=(0, 1, 0))  # parallel view along +y
+rim = nf.silhouette(ball, eye=(3, 0, 0))  # perspective view from an eye point
+```
+
+`make2d` collects all edges and silhouettes of the shells, splits them where their visibility
+changes and projects them onto a plane normal to the view. The result holds the visible and the
+hidden lines as curves `(s, t, 0)` in the plane coordinates, e.g. for a solid and a dashed layer:
+
+```python
+# from examples/python/12_drawing.py
+front = nf.make2d(parts, direction=(0, 1, 0), s_axis=(1, 0, 0))  # front view, x to the right
+```
+
+`visibility` does the hidden-line removal for any curves, and `outline` returns the contour of
+the parts as closed loops, a region for `region_boolean` and `region_area`:
+
+```python
+# from examples/python/12_drawing.py
+pieces = nf.visibility([beam], parts, direction=(0, 0, -1))  # seen from above
+top = nf.outline(parts, direction=(0, 0, -1), s_axis=(1, 0, 0))
+```
+
+Visibility is sampled along every curve (`samples`) and silhouettes are searched on a grid
+(`resolution` cells per knot span), so features smaller than the sample spacing can be missed;
+raise the two for fine detail.
+
 ## Next steps
 
 - C++: the same kernel without Python – see `examples/cpp/lens_surface.cpp`,

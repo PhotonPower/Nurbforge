@@ -106,6 +106,13 @@ TEST_CASE("silhouettes of a cylinder: straight lines from the side, none along t
   const auto ss = silhouette(solid, View::parallel({1, 1, 0}));
   CHECK(ss.size() == 2);
   CHECK(std::abs(total_length(ss) - 2 * H) < 1e-7);
+  // silhouettes on the seam of the side face and on a knot line
+  for (const Vec3& dir : {Vec3{0, 1, 0}, Vec3{1, 0, 0}, Vec3{0, -1, 0}, Vec3{-1, 0, 0}}) {
+    const auto axis =
+        silhouette(make_cylinder({3, 1, 1}, {0, 0, 1}, 0.4, 1.5), View::parallel(dir));
+    REQUIRE(axis.size() == 2);
+    CHECK(std::abs(total_length(axis) - 3.0) < 1e-9);
+  }
 }
 
 TEST_CASE("silhouettes of a torus: circles along the axis, cusps in an oblique view",

@@ -226,6 +226,13 @@ arguments after `*` are keyword-only; `(1) … (2) …` are overloads.
 - `is_extrusion_band(shell: Shell, direction: Vec3, h0: float, h1: float, tolerance: Tolerance = Tolerance()) -> bool` — True if all faces meeting the band h0 < p . direction < h1 are parallel to `direction` there.
 - `hatch(loops: object, direction: Sequence, spacing: float, *, phase: float = 0.0, contours: Sequence[float] = [], min_length: float = 0.0, tolerance: float = 0.0, contour_tolerance: float = 0.0) -> tuple[list[HatchSegment], list[HatchContour]]` — Hatch and contour lines of the region bounded by closed planar loops (region on the left). `loops`: a PlanarSection, its loops, or closed chains of curves in the xy plane (a single closed curve counts as a loop). Lines n . p = phase + k * spacing along `direction` (2 or 3 components, z ignored), n = (-d.y, d.x). Returns (segments, contours): HatchSegment list sorted by line and position, and one HatchContour per loop and inward offset distance in `contours`.
 
+**Silhouettes and drawings**
+
+- `silhouette(object: object, direction: Vec3 | None = None, eye: Vec3 | None = None, tolerance: float = 1e-06, resolution: int = 8) -> list[SilhouetteCurve]` — Silhouette curves of a surface, trimmed face or shell: where the normal is perpendicular to the view ray. Parallel view along `direction` (from the viewer into the scene) or perspective view from the point `eye`. Curves are fitted to `tolerance`; `resolution` is the number of search cells per knot span. Faces seen edge-on have none.
+- `visibility(curves: Sequence[NurbsCurve], occluders: Sequence[Shell], direction: Vec3 | None = None, eye: Vec3 | None = None, tolerance: float = 1e-06, samples: int = 64) -> list[CurvePiece]` — Hidden-line removal: split every curve where its visibility against the shells changes and classify the pieces (CurvePiece.visible). Parallel view along `direction` or perspective view from `eye`. Curves lying on a face are not hidden by that face.
+- `make2d(shells: Sequence[Shell], direction: Vec3, s_axis: Vec3 = (0, 0, 0), origin: Vec3 = (0, 0, 0), tolerance: float = 1e-06, samples: int = 64, resolution: int = 8, join_tolerance: float = 0.0, hidden: bool = True, tangent_edges: bool = False) -> Drawing` — 2D drawing of shells for a parallel view along `direction` (from the viewer into the scene): all edges and silhouettes, split by visibility and projected onto the plane through `origin` normal to the direction, in the coordinates (s, t) with s along `s_axis` (zero: automatic) and t = normal x s. Returns a Drawing with the visible and the hidden lines; duplicates are removed, visible lines taking precedence. tangent_edges: also draw smooth edges (seams, borders of fillets).
+- `outline(shells: Sequence[Shell], direction: Vec3, s_axis: Vec3 = (0, 0, 0), origin: Vec3 = (0, 0, 0), tolerance: float = 1e-06, resolution: int = 8, join_tolerance: float = 0.0) -> Outline` — Contour of shells seen along `direction`: the boundary of the union of their parallel projections, as closed loops in the plane coordinates of make2d (Outline.loops, a region for region_boolean / region_area: outer contours counter-clockwise, holes clockwise).
+
 **Optical surfaces**
 
 - `asphere_surface(asphere: Asphere, r_max: float, tolerance: float = 1e-07) -> NurbsSurface` — Surface of revolution; exact for pure conics.
@@ -318,6 +325,16 @@ Circular fillet between two planar curves.
 - `.trimmed_a: NurbsCurve | None` — kept part of a ending at point_a (None if trim=False)
 - `.trimmed_b: NurbsCurve | None` — kept part of b starting at point_b (None if trim=False)
 
+### `CurvePiece`
+
+Piece of a curve with constant visibility.
+
+- `.curve: NurbsCurve` — The part of the source curve on [t0, t1] (same parameter).
+- `.source: int` — index of the source curve
+- `.t0: float` — Start of the parameter interval on the source curve.
+- `.t1: float` — End of the parameter interval on the source curve.
+- `.visible: bool` — True if the piece is visible.
+
 ### `CurvePoint`
 
 Result of a closest-point query on a curve.
@@ -335,6 +352,28 @@ One intersection of a curve with a surface or plane: curve parameter `t`, surfac
 - `.t: float` — Parameter on the curve.
 - `.u: float` — u parameter on the surface (in-plane coordinate s for a plane).
 - `.v: float` — v parameter on the surface (in-plane coordinate t for a plane).
+
+### `Drawing`
+
+Visible and hidden lines of shells in a drawing plane. Result of `make2d`: the visible and the hidden lines in a plane with the frame (origin, s_axis, t_axis, normal); a point is origin + s s_axis + t t_axis.
+
+- `.hidden: list[DrawingCurve]` — Hidden lines (`DrawingCurve`); empty with `hidden=False`.
+- `.normal: Vec3` — Unit normal of the drawing plane, pointing to the viewer.
+- `.origin: Vec3` — Origin of the plane coordinates.
+- `.s_axis: Vec3` — First in-plane unit axis s (to the right, seen from the viewer).
+- `.t_axis: Vec3` — Second in-plane unit axis t = normal x s (upwards).
+- `.visible: list[DrawingCurve]` — Visible lines (`DrawingCurve`).
+
+### `DrawingCurve`
+
+One line of a drawing.
+
+- `.curve: NurbsCurve` — in the drawing plane: (s, t, 0)
+- `.curve3d: NurbsCurve` — the same piece in 3D
+- `.index: int` — edge index, or face index of a silhouette
+- `.kind: DrawingCurveKind` — `DrawingCurveKind`: edge of a shell or silhouette of a face.
+- `.shell: int` — index of the source shell
+- `.visible: bool` — True for visible lines.
 
 ### `FittedSurface`
 
@@ -474,6 +513,16 @@ Tensor-product NURBS surface of degrees (p, q) with a net of `num_u` x `num_v` c
 - `__call__(u: float, v: float) -> Vec3` — Call operator.
 - `__rmul__(arg0: Transform) -> NurbsSurface` — Operator `b * a`.
 
+### `Outline`
+
+Contour of shells seen along a direction. Result of `outline`: closed loops in a plane with the frame (origin, s_axis, t_axis, normal).
+
+- `.loops: list[list[NurbsCurve]]` — Region bounded by the contour: loops of curves (s, t, 0), outer contours counter-clockwise, holes clockwise.
+- `.normal: Vec3` — Unit normal of the plane, pointing to the viewer.
+- `.origin: Vec3` — Origin of the plane coordinates.
+- `.s_axis: Vec3` — First in-plane unit axis s.
+- `.t_axis: Vec3` — Second in-plane unit axis t = normal x s.
+
 ### `PlanarSection`
 
 Result of `section`: closed loops in a plane with the frame (origin, s_axis, t_axis, normal). Curves are given in the plane coordinates (s, t, 0).
@@ -572,6 +621,17 @@ Trimmed faces sewn along shared edges.
 - `.volume(rel_tol: float = 1e-08) -> float` — Enclosed volume (divergence theorem over the faces, adaptive to `rel_tol`); requires a closed shell. Positive for outward normals.
 - `.with_face_labels(labels: Sequence[str]) -> Shell` — The same shell with one label per face (they survive Booleans, transforms and STEP).
 - `__rmul__(arg0: Transform) -> Shell` — Operator `b * a`.
+
+### `SilhouetteCurve`
+
+Silhouette curve of a surface for a view; curve and pcurve share their parameter.
+
+- `.closed: bool` — True if the 3D curve is closed.
+- `.crease: bool` — crease of the surface between a part facing the viewer and one facing away
+- `.curve: NurbsCurve` — 3D curve on the surface
+- `.cusps: list[float]` — parameters where the view ray is tangent to the curve (cusps of the projection)
+- `.face: int` — index of the source face (shells)
+- `.pcurve: NurbsCurve` — (u, v, 0) on the surface
 
 ### `SurfaceCurvature`
 
@@ -748,6 +808,7 @@ Freeform sag: base asphere plus \sum_j c_j Z_j(\rho, \theta) with \rho = r / r_n
 
 - **`BooleanOp`** — Boolean operation for `boolean`. Values: `Union` (Material of a or b.); `Intersection` (Material of a and b.); `Difference` (Material of a without b.)
 - **`CurveEnd`** — End of a curve for `extend`. Values: `Start` (At the start of the domain.); `End` (At the end of the domain.)
+- **`DrawingCurveKind`** — Source of a line of a drawing. Values: `Edge` (Edge of a shell.); `Silhouette` (Silhouette curve of a face.)
 - **`Extension`** — How `extend` continues the geometry. Values: `Natural` (Polynomial (rational) continuation of the boundary B\'ezier piece: C^∞ at the old boundary, conics stay conics; fails if weights would become ≤ 0.); `Linear` (Straight continuation along the boundary tangent: G1, and C1 for non-rational geometry.)
 - **`Parametrization`** — Choice of the data parameters of fitting and lofting (P&T Eq. 9.3–9.6). Values: `Uniform` (Equally spaced.); `ChordLength` (Proportional to the distance between consecutive points.); `Centripetal` (Proportional to the square root of the distance (robust at sharp turns; the default).)
 - **`SurfaceSide`** — Boundary of a surface for `extend`. Values: `UMin` (Boundary u = u_min.); `UMax` (Boundary u = u_max.); `VMin` (Boundary v = v_min.); `VMax` (Boundary v = v_max.)

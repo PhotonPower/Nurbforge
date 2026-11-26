@@ -344,13 +344,14 @@ void smooth_silhouettes(const NurbsSurface& s, const View& view, const Silhouett
       const double gx = fix_x ? 0.0 : (G(xb, y) - G(xa, y)) / (xb - xa);
       const double gy = fix_y ? 0.0 : (G(x, yb) - G(x, ya)) / (yb - ya);
       const double g2 = gx * gx + gy * gy;
-      if (!(g2 > 1e-20)) break;
-      double sx = -val * gx / g2, sy = -val * gy / g2;
+      // differences of g carry round-off of about 1e-9: a smaller gradient is noise
+      if (!(g2 > 1e-12)) break;
+      const double sx = -val * gx / g2, sy = -val * gy / g2;
       const double len = std::hypot(sx, sy);
-      if (len > 0.05) {
-        sx *= 0.05 / len;
-        sy *= 0.05 / len;
-      }
+      // The traced point is much closer to the zero set than a cell of the grid. A long step
+      // means that g does not vary in the free directions (a point held on the boundary, with
+      // the zero set running along it): the point stays where it is.
+      if (len > 0.02) break;
       x = std::clamp(x + sx, x0, x1);
       y = std::clamp(y + sy, y0, y1);
       if (len < 1e-15) break;

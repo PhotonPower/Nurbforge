@@ -14,6 +14,24 @@ versioning: [SemVer](https://semver.org).
   along its normal by a distance varying over it, given as a function `distance(u, v)` or at
   the four corners of the parameter domain (bilinear). Same fit and checks as `offset_surface`.
   LLM tool `offset` takes `corner_distances`.
+- Silhouette curves (#95): `silhouette(surface | face | shell, view)` gives the curves where
+  the normal is perpendicular to the view ray, for parallel views (`View::parallel(direction)`)
+  and perspective views (`View::perspective(eye)`), as 3D curves with p-curves fitted to a
+  tolerance. Clipped to the trimmed region of faces; closed where closed; straight to round-off
+  for cylinders and cones seen from the side. Reported with them: the parameters where the
+  projection has a cusp, and creases of a surface between a part facing the viewer and one
+  facing away. Python: `silhouette(obj, direction=..., eye=...)`.
+- Hidden-line removal (#95): `visibility(curves, view, occluders)` splits curves where their
+  visibility against shells changes and classifies the pieces. Curves lying on a face (its
+  edges, silhouettes) are not hidden by that face; rays through an edge of a shell count as
+  hits (the hidden edges of a cube seen along its diagonal).
+- Make2D (#95): `make2d(shells, direction)` returns the visible and the hidden lines of shells
+  for a parallel view, projected exactly onto a plane normal to the view: edges and
+  silhouettes, split by visibility, with duplicates removed (visible lines take precedence)
+  and smooth edges such as seams left out (`tangent_edges`).
+- Outline (#95): `outline(shells, direction)` gives the contour of shells seen along a
+  direction as closed loops (a `Region`: outer contours counter-clockwise, holes clockwise),
+  the boundary of the union of their projections.
 
 ### Fixed
 - Build: configuring an existing build directory again failed with "Unknown CMake command

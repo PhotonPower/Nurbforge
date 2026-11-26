@@ -5,6 +5,7 @@
 #include <cmath>
 #include <functional>
 #include <limits>
+#include <optional>
 #include <string>
 #include <utility>
 
@@ -196,29 +197,59 @@ std::size_t span_count(const NurbsCurve& c) {
   return std::max<std::size_t>(1, unique_knots(c.knots()).first.size() - 1);
 }
 
-// Drawing plane of a parallel view.
+// Drawing plane of a view: through the origin, normal to the view direction (parallel) or to
+// the line from the origin to the eye (perspective).
 struct Frame {
   Vec3 origin, s, t, n;
-  [[nodiscard]] Transform to_plane() const {
-    return Transform(
-        {s.x, s.y, s.z, -dot(s, origin), t.x, t.y, t.z, -dot(t, origin), 0.0, 0.0, 0.0, 0.0});
+  std::optional<Vec3> eye;
+  double eye_distance{0.0};  // of the eye from the plane
+
+  // Projection of a curve onto the plane, in plane coordinates (s, t, 0). Parallel: an affine
+  // map of the control points. Perspective: a projective map, exact too: the control point P
+  // with weight w goes to d ((P - E) . s, (P - E) . t) / z with the weight w z, where z is its
+  // depth in front of the eye E and d the distance of the eye from the plane.
+  [[nodiscard]] NurbsCurve project(const NurbsCurve& c) const {
+    if (!eye)
+      return c.transformed(Transform(
+          {s.x, s.y, s.z, -dot(s, origin), t.x, t.y, t.z, -dot(t, origin), 0.0, 0.0, 0.0, 0.0}));
+    std::vector<Vec3> P;
+    std::vector<double> W;
+    P.reserve(c.control_points().size());
+    for (std::size_t i = 0; i < c.control_points().size(); ++i) {
+      const Vec3 r = c.control_points()[i] - *eye;
+      const double z = -dot(r, n);
+      if (!(z > 1e-9 * eye_distance))
+        throw GeometryError("perspective view: the model reaches behind the eye point");
+      P.push_back({eye_distance * dot(r, s) / z, eye_distance * dot(r, t) / z, 0.0});
+      W.push_back(c.weights()[i] * z);
+    }
+    return {c.degree(), c.knots(), std::move(P), std::move(W)};
   }
   [[nodiscard]] Vec3 to_space(const Vec3& q) const { return origin + q.x * s + q.y * t; }
 };
 
-Frame frame_for(const Vec3& direction, const DrawingOptions& opt, const char* who) {
-  const double len = norm(direction);
-  if (!(len > 0.0) || !std::isfinite(len))
-    throw GeometryError(std::string(who) + ": the direction must be a non-zero vector");
+Frame frame_for(const View& view, const DrawingOptions& opt, const char* who) {
   if (!(opt.tolerance > 0.0))
     throw GeometryError(std::string(who) + ": tolerance must be positive");
   Frame f;
   f.origin = opt.origin;
-  f.n = -1.0 * direction / len;
+  if (view.eye) {
+    f.eye = view.eye;
+    f.eye_distance = distance(*view.eye, opt.origin);
+    if (!(f.eye_distance > 0.0))
+      throw GeometryError(std::string(who) +
+                          ": the eye point coincides with the origin of the drawing plane");
+    f.n = (*view.eye - opt.origin) / f.eye_distance;
+  } else {
+    const double len = norm(view.direction);
+    if (!(len > 0.0) || !std::isfinite(len))
+      throw GeometryError(std::string(who) + ": the direction must be a non-zero vector");
+    f.n = -1.0 * view.direction / len;
+  }
   Vec3 s = opt.s_axis - dot(opt.s_axis, f.n) * f.n;
   if (!(norm(s) > 1e-9 * std::max(1.0, norm(opt.s_axis)))) {
     if (norm(opt.s_axis) > 0.0)
-      throw GeometryError(std::string(who) + ": s_axis is parallel to the direction");
+      throw GeometryError(std::string(who) + ": s_axis is parallel to the view direction");
     const Vec3 helper = std::abs(f.n.z) < 0.9 ? Vec3{0, 0, 1} : Vec3{0, 1, 0};
     s = cross(helper, f.n);  // horizontal for views that are not vertical
   }
@@ -314,10 +345,9 @@ std::vector<Item> model_curves(const std::vector<Shell>& shells, const View& vie
     for (auto& sc : silhouette(shells[k], view, so))
       raw.push_back({std::move(sc.curve), DrawingCurveKind::Silhouette, k, sc.face});
   }
-  const Transform map = frame.to_plane();
   std::vector<Item> out;
   for (auto& it : raw) {
-    const auto folds = fold_parameters(it.c3.transformed(map));
+    const auto folds = fold_parameters(frame.project(it.c3));
     if (folds.empty()) {
       out.push_back(std::move(it));
       continue;
@@ -442,21 +472,82 @@ class Drawn {
 
 }  // namespace
 
-std::vector<CurvePiece> visibility(const std::vector<NurbsCurve>& curves, const View& view,
-                                   const std::vector<Shell>& occluders,
-                                   const VisibilityOptions& opt) {
-  if (!(opt.tolerance > 0.0)) throw GeometryError("visibility: tolerance must be positive");
-  const Occluders occ(occluders);
+namespace {
+
+// Visibility of the curves. `outlines` are the edges and silhouettes of the occluders: the
+// visibility of a curve can change only where its projection crosses the projection of one of
+// them (or where the curve passes through a face). Each curve is cut at these crossings, found
+// by intersecting the projected curves; within the intervals in between the visibility is
+// sampled and changes are refined by bisection, which finds the passages through faces and
+// guards against a missed silhouette. `same_index`: outlines[k] is curves[k] itself.
+std::vector<CurvePiece> visibility_of(const std::vector<NurbsCurve>& curves, const View& view,
+                                      const Occluders& occ, const std::vector<NurbsCurve>& outlines,
+                                      bool same_index, const VisibilityOptions& opt) {
+  // projections for the crossings, in a plane in front of the eye through the middle of
+  // everything; without one (a curve behind the eye) only the sampling is used
+  std::vector<NurbsCurve> curves2, outlines2;
+  std::vector<Box> boxes2;
+  if (opt.events && !outlines.empty()) {
+    Box all;
+    for (const auto& c : curves)
+      for (const auto& p : c.control_points()) all.add(p);
+    for (const auto& c : outlines)
+      for (const auto& p : c.control_points()) all.add(p);
+    DrawingOptions dopt;
+    dopt.tolerance = opt.tolerance;
+    dopt.origin = 0.5 * (all.lo + all.hi);
+    try {
+      const Frame frame = frame_for(view, dopt, "visibility");
+      for (const auto& c : curves) curves2.push_back(frame.project(c));
+      for (const auto& c : outlines) {
+        outlines2.push_back(frame.project(c));
+        boxes2.push_back(box_of(outlines2.back()));
+      }
+    } catch (const GeometryError&) {
+      curves2.clear();
+      outlines2.clear();
+    }
+  }
+  const Tolerance itol{std::max(opt.tolerance, 1e-12), tol::kParametric, tol::kAngular};
+
   std::vector<CurvePiece> out;
   for (std::size_t k = 0; k < curves.size(); ++k) {
     const NurbsCurve& c = curves[k];
     const double a = c.domain_start(), b = c.domain_end();
     const auto visible = [&](double t) { return !occ.hides(c.evaluate(t), view, opt.tolerance); };
+    // cuts: the crossings with the projected outlines
+    std::vector<double> cuts{a};
+    if (!curves2.empty()) {
+      std::vector<double> x;
+      const Box box = box_of(curves2[k]);
+      for (std::size_t j = 0; j < outlines2.size(); ++j) {
+        if ((same_index && j == k) || !box.overlaps(boxes2[j], opt.tolerance)) continue;
+        for (const auto& h : intersect(curves2[k], outlines2[j], itol)) x.push_back(h.s);
+      }
+      std::sort(x.begin(), x.end());
+      for (const double t : x)
+        if (t - cuts.back() > 1e-9 * (b - a) && b - t > 1e-9 * (b - a)) cuts.push_back(t);
+    }
+    cuts.push_back(b);
+    // sampling between the cuts, at interior points (the state at a crossing is ambiguous)
     const std::size_t n = std::max<std::size_t>({opt.samples, 4 * span_count(c), 2});
+    std::vector<Interval> raw;
+    for (std::size_t i = 0; i + 1 < cuts.size(); ++i) {
+      const double t0 = cuts[i], t1 = cuts[i + 1];
+      const auto m = std::max<std::size_t>(
+          1, static_cast<std::size_t>(std::ceil(static_cast<double>(n) * (t1 - t0) / (b - a))));
+      const double h = (t1 - t0) / static_cast<double>(m);
+      const double first = t0 + 0.5 * h, last = t1 - 0.5 * h;
+      std::vector<Interval> part_ivs = m == 1 ? std::vector<Interval>{{first, last, visible(first)}}
+                                              : intervals(visible, first, last, m - 1);
+      part_ivs.front().t0 = t0;
+      part_ivs.back().t1 = t1;
+      raw.insert(raw.end(), part_ivs.begin(), part_ivs.end());
+    }
     // stretches shorter than a few tolerances (the end point of a hidden edge on a visible
     // one) are no pieces of their own
     std::vector<Interval> ivs;
-    for (const auto& iv : intervals(visible, a, b, n)) {
+    for (const auto& iv : raw) {
       const bool tiny = distance(c.evaluate(iv.t0), c.evaluate(iv.t1)) <= 10.0 * opt.tolerance &&
                         iv.t1 - iv.t0 < 0.5 * (b - a) / static_cast<double>(n);
       if (!ivs.empty() && (tiny || ivs.back().state == iv.state))
@@ -468,15 +559,42 @@ std::vector<CurvePiece> visibility(const std::vector<NurbsCurve>& curves, const 
                               10.0 * opt.tolerance) {  // tiny first piece
       ivs[1].t0 = ivs[0].t0;
       ivs.erase(ivs.begin());
+      if (ivs.size() > 1 && ivs[0].state == ivs[1].state) {
+        ivs[1].t0 = ivs[0].t0;
+        ivs.erase(ivs.begin());
+      }
     }
     for (const auto& iv : ivs) out.push_back({part(c, iv.t0, iv.t1), iv.state, k, iv.t0, iv.t1});
   }
   return out;
 }
 
+}  // namespace
+
+std::vector<CurvePiece> visibility(const std::vector<NurbsCurve>& curves, const View& view,
+                                   const std::vector<Shell>& occluders,
+                                   const VisibilityOptions& opt) {
+  if (!(opt.tolerance > 0.0)) throw GeometryError("visibility: tolerance must be positive");
+  const Occluders occ(occluders);
+  std::vector<NurbsCurve> outlines;
+  if (opt.events) {
+    SilhouetteOptions so;
+    so.tolerance = opt.tolerance;
+    so.resolution = opt.resolution;
+    for (const auto& sh : occluders) {
+      for (const auto& e : sh.edges()) outlines.push_back(e.curve);
+      for (auto& sc : silhouette(sh, view, so)) outlines.push_back(std::move(sc.curve));
+    }
+  }
+  return visibility_of(curves, view, occ, outlines, false, opt);
+}
+
 Drawing make2d(const std::vector<Shell>& shells, const Vec3& direction, const DrawingOptions& opt) {
-  const Frame frame = frame_for(direction, opt, "make2d");
-  const View view = View::parallel(direction);
+  return make2d(shells, View::parallel(direction), opt);
+}
+
+Drawing make2d(const std::vector<Shell>& shells, const View& view, const DrawingOptions& opt) {
+  const Frame frame = frame_for(view, opt, "make2d");
   const double jt = join_tolerance(opt);
   const std::vector<Item> items = model_curves(shells, view, frame, opt);
   std::vector<NurbsCurve> curves;
@@ -485,16 +603,18 @@ Drawing make2d(const std::vector<Shell>& shells, const Vec3& direction, const Dr
   VisibilityOptions vo;
   vo.tolerance = opt.tolerance;
   vo.samples = opt.samples;
-  const std::vector<CurvePiece> pieces = visibility(curves, view, shells, vo);
+  vo.resolution = opt.resolution;
+  // the model curves are the outlines of the occluders themselves
+  const std::vector<CurvePiece> pieces =
+      visibility_of(curves, view, Occluders(shells), curves, true, vo);
 
   Drawing d{frame.origin, frame.s, frame.t, frame.n, {}, {}};
-  const Transform map = frame.to_plane();
   Drawn drawn(jt);
   for (const bool want_visible : {true, false}) {
     if (!want_visible && !opt.hidden) break;
     for (const auto& p : pieces) {
       if (p.visible != want_visible) continue;
-      const NurbsCurve c2 = p.curve.transformed(map);
+      const NurbsCurve c2 = frame.project(p.curve);
       if (extent_of(c2) <= jt) continue;  // seen end-on
       const Item& src = items[p.source];
       for (const auto& iv : drawn.uncovered(c2)) {
@@ -512,10 +632,12 @@ Drawing make2d(const std::vector<Shell>& shells, const Vec3& direction, const Dr
 
 Outline outline(const std::vector<Shell>& shells, const Vec3& direction,
                 const DrawingOptions& opt) {
-  const Frame frame = frame_for(direction, opt, "outline");
-  const View view = View::parallel(direction);
+  return outline(shells, View::parallel(direction), opt);
+}
+
+Outline outline(const std::vector<Shell>& shells, const View& view, const DrawingOptions& opt) {
+  const Frame frame = frame_for(view, opt, "outline");
   const double jt = join_tolerance(opt);
-  const Transform map = frame.to_plane();
   const Occluders occ(shells);
 
   // the distinct projected lines
@@ -523,7 +645,7 @@ Outline outline(const std::vector<Shell>& shells, const Vec3& direction,
   {
     Drawn drawn(jt);
     for (const auto& it : model_curves(shells, view, frame, opt)) {
-      const NurbsCurve c2 = it.c3.transformed(map);
+      const NurbsCurve c2 = frame.project(it.c3);
       if (extent_of(c2) <= jt) continue;
       for (const auto& iv : drawn.uncovered(c2)) {
         NurbsCurve piece = part(c2, iv[0], iv[1]);
@@ -566,8 +688,13 @@ Outline outline(const std::vector<Shell>& shells, const Vec3& direction,
       const double speed = norm(dm[1]);
       if (!(speed > 0.0)) continue;
       const Vec3 left = Vec3{-dm[1].y, dm[1].x, 0.0} / speed;
-      const bool on_left = occ.covers(frame.to_space(dm[0] + probe * left), frame.n);
-      const bool on_right = occ.covers(frame.to_space(dm[0] - probe * left), frame.n);
+      // the view ray through a point of the drawing plane
+      const auto covered = [&](const Vec3& q) {
+        const Vec3 p = frame.to_space(q);
+        return occ.covers(p, frame.eye ? normalized(p - *frame.eye) : frame.n);
+      };
+      const bool on_left = covered(dm[0] + probe * left);
+      const bool on_right = covered(dm[0] - probe * left);
       if (on_left == on_right) continue;
       NurbsCurve piece = part(c, t[k], t[k + 1]);
       pieces.push_back(on_left ? std::move(piece) : piece.reversed());

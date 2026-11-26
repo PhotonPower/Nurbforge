@@ -477,3 +477,33 @@ def test_surface_tool_tools():
     assert "max deviation" in call_tool(ws, "fit_surface", {"name": "fs", "points": pts})
     assert "stored rb" in call_tool(ws, "ribbon", {"name": "rb", "curve": "path", "width": 0.5,
                                                    "plane_normal": [1, 0, 0]})
+
+
+def test_drawing_and_analysis_tools():
+    ws = Workspace()
+    call_tool(ws, "solid", {"name": "cyl", "kind": "cylinder", "point": [0, 0, 0],
+                            "axis": [0, 0, 1], "radius": 1, "height": 3})
+    out = call_tool(ws, "silhouette", {"name": "sil", "source": "cyl", "direction": [1, 0, 0]})
+    assert out.count("length 3") == 2 and "sil_2" in ws.objects
+    out = call_tool(ws, "make2d", {"name": "dr", "sources": ["cyl"], "direction": [1, 0, 0]})
+    assert "total length 10" in out and "0 hidden lines" in out
+    assert "hidden lines dp_hidden_1" in call_tool(ws, "make2d", {"name": "dp", "sources": ["cyl"],
+                                                                  "eye": [10, 0, 1.5]})
+    assert "area 3.1415927" in call_tool(ws, "outline", {"name": "ol", "sources": ["cyl"],
+                                                         "direction": [0, 0, -1]})
+    assert call_tool(ws, "silhouette", {"name": "x", "source": "cyl"}).startswith("ERROR")
+    call_tool(ws, "make_circle", {"name": "c", "center": [0, 0, 0], "normal": [0, 0, 1],
+                                  "radius": 2})
+    call_tool(ws, "extrude", {"name": "wall", "profile": "c", "direction": [0, 0, 3]})
+    assert "area 37.699112" in call_tool(ws, "unroll", {"name": "flat", "source": "wall"})
+    out = call_tool(ws, "analyze_curve", {"name": "c", "u": 0.3})
+    assert "counter-clockwise" in out and "radius 2" in out and "curvature continuous" in out
+    out = call_tool(ws, "analyze_surface", {"name": "wall", "pull_direction": [0, 0, 1]})
+    assert "developable" in out and "draft angle 0 .. 0 deg" in out and "closed in u" in out
+    call_tool(ws, "make_line", {"name": "l1", "p0": [0, 0, 0], "p1": [1, 0, 0]})
+    call_tool(ws, "make_line", {"name": "l2", "p0": [1, 0, 0], "p1": [1, 1, 0]})
+    call_tool(ws, "make_line", {"name": "l3", "p0": [1, 0, 0], "p1": [0, 0, 0]})
+    assert call_tool(ws, "continuity", {"a": "l1", "b": "l2"}).startswith("G0: gap 0, tangent "
+                                                                          "angle 90 deg")
+    assert call_tool(ws, "find_duplicates", {"names": ["l1", "l2", "l3"]}) == "l1 = l3"
+    call_tool(ws, "solid", {"name": "ball", "kind": "sphere", "point": [0, 0, 0], "radius": 1})

@@ -20,10 +20,16 @@ struct VisibilityOptions {
   /// the surface's tangent plane where the view ray meets it. Curves lying on an occluding
   /// surface (the edges of a face, silhouettes) are therefore not hidden by that surface.
   double tolerance{1e-6};
-  /// Visibility is sampled at max(samples, 4 x knot spans) + 1 points per curve; the parameters
-  /// where it changes are then refined by bisection. A hidden or visible stretch shorter than
-  /// the sample spacing can be missed.
+  /// Cut the curves where their projections cross the projected edges and silhouettes of the
+  /// occluders: the visibility changes there, so the pieces end exactly at these crossings
+  /// and short hidden stretches are found whatever the sampling.
+  bool events{true};
+  /// About max(samples, 4 x knot spans) samples per curve, spread over the intervals between
+  /// the crossings; changes between two samples are refined by bisection. This finds the
+  /// places where a curve passes through a face, and is all there is with events off, when a
+  /// hidden or visible stretch shorter than the sample spacing can be missed.
   std::size_t samples{64};
+  std::size_t resolution{8};  ///< SilhouetteOptions::resolution of the occluders' silhouettes
 };
 
 /// A piece of a curve with constant visibility.
@@ -40,7 +46,9 @@ struct CurvePiece {
 /// A point is hidden if the ray from it towards the viewer (parallel view: against the view
 /// direction; perspective: to the eye point) crosses a face of an occluder, see
 /// VisibilityOptions::tolerance for what counts as crossing; rays grazing a face or lying in
-/// it do not hide. Pieces are returned in the order of the curves and of the parameter.
+/// it do not hide. The curves are cut where their projections cross the projected edges and
+/// silhouettes of the occluders, and the intervals in between are classified by samples.
+/// Pieces are returned in the order of the curves and of the parameter.
 [[nodiscard]] std::vector<CurvePiece> visibility(const std::vector<NurbsCurve>& curves,
                                                  const View& view,
                                                  const std::vector<Shell>& occluders,
@@ -78,7 +86,7 @@ struct DrawingCurve {
   std::size_t index{0};  ///< edge index (Shell::edges) or face index of the silhouette
 };
 
-/// Drawing of shells seen along a direction, in the plane coordinates
+/// Drawing of shells for a view, in the plane coordinates
 /// p = origin + s * s_axis + t * t_axis (seen from the viewer, s points right and t up).
 struct Drawing {
   Vec3 origin, s_axis, t_axis, normal;
@@ -97,6 +105,14 @@ struct Drawing {
 [[nodiscard]] Drawing make2d(const std::vector<Shell>& shells, const Vec3& direction,
                              const DrawingOptions& options = {});
 
+/// Make2D for any view. A perspective view is drawn in the plane through options.origin normal
+/// to the line from the origin to the eye point: every point is projected along its ray to the
+/// eye, a projective map that is exact for NURBS curves too (the projected curves are
+/// rational). The whole model must lie in front of the eye; throws GeometryError otherwise or
+/// if the eye is the origin.
+[[nodiscard]] Drawing make2d(const std::vector<Shell>& shells, const View& view,
+                             const DrawingOptions& options = {});
+
 /// Outline of shells seen along a direction.
 struct Outline {
   Vec3 origin, s_axis, t_axis, normal;  ///< plane coordinates as for Drawing
@@ -111,6 +127,10 @@ struct Outline {
 /// exactly one of its two sides (view rays next to it on either side). The pieces are chained
 /// into closed loops. Throws GeometryError if a chain does not close.
 [[nodiscard]] Outline outline(const std::vector<Shell>& shells, const Vec3& direction,
+                              const DrawingOptions& options = {});
+
+/// Outline for any view; the drawing plane of a perspective view is that of make2d().
+[[nodiscard]] Outline outline(const std::vector<Shell>& shells, const View& view,
                               const DrawingOptions& options = {});
 
 }  // namespace nf

@@ -229,19 +229,24 @@ NurbsSurface sweep(const NurbsCurve& profile_in, const NurbsCurve& trajectory,
   return skin_adaptive(profile, place, break_points({&trajectory}, a, b), opt);
 }
 
-NurbsSurface sweep(const std::vector<NurbsCurve>& profiles_in, const NurbsCurve& trajectory,
-                   std::vector<double> params, const SweepOptions& opt) {
-  if (profiles_in.empty()) throw GeometryError("sweep: no profile");
+namespace {
+
+// The profiles on [0, 1] and their parameters on the guide curve (where each profile comes
+// closest to it, if not given), checked; returns the order of increasing parameter.
+std::vector<std::size_t> arrange_profiles(const std::string& who,
+                                          const std::vector<NurbsCurve>& profiles_in,
+                                          const NurbsCurve& guide, std::vector<double>& params,
+                                          std::vector<NurbsCurve>& profiles) {
+  if (profiles_in.empty()) throw GeometryError(who + ": no profile");
   if (!params.empty() && params.size() != profiles_in.size())
-    throw GeometryError("sweep: one trajectory parameter per profile is needed");
-  const double a = trajectory.domain_start(), b = trajectory.domain_end();
-  std::vector<NurbsCurve> profiles;
+    throw GeometryError(who + ": one parameter per profile is needed");
+  const double a = guide.domain_start(), b = guide.domain_end();
   for (const auto& p : profiles_in) profiles.push_back(reparametrize(p.clamped(), 0.0, 1.0));
-  if (params.empty())  // where each profile comes closest to the trajectory
+  if (params.empty())
     for (const auto& p : profiles) {
       double best = std::numeric_limits<double>::infinity(), t = a;
       for (int i = 0; i <= 64; ++i) {
-        const CurvePoint cp = closest_point(trajectory, p.evaluate(i / 64.0));
+        const CurvePoint cp = closest_point(guide, p.evaluate(i / 64.0));
         if (cp.distance < best) {
           best = cp.distance;
           t = cp.u;
@@ -256,19 +261,22 @@ NurbsSurface sweep(const std::vector<NurbsCurve>& profiles_in, const NurbsCurve&
   for (std::size_t i = 0; i < order.size(); ++i) {
     const double t = params[order[i]];
     if (t < a - tol::kParametric || t > b + tol::kParametric)
-      throw GeometryError("sweep: a profile parameter lies outside the trajectory domain");
+      throw GeometryError(who + ": a profile parameter lies outside the domain of the guide curve");
     if (i > 0 && !(t > params[order[i - 1]] + tol::kParametric))
-      throw GeometryError("sweep: two profiles at the same trajectory parameter");
+      throw GeometryError(who + ": two profiles at the same parameter");
   }
-  if (profiles.size() == 1) {
-    // a single profile placed anywhere: move it back to the trajectory start
-    const RotationMinimizingFrame rmf(trajectory);
-    const Placement place = sweep_placement(trajectory, rmf, opt);
-    return sweep(profiles[0].transformed(inverse(place(params[0]))), trajectory, opt);
-  }
-  const RotationMinimizingFrame rmf(trajectory);
-  const Placement place = sweep_placement(trajectory, rmf, opt);
-  // the profiles moved back to the start of the trajectory, blended by a loft over v
+  return order;
+}
+
+// Sweep of several profiles: each is moved back to the start by the inverse of its placement,
+// the moved profiles are blended by a loft over v, and the blended shape is placed at v.
+NurbsSurface skin_blended(const std::vector<NurbsCurve>& profiles,
+                          const std::vector<std::size_t>& order, const std::vector<double>& params,
+                          const Placement& place, std::vector<double> breaks, double a, double b,
+                          const SweepOptions& opt) {
+  if (profiles.size() == 1)
+    return skin_adaptive(profiles[0].transformed(inverse(place(params[0]))), place,
+                         std::move(breaks), opt);
   std::vector<NurbsCurve> local;
   std::vector<double> v;
   for (const std::size_t i : order) {
@@ -280,10 +288,23 @@ NurbsSurface sweep(const std::vector<NurbsCurve>& profiles_in, const NurbsCurve&
     return reparametrize(shape.iso_curve_v(std::clamp(t, v.front(), v.back())), 0.0, 1.0)
         .transformed(place(t));
   };
-  std::vector<double> breaks = break_points({&trajectory}, a, b);
   for (const double t : unique_knots(shape.knots_v()).first)
     if (t > a && t < b) breaks.push_back(t);
   return skin_adaptive(section, std::move(breaks), opt);
+}
+
+}  // namespace
+
+NurbsSurface sweep(const std::vector<NurbsCurve>& profiles_in, const NurbsCurve& trajectory,
+                   std::vector<double> params, const SweepOptions& opt) {
+  std::vector<NurbsCurve> profiles;
+  const auto order = arrange_profiles("sweep", profiles_in, trajectory, params, profiles);
+  const double a = trajectory.domain_start(), b = trajectory.domain_end();
+  const RotationMinimizingFrame rmf(trajectory);
+  const Placement place = sweep_placement(trajectory, rmf, opt);
+  if (profiles.size() == 1)  // a single profile placed anywhere: move it back to the start
+    return sweep(profiles[0].transformed(inverse(place(params[0]))), trajectory, opt);
+  return skin_blended(profiles, order, params, place, break_points({&trajectory}, a, b), a, b, opt);
 }
 
 NurbsSurface rail_revolve(const NurbsCurve& profile_in, const NurbsCurve& rail,
@@ -352,12 +373,20 @@ NurbsSurface rail_revolve(const NurbsCurve& profile_in, const NurbsCurve& rail,
   return skin_adaptive(section, break_points({&rail}, a, b), opt);
 }
 
-NurbsSurface sweep2(const NurbsCurve& profile_in, const NurbsCurve& rail1_in,
-                    const NurbsCurve& rail2_in, const SweepOptions& opt) {
-  const NurbsCurve profile = reparametrize(profile_in.clamped(), 0.0, 1.0);
+NurbsSurface sweep2(const NurbsCurve& profile, const NurbsCurve& rail1, const NurbsCurve& rail2,
+                    const SweepOptions& opt) {
+  return sweep2(std::vector<NurbsCurve>{profile}, rail1, rail2, {rail1.domain_start()},
+                Sweep2Scaling::Uniform, opt);
+}
+
+NurbsSurface sweep2(const std::vector<NurbsCurve>& profiles_in, const NurbsCurve& rail1_in,
+                    const NurbsCurve& rail2_in, std::vector<double> params, Sweep2Scaling scaling,
+                    const SweepOptions& opt) {
   const NurbsCurve rail1 = rail1_in.clamped();
   const double a = rail1.domain_start(), b = rail1.domain_end();
   const NurbsCurve rail2 = reparametrize(rail2_in.clamped(), a, b);
+  std::vector<NurbsCurve> profiles;
+  const auto order = arrange_profiles("sweep2", profiles_in, rail1, params, profiles);
   const auto frame = [&](double v, double& scale) {
     const Vec3 d = rail2.evaluate(v) - rail1.evaluate(v);
     scale = norm(d);
@@ -377,12 +406,15 @@ NurbsSurface sweep2(const NurbsCurve& profile_in, const NurbsCurve& rail1_in,
   const Placement place = [&](double v) {
     double s = 0.0;
     const Mat3 M = frame(v, s);
-    Mat3 R = relative(M, M0);
-    const double f = s / s0;
-    R = {f * R.c0, f * R.c1, f * R.c2};
+    // M diag(f, g, g) M0^T: f along the rail-to-rail axis, g normal to it
+    const double f = s / s0, g = scaling == Sweep2Scaling::Uniform ? f : 1.0;
+    const Mat3 R = relative(Mat3{f * M.c0, g * M.c1, g * M.c2}, M0);
     return Transform::translation(rail1.evaluate(v)) * linear(R) * Transform::translation(-x0);
   };
-  return skin_adaptive(profile, place, break_points({&rail1, &rail2}, a, b), opt);
+  std::vector<double> breaks = break_points({&rail1, &rail2}, a, b);
+  if (profiles.size() == 1 && params[0] == a)  // given at the rail starts: no moving back
+    return skin_adaptive(profiles[0], place, std::move(breaks), opt);
+  return skin_blended(profiles, order, params, place, std::move(breaks), a, b, opt);
 }
 
 NurbsSurface pipe_surface(const NurbsCurve& path, const std::function<double(double)>& radius,

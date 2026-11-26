@@ -13,6 +13,9 @@
 /// self-intersections of the offset (e.g. a bottleneck narrower than 2|d|) are not detected and
 /// not removed.
 
+#include <array>
+#include <functional>
+
 #include "nurbforge/core/vec.hpp"
 #include "nurbforge/nurbs/curve.hpp"
 #include "nurbforge/nurbs/surface.hpp"
@@ -52,5 +55,23 @@ namespace nf {
 /// are not removed.
 [[nodiscard]] NurbsSurface offset_surface(const NurbsSurface& s, double distance,
                                           double tolerance = 1e-7);
+
+/// Variable offset S(u,v) + d(u,v) * N(u,v): the surface moved along its unit normal by a
+/// distance that varies over the surface, e.g. a coating or layer with a thickness profile, or
+/// the back side of a lens with a thickness distribution. `distance(u, v)` is evaluated on the
+/// parameter domain of s and should be as smooth as the surface (a kink converges slowly and
+/// only where it lies on a knot line of s). Same fit, parametrisation, checks and errors as
+/// offset_surface (the curvature and crease checks use the local distance). Note that the
+/// result is a normal displacement: where d varies, its distance to s is at most |d|, and its
+/// normal is tilted by the gradient of d.
+[[nodiscard]] NurbsSurface offset_surface_variable(
+    const NurbsSurface& s, const std::function<double(double, double)>& distance,
+    double tolerance = 1e-7);
+
+/// Variable offset with the distance given at the four corners (u0,v0), (u1,v0), (u0,v1),
+/// (u1,v1) of the parameter domain, interpolated bilinearly in the normalised parameters.
+[[nodiscard]] NurbsSurface offset_surface_variable(const NurbsSurface& s,
+                                                   const std::array<double, 4>& corner_distances,
+                                                   double tolerance = 1e-7);
 
 }  // namespace nf

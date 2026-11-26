@@ -91,11 +91,18 @@
 - Edge chains meeting at a vertex: tangent continuation, mitre (mutual trimming), spherical / planar corner patch for three edges ✅
 - Variable radius / chamfer distance along edge chains (smooth step between given points, exact arc sections) ✅
 - Surface tools (#17): sweep with several profiles, rail revolve, tapered extrusion, ribbon, extrusion to a point, three-sided patch, exact Coons patches for rational boundaries, rebuild of curves and surfaces ✅
-- Next from #17: surface blend / match (G1/G2), fitting to scattered data, variable offset, unrolling
 
 ## 0.16 – Surface blend / match, fitting to scattered data (#17) ✅
 - Blend surface between two surface sides and matching a surface to a target side, G0/G1/G2 ✅
 - Surface fitting to scattered points (optionally with boundary curves and smoothing) ✅
+
+## 0.17 – Remaining surface tools (#17), silhouettes and hidden lines (#95)
+- Two-rail sweep with several profiles and non-uniform scaling ✅
+- Variable surface offset (distance function or corner distances) ✅
+- Chamfer between two surfaces
+- Unrolling of developable surfaces with a developability check
+- Silhouette curves of surfaces, trimmed surfaces and shells for parallel and perspective views
+- Visibility of curves against shells (hidden-line removal), Make2D, outline
 
 ## Infrastructure
 - ✅ Wheels via cibuildwheel (manylinux_2_28 for AlmaLinux 10 compatibility, win_amd64, macOS arm64/x86_64)

@@ -334,12 +334,21 @@ def _build_tools() -> list[Tool]:
     @add("offset", "Offset a curve or surface by a signed distance. Surfaces move along their "
          "normal. Curves must be planar and move within their plane, to the left of the "
          "direction of travel seen from plane_normal (default [0, 0, 1]; e.g. inwards for a "
-         "counter-clockwise circle). Fails if the distance reaches a radius of curvature.",
+         "counter-clockwise circle). Fails if the distance reaches a radius of curvature. "
+         "Surfaces only: corner_distances gives a varying distance (e.g. a layer with a "
+         "thickness gradient) at the corners (u0,v0), (u1,v0), (u0,v1), (u1,v1), interpolated "
+         "bilinearly; it replaces distance.",
          {"name": _NAME, "source": _NAME, "distance": {"type": "number"},
-          "plane_normal": {**_VEC, "description": "curves only, default [0, 0, 1]"}},
-         ["name", "source", "distance"])
-    def _(ws, name, source, distance, plane_normal=None):
+          "plane_normal": {**_VEC, "description": "curves only, default [0, 0, 1]"},
+          "corner_distances": {"type": "array", "items": {"type": "number"}, "minItems": 4,
+                               "maxItems": 4}},
+         ["name", "source"])
+    def _(ws, name, source, distance=None, plane_normal=None, corner_distances=None):
         o = ws.get(source)
+        if corner_distances is not None and not isinstance(o, nf.NurbsCurve):
+            return ws.put(name, nf.offset_surface_variable(o, [float(d) for d in corner_distances]))
+        if distance is None:
+            raise ValueError("give 'distance'")
         if isinstance(o, nf.NurbsCurve):
             return ws.put(name, nf.offset_curve(o, distance, plane_normal or [0.0, 0.0, 1.0]))
         return ws.put(name, nf.offset_surface(o, distance))

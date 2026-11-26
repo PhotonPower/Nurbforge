@@ -872,9 +872,25 @@ PYBIND11_MODULE(_core, m) {
         "Revolve a profile about an axis while its end nearer to the rail follows the rail "
         "(radial scaling about the axis; scale_height: also axial scaling about the axis "
         "point). E.g. a reflector with a non-round rim.");
-  m.def("sweep2", &sweep2, py::call_guard<py::gil_scoped_release>(), py::arg("profile"),
-        py::arg("rail1"), py::arg("rail2"), py::arg("options") = SweepOptions{},
+  py::enum_<Sweep2Scaling>(m, "Sweep2Scaling", "Scaling of the sections of a two-rail sweep.")
+      .value("Uniform", Sweep2Scaling::Uniform)
+      .value("NonUniform", Sweep2Scaling::NonUniform);
+  m.def("sweep2",
+        py::overload_cast<const NurbsCurve&, const NurbsCurve&, const NurbsCurve&,
+                          const SweepOptions&>(&sweep2),
+        py::call_guard<py::gil_scoped_release>(), py::arg("profile"), py::arg("rail1"),
+        py::arg("rail2"), py::arg("options") = SweepOptions{},
         "Two-rail sweep with uniform scaling.");
+  m.def("sweep2",
+        py::overload_cast<const std::vector<NurbsCurve>&, const NurbsCurve&, const NurbsCurve&,
+                          std::vector<double>, Sweep2Scaling, const SweepOptions&>(&sweep2),
+        py::call_guard<py::gil_scoped_release>(), py::arg("profiles"), py::arg("rail1"),
+        py::arg("rail2"), py::arg("params") = std::vector<double>{},
+        py::arg("scaling") = Sweep2Scaling::Uniform, py::arg("options") = SweepOptions{},
+        "Two-rail sweep with several profiles, each given where it spans the rails (at the "
+        "rail1 parameter params[k]; empty: nearest point of rail1); the shape is blended "
+        "between them. scaling: Uniform, or NonUniform (stretched along the rail-to-rail "
+        "direction only, heights kept).");
 
   // ------------------------------------------------------------------ offsets
   m.def("offset_curve", &offset_curve, py::call_guard<py::gil_scoped_release>(), py::arg("curve"),
@@ -886,6 +902,22 @@ PYBIND11_MODULE(_core, m) {
         py::arg("surface"), py::arg("distance"), py::arg("tolerance") = 1e-7,
         "Offset surface S(u,v) + d * N(u,v) as a quintic tensor-product spline fitted to the "
         "tolerance (parameters kept). Raises GeometryError if d reaches a radius of curvature.");
+  m.def("offset_surface_variable",
+        py::overload_cast<const NurbsSurface&, const std::array<double, 4>&, double>(
+            &offset_surface_variable),
+        py::call_guard<py::gil_scoped_release>(), py::arg("surface"), py::arg("corner_distances"),
+        py::arg("tolerance") = 1e-7,
+        "Variable offset with the distance given at the corners (u0,v0), (u1,v0), (u0,v1), "
+        "(u1,v1) of the parameter domain, interpolated bilinearly.");
+  m.def(
+      "offset_surface_variable",
+      py::overload_cast<const NurbsSurface&, const std::function<double(double, double)>&, double>(
+          &offset_surface_variable),
+      py::call_guard<py::gil_scoped_release>(), py::arg("surface"), py::arg("distance"),
+      py::arg("tolerance") = 1e-7,
+      "Variable offset S(u,v) + d(u,v) * N(u,v) with a smooth distance function of the "
+      "surface parameters (e.g. a layer with a thickness profile); fit, parametrisation and "
+      "errors as offset_surface.");
 
   // ------------------------------------------------------------------ fillets
   py::class_<CurveFillet>(m, "CurveFillet", "Circular fillet between two planar curves.")

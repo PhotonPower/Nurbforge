@@ -101,8 +101,10 @@
 - Variable surface offset (distance function or corner distances) ✅
 - Chamfer between two surfaces
 - Unrolling of developable surfaces with a developability check
-- Silhouette curves of surfaces, trimmed surfaces and shells for parallel and perspective views
-- Visibility of curves against shells (hidden-line removal), Make2D, outline
+- Silhouette curves of surfaces, trimmed surfaces and shells for parallel and perspective views, with cusps and creases ✅
+- Visibility of curves against shells (hidden-line removal) ✅
+- Make2D (visible and hidden lines in a drawing plane) and outline (contour loops) for parallel views ✅
+- Later: Make2D and outline for perspective views; exact event parameters for the visibility (crossings of projected curves) instead of sampling
 
 ## Infrastructure
 - ✅ Wheels via cibuildwheel (manylinux_2_28 for AlmaLinux 10 compatibility, win_amd64, macOS arm64/x86_64)

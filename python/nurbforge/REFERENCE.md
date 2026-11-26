@@ -153,6 +153,12 @@ arguments after `*` are keyword-only; `(1) … (2) …` are overloads.
 - `fillet_surfaces(s1: NurbsSurface, s2: NurbsSurface, radius: float, side1: int = 1, side2: int = 1, tolerance: float = 1e-06, offset_tolerance: float = 0.0, max_sections: int = 1025, near: Vec3 | None = None) -> SurfaceFillet` — Rolling-ball fillet of radius r between two surfaces. side1 / side2 = +1 put the ball on the side of the normal S_u x S_v of s1 / s2, -1 on the opposite side; `near` selects the spine nearest to a point if there are several. Returns a SurfaceFillet (surface, spine, contact curves, p-curves on s1 / s2).
 - `chamfer_curves(a: NurbsCurve, b: NurbsCurve, distance_a: float, distance_b: float | None = None, trim: bool = True, corner: Vec3 | None = None) -> CurveChamfer` — Chamfer between two intersecting curves: a straight cut from the point of a at distance `distance_a` from the corner to the point of b at `distance_b` (default: distance_a), on the kept parts (the longer sides of the intersection, as in fillet_curves). The curves need not be planar. Returns a CurveChamfer (line, parameters, trimmed curves).
 - `chamfer_corners(curve: NurbsCurve, distance: float, tolerance: float = 1e-07) -> NurbsCurve` — Chamfer every corner of a curve (polyline, polygon, ...) with straight cuts at `distance` from the corner on both sides; one curve.
+- `chamfer_surfaces(s1: NurbsSurface, s2: NurbsSurface, distance1: float, distance2: float | None = None, side1: int = 1, side2: int = 1, tolerance: float = 1e-06, near: Vec3 | None = None) -> SurfaceChamfer` — Chamfer between two intersecting surfaces: the ruled surface between the curves at the distances distance1 on s1 and distance2 on s2 (default distance1) from their intersection curve, measured within the surfaces (geodesics normal to the curve). Sides as for fillet_surfaces: +1 puts the chamfer on the side of the normal S_u x S_v. Returns a SurfaceChamfer (surface, edge, contact curves, p-curves on s1 / s2).
+
+**Developable surfaces**
+
+- `developability(surface: NurbsSurface, angular_tolerance: float = 1e-06) -> Developability` — Check whether a surface is developable: ruled along a parameter direction with the same normal all along every ruling. Reports the ruling direction, the largest turn of the normal along a ruling and the largest |Gaussian curvature|.
+- `unroll(surface: NurbsSurface, tolerance: float = 1e-07, angular_tolerance: float = 1e-06) -> UnrolledSurface` — Unroll a developable surface (cylinder, cone, any ruled surface with constant normals along its rulings) into the plane without stretching. The pattern keeps the parameter domain: pattern(u, v) is the image of S(u, v), so curves on the surface map through their parameters. Raises GeometryError if the surface is not developable.
 
 **Fitting**
 
@@ -352,6 +358,15 @@ One intersection of a curve with a surface or plane: curve parameter `t`, surfac
 - `.t: float` — Parameter on the curve.
 - `.u: float` — u parameter on the surface (in-plane coordinate s for a plane).
 - `.v: float` — v parameter on the surface (in-plane coordinate t for a plane).
+
+### `Developability`
+
+Result of developability().
+
+- `.developable: bool` — True if the surface is ruled and the normal is the same along every ruling (within the angular tolerance).
+- `.max_gaussian_curvature: float` — Largest |K| at the sample points (0 for a developable surface).
+- `.max_twist: float` — largest angle (rad) between normals along one ruling
+- `.rulings: RulingDirection` — `RulingDirection` of the straight parameter lines.
 
 ### `Drawing`
 
@@ -633,6 +648,17 @@ Silhouette curve of a surface for a view; curve and pcurve share their parameter
 - `.face: int` — index of the source face (shells)
 - `.pcurve: NurbsCurve` — (u, v, 0) on the surface
 
+### `SurfaceChamfer`
+
+Chamfer between two surfaces.
+
+- `.contact1: NurbsCurve` — Contact curve on s1 (the boundary u = 0 of the chamfer).
+- `.contact2: NurbsCurve` — Contact curve on s2 (the boundary u = 1 of the chamfer).
+- `.edge: NurbsCurve` — the intersection curve that is cut off
+- `.pcurve1: NurbsCurve` — contact1 as (u, v, 0) on s1
+- `.pcurve2: NurbsCurve` — contact2 as (u, v, 0) on s2
+- `.surface: NurbsSurface` — u in [0, 1]: straight lines from the contact on s1 to the contact on s2; v along the edge
+
 ### `SurfaceCurvature`
 
 Curvature of a surface at a point: Gaussian and mean curvature, principal curvatures and directions, normal.
@@ -766,6 +792,13 @@ A NURBS surface restricted to the region inside an outer trim loop and outside i
 - `.with_label(label: str) -> TrimmedSurface` — The same face with the given label.
 - `__rmul__(arg0: Transform) -> TrimmedSurface` — Operator `b * a`.
 
+### `UnrolledSurface`
+
+Result of unroll().
+
+- `.max_error: float` — Largest deviation of the pattern from the exact development at the check points of the fit.
+- `.pattern: NurbsSurface` — flat pattern in the plane z = 0; pattern(u, v) is the image of S(u, v)
+
 ### `Vec3`
 
 3D point or vector with components `x`, `y`, `z`; supports `+`, `-`, scalar `*`, indexing and iteration. Tuples and lists of three numbers convert implicitly wherever a `Vec3` is expected.
@@ -811,6 +844,7 @@ Freeform sag: base asphere plus \sum_j c_j Z_j(\rho, \theta) with \rho = r / r_n
 - **`DrawingCurveKind`** — Source of a line of a drawing. Values: `Edge` (Edge of a shell.); `Silhouette` (Silhouette curve of a face.)
 - **`Extension`** — How `extend` continues the geometry. Values: `Natural` (Polynomial (rational) continuation of the boundary B\'ezier piece: C^∞ at the old boundary, conics stay conics; fails if weights would become ≤ 0.); `Linear` (Straight continuation along the boundary tangent: G1, and C1 for non-rational geometry.)
 - **`Parametrization`** — Choice of the data parameters of fitting and lofting (P&T Eq. 9.3–9.6). Values: `Uniform` (Equally spaced.); `ChordLength` (Proportional to the distance between consecutive points.); `Centripetal` (Proportional to the square root of the distance (robust at sharp turns; the default).)
+- **`RulingDirection`** — Parameter direction of the straight lines of a ruled surface. Values: `None_` (Not ruled along a parameter direction.); `U` (The lines v = const are straight (the surface is linear in u).); `V` (The lines u = const are straight (the surface is linear in v).)
 - **`SurfaceSide`** — Boundary of a surface for `extend`. Values: `UMin` (Boundary u = u_min.); `UMax` (Boundary u = u_max.); `VMin` (Boundary v = v_min.); `VMax` (Boundary v = v_max.)
 - **`Sweep2Scaling`** — Scaling of the sections of `sweep2`. Values: `Uniform` (The whole section is scaled by the ratio of the rail distances.); `NonUniform` (Only the rail-to-rail direction is scaled; heights above it are kept.)
 - **`SweepFrame`** — Orientation of the profile along the sweep path. Values: `RotationMinimizing` (Rotation-minimising frame (double reflection): no spurious twist, defined at inflections and on straight parts.); `Fixed` (Pure translation of the profile (no rotation).)
@@ -940,7 +974,7 @@ JSON tools for an LLM agent working on a `Workspace` of named objects; call them
 - `extend(name: string, source: string, where: start | end | umin | umax | vmin | vmax, length: number, mode?: natural | linear)` — Extend a curve at its start or end (or a surface across a side umin/umax/vmin/vmax) by a length. mode 'natural' continues the shape smoothly, 'linear' continues straight along the tangent.
 - `offset(name: string, source: string, distance?: number, plane_normal?: number[3], corner_distances?: number[4])` — Offset a curve or surface by a signed distance. Surfaces move along their normal. Curves must be planar and move within their plane, to the left of the direction of travel seen from plane_normal (default [0, 0, 1]; e.g. inwards for a counter-clockwise circle). Fails if the distance reaches a radius of curvature. Surfaces only: corner_distances gives a varying distance (e.g. a layer with a thickness gradient) at the corners (u0,v0), (u1,v0), (u0,v1), (u1,v1), interpolated bilinearly; it replaces distance.
 - `fillet(name: string, a: string, b: string, radius: number, side_a?: -1 | 0 | 1, side_b?: -1 | 0 | 1, plane_normal?: number[3])` — Round the corner between two objects with a constant radius. Two planar intersecting curves: circular arc tangent to both, stored as name, with the trimmed curves stored as name_a and name_b (a, arc, b form a smooth chain); the corner is chosen automatically unless side_a/side_b are given (+1 left / -1 right of the curve direction seen from plane_normal). Two surfaces: rolling-ball fillet surface stored as name, contact curves as name_contact1/name_contact2; side_a/side_b = +1 (default) put the ball on the normal side of a/b, -1 on the other side.
-- `chamfer(name: string, a: string, b: string, distance_a: number, distance_b?: number)` — Straight cut between two intersecting curves: from the point of a at distance_a from their intersection to the point of b at distance_b (default distance_a). The cut is stored as name, the trimmed curves as name_a and name_b (a, cut, b form a chain).
+- `chamfer(name: string, a: string, b: string, distance_a: number, distance_b?: number, side_a?: -1 | 1, side_b?: -1 | 1)` — Straight cut between two intersecting curves: from the point of a at distance_a from their intersection to the point of b at distance_b (default distance_a). The cut is stored as name, the trimmed curves as name_a and name_b (a, cut, b form a chain). Two intersecting surfaces: the chamfer surface between the curves at these distances from the intersection curve is stored as name, the contact curves as name_contact1/name_contact2; side_a/side_b = +1 (default) put it on the normal side of a/b, -1 on the other side.
 - `intersect(a: string, b: string, name?: string)` — Intersection of two objects: points for curve/curve and curve/surface; for surface/surface the intersection curves are stored as name_1, name_2, ...
 - `trim_circle(name: string, source: string, center_u: number, center_v: number, radius: number)` — Restrict a surface to a circular region of its parameter domain (e.g. a circular aperture of an optical surface: for sag/graph surfaces u = x, v = y).
 - `split(name: string, surface: string, cutter: string)` — Split a surface along its intersection with another surface; the pieces are stored as name_1, name_2, ...

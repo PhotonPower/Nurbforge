@@ -99,8 +99,9 @@
 ## 0.17 – Remaining surface tools (#17), silhouettes and hidden lines (#95)
 - Two-rail sweep with several profiles and non-uniform scaling ✅
 - Variable surface offset (distance function or corner distances) ✅
-- Chamfer between two surfaces
-- Unrolling of developable surfaces with a developability check
+- Chamfer between two surfaces (geodesic distances from the intersection curve) ✅
+- Unrolling of developable surfaces with a developability check ✅
+- Later: flattening of doubly curved surfaces with a strain report
 - Silhouette curves of surfaces, trimmed surfaces and shells for parallel and perspective views, with cusps and creases ✅
 - Visibility of curves against shells (hidden-line removal) ✅
 - Make2D (visible and hidden lines in a drawing plane) and outline (contour loops) for parallel views ✅

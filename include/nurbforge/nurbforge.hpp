@@ -30,6 +30,7 @@
 #include "nurbforge/modeling/project.hpp"
 #include "nurbforge/modeling/surface_tools.hpp"
 #include "nurbforge/modeling/sweep.hpp"
+#include "nurbforge/modeling/unroll.hpp"
 #include "nurbforge/nurbs/basis.hpp"
 #include "nurbforge/nurbs/curve.hpp"
 #include "nurbforge/nurbs/join.hpp"

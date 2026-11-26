@@ -14,6 +14,15 @@ versioning: [SemVer](https://semver.org).
   along its normal by a distance varying over it, given as a function `distance(u, v)` or at
   the four corners of the parameter domain (bilinear). Same fit and checks as `offset_surface`.
   LLM tool `offset` takes `corner_distances`.
+- Chamfer between surfaces (#17): `chamfer_surfaces(s1, s2, distance1, distance2, options)`
+  returns the ruled surface between the curves at the given distances from the intersection
+  curve, measured within the surfaces (geodesics normal to the curve), with the contact curves
+  and their p-curves; sides as for `fillet_surfaces`. LLM tool `chamfer` takes two surfaces.
+- Developable surfaces (#17): `developability(surface)` reports whether a surface is ruled
+  along a parameter direction and how far the normal turns along its rulings;
+  `unroll(surface, tolerance)` returns the flat pattern of a developable surface (cylinders,
+  cones, general ruled developables) in the plane, without stretching and on the same parameter
+  domain, so curves on the surface map to the pattern through their parameters.
 - Silhouette curves (#95): `silhouette(surface | face | shell, view)` gives the curves where
   the normal is perpendicular to the view ray, for parallel views (`View::parallel(direction)`)
   and perspective views (`View::perspective(eye)`), as 3D curves with p-curves fitted to a

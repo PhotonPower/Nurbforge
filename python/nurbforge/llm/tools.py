@@ -384,10 +384,21 @@ def _build_tools() -> list[Tool]:
     @add("chamfer", "Straight cut between two intersecting curves: from the point of a at "
          "distance_a from their intersection to the point of b at distance_b (default "
          "distance_a). The cut is stored as name, the trimmed curves as name_a and name_b "
-         "(a, cut, b form a chain).",
+         "(a, cut, b form a chain). Two intersecting surfaces: the chamfer surface between the "
+         "curves at these distances from the intersection curve is stored as name, the contact "
+         "curves as name_contact1/name_contact2; side_a/side_b = +1 (default) put it on the "
+         "normal side of a/b, -1 on the other side.",
          {"name": _NAME, "a": _NAME, "b": _NAME, "distance_a": {"type": "number"},
-          "distance_b": {"type": "number"}}, ["name", "a", "b", "distance_a"])
-    def _(ws, name, a, b, distance_a, distance_b=None):
+          "distance_b": {"type": "number"},
+          "side_a": {"type": "integer", "enum": [-1, 1]},
+          "side_b": {"type": "integer", "enum": [-1, 1]}}, ["name", "a", "b", "distance_a"])
+    def _(ws, name, a, b, distance_a, distance_b=None, side_a=1, side_b=1):
+        if not isinstance(ws.get(a), nf.NurbsCurve):
+            f = nf.chamfer_surfaces(ws.get(a), ws.get(b), distance_a, distance_b,
+                                    side1=side_a or 1, side2=side_b or 1)
+            ws.put(f"{name}_contact1", f.contact1)
+            ws.put(f"{name}_contact2", f.contact2)
+            return ws.put(name, f.surface) + f"; contact curves {name}_contact1, {name}_contact2"
         c = nf.chamfer_curves(ws.get(a), ws.get(b), distance_a, distance_b)
         ws.put(f"{name}_a", c.trimmed_a)
         ws.put(f"{name}_b", c.trimmed_b)

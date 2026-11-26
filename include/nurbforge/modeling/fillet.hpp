@@ -187,4 +187,47 @@ struct SurfaceFillet {
                                             double radius,
                                             const SurfaceFilletOptions& options = {});
 
+/// Options of chamfer_surfaces.
+struct SurfaceChamferOptions {
+  /// Side of the chamfer relative to s1, as for fillet_surfaces: the chamfer lies in the wedge
+  /// on the side of the normal N1 = normalize(S1_u x S1_v) of s1 (+1) or on the other side
+  /// (-1), i.e. where the ball of a fillet with the same sides would lie.
+  int side1{1};
+  int side2{1};  ///< same for s2
+  /// Deviation of the contact curves (and their p-curves) from the exact geodesic offsets of
+  /// the intersection curve.
+  double tolerance{1e-6};
+  /// If the surfaces intersect in several curves: use the one passing nearest to this point
+  /// (default: the longest one).
+  std::optional<Vec3> near{};
+};
+
+/// Result of chamfer_surfaces. All curves share the parameter t of the edge.
+struct SurfaceChamfer {
+  /// u in [0, 1]: straight lines from the contact on s1 (u = 0) to the contact on s2 (u = 1);
+  /// v = t.
+  NurbsSurface surface;
+  NurbsCurve edge;      ///< the intersection curve of s1 and s2 that is cut off
+  NurbsCurve contact1;  ///< contact curve on s1 (= surface boundary u = 0)
+  NurbsCurve contact2;  ///< contact curve on s2 (= surface boundary u = 1)
+  NurbsCurve pcurve1;   ///< (u1, v1, 0) of contact1 in the parameter domain of s1
+  NurbsCurve pcurve2;   ///< (u2, v2, 0) of contact2 in the parameter domain of s2
+};
+
+/// Chamfer between two intersecting surfaces: the ruled surface between the curves at the
+/// distances distance1 on s1 and distance2 on s2 from their intersection curve, the surface
+/// counterpart of chamfer_curves.
+///
+/// The distances are measured within the surfaces: from every point of the intersection curve
+/// a geodesic of length distance1 is traced on s1 perpendicular to the curve, into the wedge
+/// chosen by the sides (towards the side side2 of s2), and likewise on s2. For planes and
+/// cylinders the contact curves are exact offsets; in general they are interpolated until
+/// they and the images of their p-curves are within options.tolerance of the exact end points
+/// of the geodesics. The chamfer is untrimmed and s1, s2 are not trimmed; the p-curves are
+/// the cuts for split(). Throws GeometryError if the surfaces do not intersect, are tangent
+/// along the intersection, or a geodesic leaves a parameter domain (distance too large).
+[[nodiscard]] SurfaceChamfer chamfer_surfaces(const NurbsSurface& s1, const NurbsSurface& s2,
+                                              double distance1, double distance2,
+                                              const SurfaceChamferOptions& options = {});
+
 }  // namespace nf

@@ -5,6 +5,11 @@ versioning: [SemVer](https://semver.org).
 
 ## [Unreleased]
 
+## [0.17.0] – 2026-11-26
+The remaining surface tools of #17 (two-rail sweeps with several profiles, variable offset,
+chamfers between surfaces, unrolling), silhouettes, hidden-line removal, Make2D and outlines
+(#95), and analysis of curves and surfaces. The API is not yet stable (0.x).
+
 ### Added
 - Two-rail sweep with several profiles (#17): `sweep2(profiles, rail1, rail2, params, scaling)`
   blends profiles given where they span the rails, as `sweep` does along one trajectory.

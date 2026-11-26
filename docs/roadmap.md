@@ -96,7 +96,7 @@
 - Blend surface between two surface sides and matching a surface to a target side, G0/G1/G2 ✅
 - Surface fitting to scattered points (optionally with boundary curves and smoothing) ✅
 
-## 0.17 – Remaining surface tools (#17), silhouettes and hidden lines (#95)
+## 0.17 – Remaining surface tools (#17), silhouettes and hidden lines (#95), curve and surface analysis ✅
 - Two-rail sweep with several profiles and non-uniform scaling ✅
 - Variable surface offset (distance function or corner distances) ✅
 - Chamfer between two surfaces (geodesic distances from the intersection curve) ✅

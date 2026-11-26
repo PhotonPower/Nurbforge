@@ -1177,6 +1177,67 @@ PYBIND11_MODULE(_core, m) {
       "spine nearest to a point if there are several. Returns a SurfaceFillet (surface, spine, "
       "contact curves, p-curves on s1 / s2).");
 
+  py::class_<SurfaceChamfer>(m, "SurfaceChamfer", "Chamfer between two surfaces.")
+      .def_readonly("surface", &SurfaceChamfer::surface,
+                    "u in [0, 1]: straight lines from the contact on s1 to the contact on s2; v "
+                    "along the edge")
+      .def_readonly("edge", &SurfaceChamfer::edge, "the intersection curve that is cut off")
+      .def_readonly("contact1", &SurfaceChamfer::contact1)
+      .def_readonly("contact2", &SurfaceChamfer::contact2)
+      .def_readonly("pcurve1", &SurfaceChamfer::pcurve1, "contact1 as (u, v, 0) on s1")
+      .def_readonly("pcurve2", &SurfaceChamfer::pcurve2, "contact2 as (u, v, 0) on s2")
+      .def("__repr__", [](const SurfaceChamfer& c) {
+        return "<SurfaceChamfer control points=" + std::to_string(c.surface.num_v()) + ">";
+      });
+  m.def(
+      "chamfer_surfaces",
+      [](const NurbsSurface& s1, const NurbsSurface& s2, double distance1,
+         std::optional<double> distance2, int side1, int side2, double tolerance,
+         std::optional<Vec3> near) {
+        py::gil_scoped_release release;
+        return chamfer_surfaces(s1, s2, distance1, distance2.value_or(distance1),
+                                SurfaceChamferOptions{side1, side2, tolerance, near});
+      },
+      py::arg("s1"), py::arg("s2"), py::arg("distance1"), py::arg("distance2") = py::none(),
+      py::arg("side1") = 1, py::arg("side2") = 1, py::arg("tolerance") = 1e-6,
+      py::arg("near") = py::none(),
+      "Chamfer between two intersecting surfaces: the ruled surface between the curves at the "
+      "distances distance1 on s1 and distance2 on s2 (default distance1) from their intersection "
+      "curve, measured within the surfaces (geodesics normal to the curve). Sides as for "
+      "fillet_surfaces: +1 puts the chamfer on the side of the normal S_u x S_v. Returns a "
+      "SurfaceChamfer (surface, edge, contact curves, p-curves on s1 / s2).");
+
+  // ------------------------------------------------------------------ unrolling
+  py::enum_<RulingDirection>(m, "RulingDirection")
+      .value("None_", RulingDirection::None)
+      .value("U", RulingDirection::U)
+      .value("V", RulingDirection::V);
+  py::class_<Developability>(m, "Developability", "Result of developability().")
+      .def_readonly("rulings", &Developability::rulings)
+      .def_readonly("developable", &Developability::developable)
+      .def_readonly("max_twist", &Developability::max_twist,
+                    "largest angle (rad) between normals along one ruling")
+      .def_readonly("max_gaussian_curvature", &Developability::max_gaussian_curvature)
+      .def("__repr__", [](const Developability& d) {
+        return std::string("<Developability ") +
+               (d.developable ? "developable" : "not developable") +
+               " max_twist=" + std::to_string(d.max_twist) + ">";
+      });
+  m.def("developability", &developability, py::arg("surface"), py::arg("angular_tolerance") = 1e-6,
+        "Check whether a surface is developable: ruled along a parameter direction with the "
+        "same normal all along every ruling. Reports the ruling direction, the largest turn of "
+        "the normal along a ruling and the largest |Gaussian curvature|.");
+  py::class_<UnrolledSurface>(m, "UnrolledSurface", "Result of unroll().")
+      .def_readonly("pattern", &UnrolledSurface::pattern,
+                    "flat pattern in the plane z = 0; pattern(u, v) is the image of S(u, v)")
+      .def_readonly("max_error", &UnrolledSurface::max_error);
+  m.def("unroll", &unroll, py::call_guard<py::gil_scoped_release>(), py::arg("surface"),
+        py::arg("tolerance") = 1e-7, py::arg("angular_tolerance") = 1e-6,
+        "Unroll a developable surface (cylinder, cone, any ruled surface with constant normals "
+        "along its rulings) into the plane without stretching. The pattern keeps the parameter "
+        "domain: pattern(u, v) is the image of S(u, v), so curves on the surface map through "
+        "their parameters. Raises GeometryError if the surface is not developable.");
+
   // ------------------------------------------------------------------ Coons / Gordon
   m.def("coons", &coons, py::call_guard<py::gil_scoped_release>(), py::arg("c0"), py::arg("c1"),
         py::arg("d0"), py::arg("d1"), py::arg("tolerance") = 1e-7,

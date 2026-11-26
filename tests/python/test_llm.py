@@ -394,6 +394,13 @@ def test_curve_tools():
     call_tool(ws, "make_line", {"name": "a", "p0": [0, 0, 0], "p1": [2, 0, 0]})
     call_tool(ws, "make_line", {"name": "b", "p0": [2, 0, 0], "p1": [2, 2, 0]})
     out = call_tool(ws, "chamfer", {"name": "c", "a": "a", "b": "b", "distance_a": 0.5})
+    call_tool(ws, "make_rectangle", {"name": "fl", "origin": [-2, -2, 0], "edge_u": [4, 0, 0],
+                                     "edge_v": [0, 4, 0]})
+    call_tool(ws, "make_rectangle", {"name": "wl", "origin": [0, -2, -2], "edge_u": [0, 4, 0],
+                                     "edge_v": [0, 0, 4]})
+    assert "contact curves sc_contact1" in call_tool(
+        ws, "chamfer", {"name": "sc", "a": "fl", "b": "wl", "distance_a": 0.5, "distance_b": 0.3})
+    assert abs(ws.get("sc_contact2")(0.5).z - 0.3) < 1e-9
     assert "trimmed curves c_a, c_b" in out and "c_a" in ws.objects
     call_tool(ws, "make_polygon", {"name": "p", "center": [0, 0, 0], "normal": [0, 0, 1],
                                    "radius": 1, "n": 6})

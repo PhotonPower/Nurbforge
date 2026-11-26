@@ -49,6 +49,8 @@ add_library(nurbforge_core STATIC
   src/modeling/extend.cpp
   src/modeling/loft.cpp
   src/modeling/surface_tools.cpp
+  src/modeling/surface_chamfer.cpp
+  src/modeling/unroll.cpp
   src/modeling/sweep.cpp
   src/modeling/gordon.cpp
   src/modeling/offset.cpp

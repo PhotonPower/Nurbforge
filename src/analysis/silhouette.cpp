@@ -11,6 +11,7 @@
 #include <string>
 #include <utility>
 
+#include "../modeling/fit_family.hpp"
 #include "clip_detail.hpp"
 #include "nurbforge/analysis/closest_point.hpp"
 #include "nurbforge/core/error.hpp"
@@ -184,41 +185,6 @@ std::vector<Polyline> zero_set(const std::function<double(double, double)>& f,
   for (std::size_t e = 0; e < nedges; ++e)
     if (!used[e] && link[e][0] != kNone) walk(e, true);
   return out;
-}
-
-// Cubic interpolation of a family of curves sharing one parameter: `exact(t)` gives one point
-// per curve, `error(curves, t, exact(t))` the deviation at t. Parameters are added at the
-// midpoints of failing intervals.
-std::vector<NurbsCurve> fit_family(
-    std::vector<double> T, const std::function<std::vector<Vec3>(double)>& exact,
-    const std::function<double(const std::vector<NurbsCurve>&, double, const std::vector<Vec3>&)>&
-        error,
-    double tol) {
-  std::map<double, std::vector<Vec3>> cache;
-  const auto at = [&](double t) -> const std::vector<Vec3>& {
-    auto it = cache.find(t);
-    if (it == cache.end()) it = cache.emplace(t, exact(t)).first;
-    return it->second;
-  };
-  const std::size_t ncurves = at(T.front()).size();
-  for (int round = 0; round < 16; ++round) {
-    std::vector<std::vector<Vec3>> pts(ncurves);
-    for (const double t : T)
-      for (std::size_t k = 0; k < ncurves; ++k) pts[k].push_back(at(t)[k]);
-    const std::size_t deg = std::min<std::size_t>(3, T.size() - 1);
-    std::vector<NurbsCurve> curves;
-    for (std::size_t k = 0; k < ncurves; ++k) curves.push_back(interpolate_curve(pts[k], deg, T));
-    std::vector<double> add;
-    for (std::size_t i = 0; i + 1 < T.size(); ++i) {
-      const double tm = 0.5 * (T[i] + T[i + 1]);
-      if (error(curves, tm, at(tm)) > tol) add.push_back(tm);
-    }
-    if (add.empty()) return curves;
-    if (T.size() + add.size() > 8193) break;
-    T.insert(T.end(), add.begin(), add.end());
-    std::sort(T.begin(), T.end());
-  }
-  throw GeometryError("silhouette: tolerance " + std::to_string(tol) + " not reached");
 }
 
 // Parameters where f changes sign along [a, b] (n samples, bisection).
@@ -420,7 +386,7 @@ void smooth_silhouettes(const NurbsSurface& s, const View& view, const Silhouett
       const double t0 = cuts[i], t1 = cuts[i + 1];
       std::vector<double> T;
       for (int k = 0; k <= 4; ++k) T.push_back(k == 4 ? t1 : t0 + (t1 - t0) * k / 4.0);
-      auto fit = fit_family(T, exact, error, opt.tolerance);
+      auto fit = detail::fit_family(T, exact, error, opt.tolerance, "silhouette");
       if (!chain) {
         chain = SilhouetteCurve{std::move(fit[0]), std::move(fit[1]), false, false, 0, {}};
       } else {

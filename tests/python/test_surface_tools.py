@@ -148,3 +148,39 @@ def test_variable_offset():
         except nf.GeometryError:
             refused += 1
     assert refused == 1
+
+
+def test_chamfer_surfaces():
+    floor = nf.make_rectangle((-2, -2, 0), (4, 0, 0), (0, 4, 0))
+    wall = nf.make_rectangle((0, -2, -2), (0, 4, 0), (0, 0, 4))
+    c = nf.chamfer_surfaces(floor, wall, 0.5, 0.3)
+    for u in (0.0, 0.3, 1.0):
+        p = c.surface(u, 0.4)
+        assert abs(p.x / 0.5 + p.z / 0.3 - 1.0) < 1e-9
+    assert abs(c.contact1(0.5).x - 0.5) < 1e-9 and abs(c.contact2(0.5).z - 0.3) < 1e-9
+    q = c.pcurve1(0.5)
+    assert nf.distance(floor(q.x, q.y), c.contact1(0.5)) < 1e-9
+    equal = nf.chamfer_surfaces(floor, wall, 0.4, side1=-1)  # distance2 = distance1, below
+    assert abs(equal.contact2(0.5).z + 0.4) < 1e-9
+    with pytest.raises(nf.GeometryError):
+        nf.chamfer_surfaces(floor, wall, 0.5, 5.0)
+
+
+def test_developability_and_unroll():
+    cone = nf.extrude_to_point(nf.make_circle((0, 0, 0), (0, 0, 1), 1.0), (0, 0, 2))
+    d = nf.developability(cone)
+    assert d.developable and d.rulings == nf.RulingDirection.V and d.max_twist < 1e-9
+    flat = nf.unroll(cone, 1e-8)
+    slant = math.sqrt(5.0)
+    assert flat.max_error <= 1e-8
+    assert nf.area(flat.pattern) == pytest.approx(math.pi * slant, abs=1e-6)
+    dv = cone.domain_v
+    apex = flat.pattern(0.0, dv[1])
+    for u in (0.1, 0.45, 0.8):
+        assert nf.distance(flat.pattern(u, dv[0]), apex) == pytest.approx(slant, abs=1e-7)
+        assert abs(flat.pattern(u, dv[0]).z) < 1e-14
+    twisted = nf.make_bilinear((0, 0, 0), (1, 0, 0), (0, 1, 0), (1, 1, 1))
+    t = nf.developability(twisted)
+    assert not t.developable and t.rulings != nf.RulingDirection.None_ and t.max_twist > 0.1
+    with pytest.raises(nf.GeometryError):
+        nf.unroll(twisted)

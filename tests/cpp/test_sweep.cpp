@@ -128,3 +128,35 @@ TEST_CASE("sweep reports an unreachable tolerance", "[sweep]") {
   const auto path = make_arc({0, 0, 0}, {1, 0, 0}, {0, 1, 0}, 5.0, 0.0, pi);
   CHECK_THROWS_AS(sweep(make_circle({5, 0, 0}, {0, 1, 0}, 1.0), path, opt), GeometryError);
 }
+
+TEST_CASE("two-rail sweep: non-uniform scaling keeps the height", "[sweep]") {
+  // rails diverging in the plane z = 0, half circle of radius 1 standing on them at the start
+  const auto rail1 = make_line({0, 0, 0}, {0, 10, 0}), rail2 = make_line({2, 0, 0}, {4, 10, 0});
+  const auto profile = make_arc({1, 0, 0}, {-1, 0, 0}, {0, 0, 1}, 1.0, 0.0, pi);
+  const auto uni = sweep2(profile, rail1, rail2);
+  const auto non = sweep2({profile}, rail1, rail2, {}, Sweep2Scaling::NonUniform);
+  for_grid(non, 20, [&](double u, double v) {
+    const Vec3 q = profile.evaluate(profile.domain_start() +
+                                    u * (profile.domain_end() - profile.domain_start()));
+    const double f = 1.0 + v;  // ratio of the rail distances
+    CHECK(distance(non.evaluate(u, v), Vec3{f * q.x, 10 * v, q.z}) < 1e-9);
+    CHECK(distance(uni.evaluate(u, v), Vec3{f * q.x, 10 * v, f * q.z}) < 1e-9);
+  });
+}
+
+TEST_CASE("two-rail sweep blends several profiles", "[sweep]") {
+  const auto rail1 = make_line({0, 0, 0}, {0, 10, 0}), rail2 = make_line({2, 0, 0}, {2, 10, 0});
+  const auto low = make_arc({1, 0, 0}, {-1, 0, 0}, {0, 0, 1}, 1.0, 0.0, pi);
+  // the same arc with doubled heights (a half ellipse), placed at the rail ends
+  std::vector<Vec3> P = low.control_points();
+  for (auto& p : P) p = {p.x, 10.0, 2.0 * p.z};
+  const NurbsCurve high{low.degree(), low.knots(), P, low.weights()};
+  const auto s = sweep2({high, low}, rail1, rail2);  // parameters from the nearest rail points
+  const double a = low.domain_start(), b = low.domain_end();
+  for_grid(s, 20, [&](double u, double v) {
+    const Vec3 q = low.evaluate(a + u * (b - a));
+    CHECK(distance(s.evaluate(u, v), Vec3{q.x, 10 * v, (1.0 + v) * q.z}) < 1e-9);
+  });
+  CHECK_THROWS_AS(sweep2({low, low}, rail1, rail2, {0.5, 0.5}), GeometryError);
+  CHECK_THROWS_AS(sweep2({low}, rail1, rail2, {2.0}), GeometryError);
+}

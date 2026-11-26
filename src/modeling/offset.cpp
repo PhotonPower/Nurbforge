@@ -1,6 +1,7 @@
 #include "nurbforge/modeling/offset.hpp"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstddef>
 #include <functional>
@@ -24,6 +25,7 @@ constexpr double kCuspMargin = 1e-9;      // reject d * k >= 1 - margin
 
 using Func1 = std::function<Vec3(double)>;
 using Func2 = std::function<Vec3(double, double)>;
+using Dist = std::function<double(double, double)>;  // offset distance at (u, v)
 
 // Break points of a fitted spline and the knot multiplicity at each interior break.
 struct Breaks {
@@ -163,17 +165,16 @@ Breaks surface_breaks(const KnotVector& U, std::size_t p) {
 }
 
 // Normal jumps across interior knot lines (one-sided normals from the Bézier patches).
-void check_creases(const NurbsSurface& s, double d, double tol) {
-  if (d == 0.0) return;
+void check_creases(const NurbsSurface& s, const Dist& d, double tol, const std::string& who) {
   const auto xu = spans_of(s.knots_u(), s.degree_u()), xv = spans_of(s.knots_v(), s.degree_v());
   if (xu.size() <= 2 && xv.size() <= 2) return;
   const auto patches = s.decompose_bezier();
   const std::size_t nsu = xu.size() - 1, nsv = xv.size() - 1;
   constexpr std::size_t kN = 4;
   const auto check = [&](const NurbsSurface& p0, const NurbsSurface& p1, double u, double v) {
-    if (std::abs(d) * angle_between(p0.normal(u, v), p1.normal(u, v)) > tol)
-      throw GeometryError("offset_surface: the normal is discontinuous at (u, v) = (" + num(u) +
-                          ", " + num(v) + "); the offset would have a gap");
+    if (std::abs(d(u, v)) * angle_between(p0.normal(u, v), p1.normal(u, v)) > tol)
+      throw GeometryError(who + ": the normal is discontinuous at (u, v) = (" + num(u) + ", " +
+                          num(v) + "); the offset would have a gap");
   };
   for (std::size_t a = 0; a + 1 < nsu; ++a)
     for (std::size_t b = 0; b < nsv; ++b)
@@ -188,8 +189,7 @@ void check_creases(const NurbsSurface& s, double d, double tol) {
 }
 
 // d * k >= 1 for a principal curvature k: the offset degenerates (focal surface reached).
-void check_curvature(const NurbsSurface& s, double d) {
-  if (d == 0.0) return;
+void check_curvature(const NurbsSurface& s, const Dist& dist, const std::string& who) {
   const auto xu = spans_of(s.knots_u(), s.degree_u()), xv = spans_of(s.knots_v(), s.degree_v());
   constexpr std::size_t kN = 8;
   for (std::size_t a = 0; a + 1 < xu.size(); ++a)
@@ -197,10 +197,13 @@ void check_curvature(const NurbsSurface& s, double d) {
       for (std::size_t q = 0; q <= kN; ++q)
         for (std::size_t r = 0; r <= kN; ++r) {
           const double u = lerp(xu[a], xu[a + 1], q, kN), v = lerp(xv[b], xv[b + 1], r, kN);
+          const double d = dist(u, v);
+          if (!std::isfinite(d)) throw GeometryError(who + ": the distance must be finite");
+          if (d == 0.0) continue;
           const SurfaceCurvature c = curvature(s, u, v);
           const double k = d > 0.0 ? c.k1 : c.k2;  // the one maximising d * k
           if (d * k >= 1.0 - kCuspMargin)
-            throw GeometryError("offset_surface: |distance| = " + num(std::abs(d)) +
+            throw GeometryError(who + ": |distance| = " + num(std::abs(d)) +
                                 " reaches the radius of curvature " + num(1.0 / std::abs(k)) +
                                 " at (u, v) = (" + num(u) + ", " + num(v) +
                                 ") on the side of the centre of curvature (the offset would "
@@ -210,7 +213,8 @@ void check_curvature(const NurbsSurface& s, double d) {
 
 // 1D presizing of the breaks of one direction: fits along iso-lines at the given transversal
 // parameters until every iso-line fit is within tol.
-void presize(Breaks& br, const Func2& g, const std::vector<double>& across, double tol) {
+void presize(Breaks& br, const Func2& g, const std::vector<double>& across, double tol,
+             const std::string& who) {
   while (true) {
     std::vector<bool> bad(br.t.size() - 1, false);
     bool any = false;
@@ -219,7 +223,7 @@ void presize(Breaks& br, const Func2& g, const std::vector<double>& across, doub
           fit_and_flag([&](double t) { return g(t, w); }, br, kSurfaceDegree, 10, tol, bad) || any;
     if (!any) return;
     if (br.t.size() >= kMaxBreaks)
-      throw GeometryError("offset_surface: tolerance " + num(tol) +
+      throw GeometryError(who + ": tolerance " + num(tol) +
                           " not reached (offset close to a focal point?)");
     refine(br, bad);
   }
@@ -236,11 +240,11 @@ std::vector<double> samples_of(const Breaks& br, std::size_t n) {
 // Adaptive tensor-product fit of f: break lines presized by iso-line fits, then a full fit
 // (rows along u, then columns along v) verified at 9 x 9 points per knot rectangle;
 // rectangles failing the check are refined in both directions.
-NurbsSurface fit_tensor(const Func2& f, Breaks bu, Breaks bv, double tol) {
+NurbsSurface fit_tensor(const Func2& f, Breaks bu, Breaks bv, double tol, const std::string& who) {
   constexpr std::size_t p = kSurfaceDegree, kChecks = 8;
   const auto su = samples_of(bu, 4), sv = samples_of(bv, 4);
-  presize(bu, f, sv, 0.5 * tol);
-  presize(bv, [&](double v, double u) { return f(u, v); }, su, 0.5 * tol);
+  presize(bu, f, sv, 0.5 * tol, who);
+  presize(bv, [&](double v, double u) { return f(u, v); }, su, 0.5 * tol, who);
   while (true) {
     const KnotVector U = knots_of(bu, p), V = knots_of(bv, p);
     const auto us = params_of(bu, p), vs = params_of(bv, p);
@@ -280,7 +284,7 @@ NurbsSurface fit_tensor(const Func2& f, Breaks bu, Breaks bv, double tol) {
       }
     if (!any) return fit;
     if (bu.t.size() >= kMaxBreaks || bv.t.size() >= kMaxBreaks)
-      throw GeometryError("offset_surface: tolerance " + num(tol) +
+      throw GeometryError(who + ": tolerance " + num(tol) +
                           " not reached (offset close to a focal point?)");
     refine(bu, badu);
     refine(bv, badv);
@@ -339,21 +343,54 @@ NurbsCurve offset_curve(const NurbsCurve& c, double distance, const Vec3& plane_
   return *result;
 }
 
-NurbsSurface offset_surface(const NurbsSurface& s, double distance, double tolerance) {
-  check_args("offset_surface", distance, tolerance);
-  check_curvature(s, distance);
-  check_creases(s, distance, tolerance);
+namespace {
+
+// S + d N fitted to the tolerance, after the regularity checks.
+NurbsSurface offset_by(const NurbsSurface& s, const Dist& dist, double tolerance,
+                       const std::string& who) {
+  check_curvature(s, dist, who);
+  check_creases(s, dist, tolerance, who);
   const auto f = [&](double u, double v) {
+    const double d = dist(u, v);
     const auto D = s.first_derivatives(u, v);
     const Vec3 n = cross(D[1], D[2]);
     const double scale = std::max(norm(D[1]), norm(D[2]));
     // regular point (same test as NurbsSurface::normal), otherwise the limit normal
-    if (scale > 0.0 && norm(n) > tol::kAngular * scale * scale)
-      return D[0] + (distance / norm(n)) * n;
-    return D[0] + distance * s.normal(u, v);
+    if (scale > 0.0 && norm(n) > tol::kAngular * scale * scale) return D[0] + (d / norm(n)) * n;
+    return D[0] + d * s.normal(u, v);
   };
   return fit_tensor(f, surface_breaks(s.knots_u(), s.degree_u()),
-                    surface_breaks(s.knots_v(), s.degree_v()), tolerance);
+                    surface_breaks(s.knots_v(), s.degree_v()), tolerance, who);
+}
+
+}  // namespace
+
+NurbsSurface offset_surface(const NurbsSurface& s, double distance, double tolerance) {
+  check_args("offset_surface", distance, tolerance);
+  return offset_by(s, [distance](double, double) { return distance; }, tolerance, "offset_surface");
+}
+
+NurbsSurface offset_surface_variable(const NurbsSurface& s,
+                                     const std::function<double(double, double)>& distance,
+                                     double tolerance) {
+  if (!distance) throw GeometryError("offset_surface_variable: no distance function");
+  check_args("offset_surface_variable", 0.0, tolerance);
+  return offset_by(s, distance, tolerance, "offset_surface_variable");
+}
+
+NurbsSurface offset_surface_variable(const NurbsSurface& s,
+                                     const std::array<double, 4>& corner_distances,
+                                     double tolerance) {
+  for (const double d : corner_distances) check_args("offset_surface_variable", d, tolerance);
+  const auto du = s.domain_u(), dv = s.domain_v();
+  const auto& c = corner_distances;
+  return offset_by(
+      s,
+      [&](double u, double v) {
+        const double a = (u - du[0]) / (du[1] - du[0]), b = (v - dv[0]) / (dv[1] - dv[0]);
+        return (1 - b) * ((1 - a) * c[0] + a * c[1]) + b * ((1 - a) * c[2] + a * c[3]);
+      },
+      tolerance, "offset_surface_variable");
 }
 
 }  // namespace nf

@@ -96,6 +96,10 @@ def test_offset_tool():
                                      "edge_v": [0, 1, 0]})
     assert call_tool(ws, "offset", {"name": "p2", "source": "p", "distance": 0.25}).startswith("stored p2")
     assert abs(ws.get("p2")(0.5, 0.5).z - 0.25) < 1e-12
+    out = call_tool(ws, "offset", {"name": "p3", "source": "p",
+                                   "corner_distances": [0.0, 1.0, 0.0, 1.0]})
+    assert out.startswith("stored p3")
+    assert abs(ws.get("p3")(0.5, 0.5).z - 0.5) < 1e-9
 
 
 def test_fillet_tool():

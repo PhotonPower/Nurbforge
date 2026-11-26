@@ -105,3 +105,46 @@ def test_fit_surface_scattered():
     assert abs(g.surface(0.5, 0.0).z) < 1e-15
     with pytest.raises(nf.GeometryError):
         nf.fit_surface(pts[:2])
+
+
+def _xyz(p):
+    return (p.x, p.y, p.z)
+
+
+def test_sweep2_profiles_and_scaling():
+    rail1, rail2 = nf.make_line((0, 0, 0), (0, 10, 0)), nf.make_line((2, 0, 0), (4, 10, 0))
+    arch = nf.make_arc((1, 0, 0), (-1, 0, 0), (0, 0, 1), 1.0, 0.0, math.pi)
+    uni = nf.sweep2(arch, rail1, rail2)
+    non = nf.sweep2([arch], rail1, rail2, scaling=nf.Sweep2Scaling.NonUniform)
+    assert np.allclose(_xyz(uni(0.5, 1.0)), (2, 10, 2), atol=1e-9)  # scaled by 2 at the rail ends
+    assert np.allclose(_xyz(non(0.5, 1.0)), (2, 10, 1), atol=1e-9)  # height kept
+    # a second, flat profile at the rail ends: the arch fades out
+    flat = nf.make_line((0, 10, 0), (4, 10, 0))
+    s = nf.sweep2([arch, flat], rail1, rail2)
+    assert np.allclose(_xyz(s(0.5, 0.0)), (1, 0, 1), atol=1e-9)
+    assert abs(s(0.5, 1.0).z) < 1e-9
+    assert 0.0 < s(0.5, 0.5).z < 1.5
+    with pytest.raises(nf.GeometryError):
+        nf.sweep2([arch, flat], rail1, rail2, params=[0.3, 0.3])
+
+
+def test_variable_offset():
+    plane = nf.make_bilinear((0, 0, 0), (2, 0, 0), (0, 3, 0), (2, 3, 0))
+    wedge = nf.offset_surface_variable(plane, [0.1, 0.5, 0.1, 0.5])
+    du, dv = plane.domain_u, plane.domain_v
+    um = 0.5 * (du[0] + du[1])
+    assert abs(abs(wedge(um, dv[0]).z) - 0.3) < 1e-9
+    bump = nf.offset_surface_variable(
+        plane, lambda u, v: 0.2 * math.sin(math.pi * (u - du[0]) / (du[1] - du[0])), 1e-8)
+    assert abs(abs(bump(um, dv[1]).z) - 0.2) < 1e-8
+    assert abs(bump(du[0], dv[0]).z) < 1e-8
+    # on a unit sphere a distance of 5 is possible outwards only
+    sphere = nf.revolve(nf.make_arc((0, 0, 0), (1, 0, 0), (0, 0, 1), 1.0, -math.pi / 2,
+                                    math.pi / 2), (0, 0, 0), (0, 0, 1), 2 * math.pi)
+    refused = 0
+    for d in (5.0, -5.0):
+        try:
+            nf.offset_surface_variable(sphere, lambda u, v, d=d: d, 1e-5)
+        except nf.GeometryError:
+            refused += 1
+    assert refused == 1

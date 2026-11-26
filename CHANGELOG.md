@@ -5,6 +5,20 @@ versioning: [SemVer](https://semver.org).
 
 ## [Unreleased]
 
+### Added
+- Two-rail sweep with several profiles (#17): `sweep2(profiles, rail1, rail2, params, scaling)`
+  blends profiles given where they span the rails, as `sweep` does along one trajectory.
+  `Sweep2Scaling.NonUniform` stretches the sections along the rail-to-rail direction only
+  (heights are kept); `Uniform` is the previous behaviour.
+- Variable surface offset (#17): `offset_surface_variable(surface, distance)` moves a surface
+  along its normal by a distance varying over it, given as a function `distance(u, v)` or at
+  the four corners of the parameter domain (bilinear). Same fit and checks as `offset_surface`.
+  LLM tool `offset` takes `corner_distances`.
+
+### Fixed
+- Build: configuring an existing build directory again failed with "Unknown CMake command
+  pybind11_add_module" when pybind11 had been fetched (no installed pybind11).
+
 ## [0.16.0] – 2026-11-19
 Blend and match surfaces with G0/G1/G2 continuity, and fitting of surfaces to scattered points
 (#17). The API is not yet stable (0.x).

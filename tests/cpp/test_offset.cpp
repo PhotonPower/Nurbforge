@@ -230,3 +230,46 @@ TEST_CASE("offset of a freeform patch matches the brute-force distance", "[offse
       CHECK(std::abs(closest_point(s, p).distance - d) <= 2 * tol);
     }
 }
+
+TEST_CASE("variable offset: plane, sphere and corner distances", "[offset]") {
+  // plane z = 0 on [0, 2] x [0, 3], distance linear in u: the exact result is a tilted plane
+  const NurbsSurface plane{
+      1, 1, {0, 0, 1, 1}, {0, 0, 1, 1}, 2, 2, {{0, 0, 0}, {0, 3, 0}, {2, 0, 0}, {2, 3, 0}}};
+  const auto tilted = offset_surface_variable(plane, {0.1, 0.5, 0.1, 0.5});
+  for (int i = 0; i <= 20; ++i)
+    for (int j = 0; j <= 20; ++j) {
+      const double u = i / 20.0, v = j / 20.0;
+      CHECK(distance(tilted.evaluate(u, v), Vec3{2 * u, 3 * v, 0.1 + 0.4 * u}) < 1e-9);
+    }
+  // bilinear corner distances
+  const auto twisted = offset_surface_variable(plane, {0.0, 1.0, 2.0, 4.0});
+  CHECK(std::abs(twisted.evaluate(0.5, 0.5).z - 1.75) < 1e-9);
+  CHECK(std::abs(twisted.evaluate(1.0, 1.0).z - 4.0) < 1e-9);
+
+  // sphere of radius 2: the point at (u, v) moves radially to the radius 2 + d(u, v)
+  const auto sphere = ::sphere(2.0);
+  const double sign = orientation(sphere, 0.3, 0.4, {0, 0, 0});
+  const auto dv = sphere.domain_v();
+  const auto d = [&](double, double v) {
+    const double b = (v - dv[0]) / (dv[1] - dv[0]);
+    return sign * (0.2 + 0.3 * b * b * (3 - 2 * b));  // smooth step from pole to pole
+  };
+  const double tol = 1e-7;
+  const auto o = offset_surface_variable(sphere, d, tol);
+  double worst = 0.0;
+  const auto du = sphere.domain_u();
+  for (int i = 0; i <= 60; ++i)
+    for (int j = 0; j <= 60; ++j) {
+      const double u = du[0] + (du[1] - du[0]) * i / 60.0, v = dv[0] + (dv[1] - dv[0]) * j / 60.0;
+      const Vec3 p = sphere.evaluate(u, v);
+      worst = std::max(worst, distance(o.evaluate(u, v), (1.0 + sign * d(u, v) / 2.0) * p));
+    }
+  CHECK(worst < tol);
+  // a constant function reproduces offset_surface
+  const auto c0 = offset_surface(sphere, 0.25 * sign, tol);
+  const auto c1 = offset_surface_variable(sphere, [&](double, double) { return 0.25 * sign; }, tol);
+  CHECK(distance(c0.evaluate(0.37, 0.61), c1.evaluate(0.37, 0.61)) < 1e-12);
+  // a distance reaching the centre of curvature is rejected
+  CHECK_THROWS_AS(offset_surface_variable(sphere, [&](double, double) { return -2.5 * sign; }),
+                  GeometryError);
+}

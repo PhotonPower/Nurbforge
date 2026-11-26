@@ -66,12 +66,31 @@ struct SweepOptions {
                                         bool scale_height = false,
                                         const SweepOptions& options = {});
 
+/// Scaling of the sections of a two-rail sweep.
+enum class Sweep2Scaling {
+  Uniform,     ///< the whole section is scaled by the ratio of the rail distances
+  NonUniform,  ///< only the rail-to-rail direction is scaled, heights above it are kept
+};
+
 /// Two-rail sweep: the profile, given at the rail starts, is moved, rotated and uniformly
 /// scaled so that the points it had on rail1(v0) and rail2(v0) follow rail1(v) and rail2(v)
 /// (rail2 is linearly reparametrised to rail1's domain). The orientation about the rail-to-rail
 /// axis follows the tangent of rail1. Same skinning and tolerance control as sweep().
 [[nodiscard]] NurbsSurface sweep2(const NurbsCurve& profile, const NurbsCurve& rail1,
                                   const NurbsCurve& rail2, const SweepOptions& options = {});
+
+/// Two-rail sweep with several profiles and a choice of scaling. Profile k is given in world
+/// coordinates where it spans the rails, at the parameter params[k] of rail1 (empty: the
+/// parameter of the point of rail1 nearest to the profile). Every profile is moved back to the
+/// rail starts by the inverse of its placement; the moved profiles are lofted over the
+/// parameters (cubic for four or more), and the section at v is that blended shape placed at v,
+/// as in sweep() with several profiles. Before the first and after the last profile the shape
+/// is constant. With Sweep2Scaling::NonUniform the section is stretched along the rail-to-rail
+/// direction only (its extent normal to that direction is kept), otherwise uniformly.
+[[nodiscard]] NurbsSurface sweep2(const std::vector<NurbsCurve>& profiles, const NurbsCurve& rail1,
+                                  const NurbsCurve& rail2, std::vector<double> params = {},
+                                  Sweep2Scaling scaling = Sweep2Scaling::Uniform,
+                                  const SweepOptions& options = {});
 
 /// Pipe surface: a circle swept along `path` with the rotation-minimising frame, its radius
 /// given by `radius(t)` for the normalised path parameter t in [0, 1] (t = 0 at the path start).

@@ -1,12 +1,14 @@
 find_package(Python 3.10 REQUIRED COMPONENTS Interpreter Development.Module)
 
-# pybind11: prefer an installed package (pip/conda/dnf), fall back to FetchContent.
-if(NOT pybind11_FOUND)
+# pybind11: prefer an installed package (pip/conda/dnf), fall back to FetchContent. The test is
+# on the command, not on pybind11_FOUND: a fetched pybind11 caches that variable, which would
+# skip both branches when the build directory is configured again.
+if(NOT COMMAND pybind11_add_module)
   execute_process(COMMAND "${Python_EXECUTABLE}" -m pybind11 --cmakedir
                   OUTPUT_VARIABLE _pybind11_dir OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET)
   find_package(pybind11 2.12 CONFIG QUIET HINTS "${_pybind11_dir}")
 endif()
-if(NOT pybind11_FOUND)
+if(NOT COMMAND pybind11_add_module)
   include(FetchContent)
   FetchContent_Declare(pybind11
     GIT_REPOSITORY https://github.com/pybind/pybind11.git

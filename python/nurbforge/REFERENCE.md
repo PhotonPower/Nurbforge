@@ -196,9 +196,19 @@ arguments after `*` are keyword-only; `(1) … (2) …` are overloads.
 - `is_closed(curve: NurbsCurve, tolerance: float = 1e-09) -> bool` — True if the end points of the curve agree within the tolerance.
 - `is_planar(curve: NurbsCurve, tolerance: float = 1e-09) -> bool` — True if the curve lies in a plane within the tolerance.
 - `(1) continuity(a: NurbsCurve, b: NurbsCurve, position: float = 1e-06, angle: float = 1e-06, curvature: float = 0.0001) -> CurveContinuity`  
-  `(2) continuity(a: NurbsCurve, end_a: CurveEnd, b: NurbsCurve, end_b: CurveEnd, position: float = 1e-06, angle: float = 1e-06, curvature: float = 0.0001) -> CurveContinuity` — (1) Continuity of two curves at their nearest pair of ends: G0 / G1 / G2 (and C0 / C1 / C2) with the gap, the angle between the tangents and the curvatures on both sides. Tolerances: position (gap), angle (radians), curvature (relative). (2) Continuity at the joint of the given ends of a and b.
+  `(2) continuity(a: NurbsCurve, end_a: CurveEnd, b: NurbsCurve, end_b: CurveEnd, position: float = 1e-06, angle: float = 1e-06, curvature: float = 0.0001) -> CurveContinuity`  
+  `(3) continuity(a: NurbsSurface, side: SurfaceSide, b: NurbsSurface, position: float = 1e-06, angle: float = 1e-06, curvature: float = 0.0001, samples: int = 33) -> SurfaceContinuity` — (1) Continuity of two curves at their nearest pair of ends: G0 / G1 / G2 (and C0 / C1 / C2) with the gap, the angle between the tangents and the curvatures on both sides. Tolerances: position (gap), angle (radians), curvature (relative). (2) Continuity at the joint of the given ends of a and b. (3) Continuity of surface a along its side with surface b: G0 / G1 / G2 with the largest gap, angle between the tangent planes and difference of the curvature tensors.
 - `continuity_breaks(curve: NurbsCurve, position: float = 1e-06, angle: float = 1e-06, curvature: float = 0.0001) -> list[CurveBreak]` — Knots of a curve where it is not curvature continuous (corners, tangent joints), with the continuity there; for a closed curve also the seam.
 - `find_duplicate_curves(curves: Sequence[NurbsCurve], tolerance: float = 1e-06) -> list[list[int]]` — Groups of geometrically identical curves (same shape within the tolerance, whatever the direction or parametrisation): lists of indices, the first being the one to keep.
+
+**Surface analysis**
+
+- `curvature_map(surface: object, samples_per_span: int = 8) -> CurvatureMap` — Curvature analysis of a surface or trimmed face: Gaussian, mean and principal curvatures on a grid with samples_per_span + 1 parameters per knot span, their ranges with the parameters where they are attained, and the smallest radius of curvature.
+- `draft_angle(surface: NurbsSurface, u: float, v: float, pull_direction: Vec3) -> float` — Draft angle (radians) at (u, v): asin(N . d) for the unit normal N and the pull direction d; positive where the face can be withdrawn, negative for an undercut.
+- `draft_angle_map(surface: object, pull_direction: Vec3, samples_per_span: int = 8) -> DraftAngleMap` — Draft angle analysis of a surface or trimmed face for a pull direction: angles (radians) on a grid and their range.
+- `surface_direction(surface: NurbsSurface, tolerance: float = 1e-09) -> SurfaceDirection` — Directions of increasing u and v and the normal S_u x S_v at the middle of the domain, closed directions, poles and planarity. surface.transposed() flips the normal.
+- `edge_continuity(shell: Shell, position: float = 1e-06, angle: float = 1e-06, curvature: float = 0.0001, samples: int = 9) -> list[SurfaceContinuity]` — Continuity across every edge of a shell (one SurfaceContinuity per edge): geometric >= 1 marks smooth (tangent) edges, -1 free and non-manifold edges.
+- `find_duplicate_surfaces(surfaces: Sequence[NurbsSurface], tolerance: float = 1e-06) -> list[list[int]]` — Groups of geometrically identical surfaces (same point set within the tolerance, whatever the parametrisation or orientation): lists of indices, the first to keep.
 
 **Intersections and sections**
 
@@ -320,6 +330,23 @@ Curvature graph (comb) of a curve.
 - `.points: list[Vec3]` — curve points (feet of the hairs)
 - `.tips: list[Vec3]` — ends of the hairs; in order, the graph line
 
+### `CurvatureMap`
+
+Curvatures of a surface on a grid; arrays of shape (len(u), len(v)).
+
+- `.gaussian: ndarray` — Gaussian curvature K = k_1 k_2, array of shape (len(u), len(v)).
+- `.gaussian_range: SurfaceMapRange` — `SurfaceMapRange` of the Gaussian curvature.
+- `.inside: numpy.NDArray[numpy.bool]` — Boolean array: samples inside the trimmed region (all true for a surface).
+- `.k_max: ndarray` — Larger principal curvature.
+- `.k_max_range: SurfaceMapRange` — `SurfaceMapRange` of the larger principal curvature.
+- `.k_min: ndarray` — Smaller principal curvature.
+- `.k_min_range: SurfaceMapRange` — `SurfaceMapRange` of the smaller principal curvature.
+- `.mean: ndarray` — Mean curvature H = (k_1 + k_2)/2, sign relative to S_u × S_v.
+- `.mean_range: SurfaceMapRange` — `SurfaceMapRange` of the mean curvature.
+- `.min_radius: float` — Smallest radius of curvature among the samples (inf for a plane).
+- `.u: list[float]` — Parameters u of the grid.
+- `.v: list[float]` — Parameters v of the grid.
+
 ### `CurveBreak`
 
 Parameter of a curve with its continuity there.
@@ -435,6 +462,16 @@ Result of developability().
 - `.max_gaussian_curvature: float` — Largest |K| at the sample points (0 for a developable surface).
 - `.max_twist: float` — largest angle (rad) between normals along one ruling
 - `.rulings: RulingDirection` — `RulingDirection` of the straight parameter lines.
+
+### `DraftAngleMap`
+
+Draft angles of a surface on a grid; arrays of shape (len(u), len(v)).
+
+- `.angle: ndarray` — Draft angles in radians, array of shape (len(u), len(v)).
+- `.inside: numpy.NDArray[numpy.bool]` — Boolean array: samples inside the trimmed region.
+- `.range: SurfaceMapRange` — `SurfaceMapRange` of the angle over the samples inside.
+- `.u: list[float]` — Parameters u of the grid.
+- `.v: list[float]` — Parameters v of the grid.
 
 ### `Drawing`
 
@@ -727,6 +764,15 @@ Chamfer between two surfaces.
 - `.pcurve2: NurbsCurve` — contact2 as (u, v, 0) on s2
 - `.surface: NurbsSurface` — u in [0, 1]: straight lines from the contact on s1 to the contact on s2; v along the edge
 
+### `SurfaceContinuity`
+
+Continuity of two surfaces along a common edge.
+
+- `.geometric: int` — -1 no contact, 0 position (G0), 1 tangent plane (G1), 2 curvature (G2)
+- `.max_angle: float` — radians
+- `.max_curvature_difference: float` — Largest difference (Frobenius norm) of the curvature tensors of the two surfaces along the edge.
+- `.max_gap: float` — Largest distance between the two surfaces at the samples of the edge.
+
 ### `SurfaceCurvature`
 
 Curvature of a surface at a point: Gaussian and mean curvature, principal curvatures and directions, normal.
@@ -738,6 +784,19 @@ Curvature of a surface at a point: Gaussian and mean curvature, principal curvat
 - `.k2: float` — Smaller principal curvature.
 - `.mean: float` — Mean curvature H = (k1 + k2) / 2 (positive where the surface bends towards the normal).
 - `.normal: Vec3` — Unit normal.
+
+### `SurfaceDirection`
+
+Parameter directions and orientation of a surface.
+
+- `.closed_u: bool` — True if the sides u_min and u_max coincide.
+- `.closed_v: bool` — True if the sides v_min and v_max coincide.
+- `.normal: Vec3` — Unit normal S_u × S_v at the middle of the domain.
+- `.planar: bool` — True if the control points lie in a plane within the tolerance.
+- `.point: Vec3` — Surface point at the middle of the parameter domain.
+- `.poles: tuple[bool, bool, bool, bool]` — sides collapsing to a point: (u_min, u_max, v_min, v_max)
+- `.u_dir: Vec3` — Unit direction of increasing u there.
+- `.v_dir: Vec3` — Unit direction of increasing v there.
 
 ### `SurfaceFillet`
 
@@ -765,6 +824,15 @@ Options of the surface/surface intersection.
 - `.chord_tolerance: float` (settable) — Maximal deviation of the traced polyline from the true curve (step control); 0 = automatic.
 - `.fit_tolerance: float` (settable) — Accuracy of the fitted 3D curve and p-curves; 0 = automatic.
 - `.tolerance: Tolerance` (settable) — Basic tolerances for point convergence.
+
+### `SurfaceMapRange`
+
+Smallest and largest sample of a map with their parameters.
+
+- `.max: float` — Largest sample.
+- `.max_uv: tuple[float, float]` — Parameters (u, v) of the largest sample.
+- `.min: float` — Smallest sample.
+- `.min_uv: tuple[float, float]` — Parameters (u, v) of the smallest sample.
 
 ### `SurfacePoint`
 

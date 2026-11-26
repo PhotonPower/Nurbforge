@@ -34,6 +34,15 @@ versioning: [SemVer](https://semver.org).
   knots where a curve is not curvature continuous; `find_duplicate_curves(curves, tolerance)`
   the groups of geometrically identical curves, whatever their direction or parametrisation.
   Length (`arc_length`) and degree were already available.
+- Surface analysis (`analysis/surface_analysis.hpp`): `curvature_map(surface | face)` samples
+  the Gaussian, mean and principal curvatures on a grid (knot lines included) and reports
+  their ranges, where they are attained and the smallest radius of curvature;
+  `draft_angle` / `draft_angle_map(surface | face, pull_direction)` the draft angles for a pull
+  direction (negative: undercut); `surface_direction` the parameter directions, the normal,
+  closed directions, poles and planarity; `continuity(a, side, b)` the G0/G1/G2 continuity of
+  two surfaces along a side, and `edge_continuity(shell)` the same across every edge of a shell
+  (smooth edges such as seams and fillet borders); `find_duplicate_surfaces(surfaces,
+  tolerance)` the groups of identical surfaces. In Python the maps are NumPy arrays.
 - Silhouette curves (#95): `silhouette(surface | face | shell, view)` gives the curves where
   the normal is perpendicular to the view ray, for parallel views (`View::parallel(direction)`)
   and perspective views (`View::perspective(eye)`), as 3D curves with p-curves fitted to a

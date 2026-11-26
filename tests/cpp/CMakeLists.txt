@@ -56,6 +56,7 @@ add_executable(nurbforge_tests
   test_silhouette.cpp
   test_drawing.cpp
   test_unroll.cpp
-  test_curve_analysis.cpp)
+  test_curve_analysis.cpp
+  test_surface_analysis.cpp)
 target_link_libraries(nurbforge_tests PRIVATE Nurbforge::core Catch2::Catch2WithMain)
 catch_discover_tests(nurbforge_tests)

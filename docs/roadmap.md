@@ -106,6 +106,7 @@
 - Visibility of curves against shells (hidden-line removal) ✅
 - Make2D (visible and hidden lines in a drawing plane) and outline (contour loops) for parallel views ✅
 - Curve analysis: osculating circle, curvature graph, direction, continuity (G0/G1/G2), duplicate curves ✅
+- Surface analysis: curvature and draft angle maps, direction, continuity between surfaces and across shell edges, duplicate surfaces ✅
 - Later: Make2D and outline for perspective views; exact event parameters for the visibility (crossings of projected curves) instead of sampling
 
 ## Infrastructure

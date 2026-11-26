@@ -1071,6 +1071,152 @@ PYBIND11_MODULE(_core, m) {
       py::arg("curvature") = 1e-4,
       "Knots of a curve where it is not curvature continuous (corners, tangent joints), with "
       "the continuity there; for a closed curve also the seam.");
+  // ------------------------------------------------------------------ surface analysis
+  const auto grid_array = [](const std::vector<double>& values, std::size_t nu, std::size_t nv) {
+    py::array_t<double> a({nu, nv});
+    std::copy(values.begin(), values.end(), a.mutable_data());
+    return a;
+  };
+  const auto mask_array = [](const std::vector<bool>& values, std::size_t nu, std::size_t nv) {
+    py::array_t<bool> a({nu, nv});
+    std::copy(values.begin(), values.end(), a.mutable_data());
+    return a;
+  };
+  py::class_<SurfaceMapRange>(m, "SurfaceMapRange",
+                              "Smallest and largest sample of a map with their parameters.")
+      .def_readonly("min", &SurfaceMapRange::min)
+      .def_readonly("max", &SurfaceMapRange::max)
+      .def_property_readonly(
+          "min_uv", [](const SurfaceMapRange& r) { return py::make_tuple(r.min_u, r.min_v); })
+      .def_property_readonly(
+          "max_uv", [](const SurfaceMapRange& r) { return py::make_tuple(r.max_u, r.max_v); })
+      .def("__repr__", [](const SurfaceMapRange& r) {
+        return "<SurfaceMapRange " + std::to_string(r.min) + " .. " + std::to_string(r.max) + ">";
+      });
+  py::class_<CurvatureMap>(m, "CurvatureMap",
+                           "Curvatures of a surface on a grid; arrays of shape (len(u), len(v)).")
+      .def_readonly("u", &CurvatureMap::u)
+      .def_readonly("v", &CurvatureMap::v)
+      .def_property_readonly("gaussian",
+                             [grid_array](const CurvatureMap& c) {
+                               return grid_array(c.gaussian, c.u.size(), c.v.size());
+                             })
+      .def_property_readonly("mean",
+                             [grid_array](const CurvatureMap& c) {
+                               return grid_array(c.mean, c.u.size(), c.v.size());
+                             })
+      .def_property_readonly("k_max",
+                             [grid_array](const CurvatureMap& c) {
+                               return grid_array(c.k_max, c.u.size(), c.v.size());
+                             })
+      .def_property_readonly("k_min",
+                             [grid_array](const CurvatureMap& c) {
+                               return grid_array(c.k_min, c.u.size(), c.v.size());
+                             })
+      .def_property_readonly("inside",
+                             [mask_array](const CurvatureMap& c) {
+                               return mask_array(c.inside, c.u.size(), c.v.size());
+                             })
+      .def_readonly("gaussian_range", &CurvatureMap::gaussian_range)
+      .def_readonly("mean_range", &CurvatureMap::mean_range)
+      .def_readonly("k_max_range", &CurvatureMap::k_max_range)
+      .def_readonly("k_min_range", &CurvatureMap::k_min_range)
+      .def_readonly("min_radius", &CurvatureMap::min_radius);
+  m.def(
+      "curvature_map",
+      [](const py::object& obj, std::size_t samples_per_span) {
+        if (py::isinstance<TrimmedSurface>(obj))
+          return curvature_map(obj.cast<const TrimmedSurface&>(), samples_per_span);
+        return curvature_map(obj.cast<const NurbsSurface&>(), samples_per_span);
+      },
+      py::arg("surface"), py::arg("samples_per_span") = 8,
+      "Curvature analysis of a surface or trimmed face: Gaussian, mean and principal curvatures "
+      "on a grid with samples_per_span + 1 parameters per knot span, their ranges with the "
+      "parameters where they are attained, and the smallest radius of curvature.");
+  py::class_<DraftAngleMap>(
+      m, "DraftAngleMap", "Draft angles of a surface on a grid; arrays of shape (len(u), len(v)).")
+      .def_readonly("u", &DraftAngleMap::u)
+      .def_readonly("v", &DraftAngleMap::v)
+      .def_property_readonly("angle",
+                             [grid_array](const DraftAngleMap& d) {
+                               return grid_array(d.angle, d.u.size(), d.v.size());
+                             })
+      .def_property_readonly("inside",
+                             [mask_array](const DraftAngleMap& d) {
+                               return mask_array(d.inside, d.u.size(), d.v.size());
+                             })
+      .def_readonly("range", &DraftAngleMap::range);
+  m.def("draft_angle", &draft_angle, py::arg("surface"), py::arg("u"), py::arg("v"),
+        py::arg("pull_direction"),
+        "Draft angle (radians) at (u, v): asin(N . d) for the unit normal N and the pull "
+        "direction d; positive where the face can be withdrawn, negative for an undercut.");
+  m.def(
+      "draft_angle_map",
+      [](const py::object& obj, const Vec3& pull_direction, std::size_t samples_per_span) {
+        if (py::isinstance<TrimmedSurface>(obj))
+          return draft_angle_map(obj.cast<const TrimmedSurface&>(), pull_direction,
+                                 samples_per_span);
+        return draft_angle_map(obj.cast<const NurbsSurface&>(), pull_direction, samples_per_span);
+      },
+      py::arg("surface"), py::arg("pull_direction"), py::arg("samples_per_span") = 8,
+      "Draft angle analysis of a surface or trimmed face for a pull direction: angles (radians) "
+      "on a grid and their range.");
+  py::class_<SurfaceDirection>(m, "SurfaceDirection",
+                               "Parameter directions and orientation of a surface.")
+      .def_readonly("point", &SurfaceDirection::point)
+      .def_readonly("u_dir", &SurfaceDirection::u_dir)
+      .def_readonly("v_dir", &SurfaceDirection::v_dir)
+      .def_readonly("normal", &SurfaceDirection::normal)
+      .def_readonly("closed_u", &SurfaceDirection::closed_u)
+      .def_readonly("closed_v", &SurfaceDirection::closed_v)
+      .def_property_readonly(
+          "poles",
+          [](const SurfaceDirection& d) {
+            return py::make_tuple(d.pole[0], d.pole[1], d.pole[2], d.pole[3]);
+          },
+          "sides collapsing to a point: (u_min, u_max, v_min, v_max)")
+      .def_readonly("planar", &SurfaceDirection::planar);
+  m.def("surface_direction", &surface_direction, py::arg("surface"), py::arg("tolerance") = 1e-9,
+        "Directions of increasing u and v and the normal S_u x S_v at the middle of the domain, "
+        "closed directions, poles and planarity. surface.transposed() flips the normal.");
+  py::class_<SurfaceContinuity>(m, "SurfaceContinuity",
+                                "Continuity of two surfaces along a common edge.")
+      .def_readonly("geometric", &SurfaceContinuity::geometric,
+                    "-1 no contact, 0 position (G0), 1 tangent plane (G1), 2 curvature (G2)")
+      .def_readonly("max_gap", &SurfaceContinuity::max_gap)
+      .def_readonly("max_angle", &SurfaceContinuity::max_angle, "radians")
+      .def_readonly("max_curvature_difference", &SurfaceContinuity::max_curvature_difference)
+      .def("__repr__", [](const SurfaceContinuity& k) {
+        return std::string("<SurfaceContinuity ") +
+               (k.geometric < 0 ? "no contact" : "G" + std::to_string(k.geometric)) + ">";
+      });
+  m.def(
+      "continuity",
+      [](const NurbsSurface& a, SurfaceSide side, const NurbsSurface& b, double position,
+         double angle, double curvature, std::size_t samples) {
+        py::gil_scoped_release release;
+        return continuity(a, side, b, SurfaceContinuityTolerance{position, angle, curvature},
+                          samples);
+      },
+      py::arg("a"), py::arg("side"), py::arg("b"), py::arg("position") = 1e-6,
+      py::arg("angle") = 1e-6, py::arg("curvature") = 1e-4, py::arg("samples") = 33,
+      "Continuity of surface a along its side with surface b: G0 / G1 / G2 with the largest "
+      "gap, angle between the tangent planes and difference of the curvature tensors.");
+  m.def(
+      "edge_continuity",
+      [](const Shell& shell, double position, double angle, double curvature, std::size_t samples) {
+        py::gil_scoped_release release;
+        return edge_continuity(shell, SurfaceContinuityTolerance{position, angle, curvature},
+                               samples);
+      },
+      py::arg("shell"), py::arg("position") = 1e-6, py::arg("angle") = 1e-6,
+      py::arg("curvature") = 1e-4, py::arg("samples") = 9,
+      "Continuity across every edge of a shell (one SurfaceContinuity per edge): geometric >= 1 "
+      "marks smooth (tangent) edges, -1 free and non-manifold edges.");
+  m.def("find_duplicate_surfaces", &find_duplicate_surfaces,
+        py::call_guard<py::gil_scoped_release>(), py::arg("surfaces"), py::arg("tolerance") = 1e-6,
+        "Groups of geometrically identical surfaces (same point set within the tolerance, "
+        "whatever the parametrisation or orientation): lists of indices, the first to keep.");
   m.def("find_duplicate_curves", &find_duplicate_curves, py::call_guard<py::gil_scoped_release>(),
         py::arg("curves"), py::arg("tolerance") = 1e-6,
         "Groups of geometrically identical curves (same shape within the tolerance, whatever "

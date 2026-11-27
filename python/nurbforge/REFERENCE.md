@@ -1,4 +1,4 @@
-# nurbforge 0.17.0 — API reference for agents
+# nurbforge 0.18.0 — API reference for agents
 
 Headless NURBS CAD kernel (C++20 core, Python bindings): exact curves and surfaces, trimmed
 faces, closed shells (B-rep solids), Booleans, fillets, sweeps, fitting, optical surfaces,

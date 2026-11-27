@@ -7,6 +7,15 @@ import pytest
 from nurbforge.mesh import SurfaceMesh, shrink_wrap
 
 
+def _gmsh():
+    """gmsh, or skip: it raises OSError (not ImportError) if system libraries are missing."""
+    try:
+        import gmsh
+    except (ImportError, OSError) as exc:  # pragma: no cover
+        pytest.skip(f"gmsh not usable: {exc}")
+    return gmsh
+
+
 def _assert_closed(m, components=1, genus=0):
     assert isinstance(m, SurfaceMesh)
     assert m.order == 1
@@ -130,7 +139,7 @@ def test_triangle_quality():
 
 
 def test_remesh_with_gmsh():
-    pytest.importorskip("gmsh")
+    _gmsh()
     from nurbforge.mesh import GmshSession, remesh
 
     hull = shrink_wrap(nf.make_box((0, 0, 0), (2, 1, 1)), 0.05)
@@ -202,7 +211,7 @@ def test_write(tmp_path):
 
 
 def test_written_msh_is_read_by_gmsh(tmp_path):
-    gmsh = pytest.importorskip("gmsh")
+    gmsh = _gmsh()
     m = shrink_wrap(nf.make_sphere((0, 0, 0), 1.0), 0.2)
     path = tmp_path / "hull.msh"
     m.write(path)

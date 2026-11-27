@@ -855,6 +855,16 @@ def _build_tools() -> list[Tool]:
         r = nf.unroll(s)
         return ws.put(name, r.pattern) + f"; area {nf.area(r.pattern):.8g}"
 
+    @add("flatten", "Flatten a doubly curved surface into the plane with the least stretching "
+         "(for developable surfaces use 'unroll', which is exact); the flat pattern is stored "
+         "as name. Reports the strains that remain: a stretch above 1 means excess material in "
+         "the flat sheet there, below 1 the sheet must stretch.",
+         {"name": _NAME, "source": _NAME}, ["name", "source"])
+    def _(ws, name, source):
+        f = nf.flatten(ws.get(source))
+        return (ws.put(name, f.pattern) + f"; stretch {f.min_stretch:.5f} .. {f.max_stretch:.5f}, "
+                f"rms strain {100 * f.rms_strain:.3g} %, area {f.area:.8g} -> {f.pattern_area:.8g}")
+
     @add("analyze_curve", "Analysis of a curve: length, degree, direction (start, end, closed, "
          "clockwise / counter-clockwise), largest curvature and smallest radius, corners and "
          "tangent joints (knots where it is not curvature continuous). With u: curvature, "

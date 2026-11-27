@@ -1510,6 +1510,50 @@ PYBIND11_MODULE(_core, m) {
         "domain: pattern(u, v) is the image of S(u, v), so curves on the surface map through "
         "their parameters. Raises GeometryError if the surface is not developable.");
 
+  py::class_<FlattenedSurface>(m, "FlattenedSurface", "Result of flatten().")
+      .def_readonly("pattern", &FlattenedSurface::pattern,
+                    "flat pattern in the plane z = 0; pattern(u, v) is the image of S(u, v)")
+      .def_readonly("u", &FlattenedSurface::u)
+      .def_readonly("v", &FlattenedSurface::v)
+      .def_property_readonly("stretch_max",
+                             [](const FlattenedSurface& f) {
+                               py::array_t<double> a({f.u.size(), f.v.size()});
+                               std::copy(f.stretch_max.begin(), f.stretch_max.end(),
+                                         a.mutable_data());
+                               return a;
+                             })
+      .def_property_readonly("stretch_min",
+                             [](const FlattenedSurface& f) {
+                               py::array_t<double> a({f.u.size(), f.v.size()});
+                               std::copy(f.stretch_min.begin(), f.stretch_min.end(),
+                                         a.mutable_data());
+                               return a;
+                             })
+      .def_readonly("max_stretch", &FlattenedSurface::max_stretch)
+      .def_readonly("min_stretch", &FlattenedSurface::min_stretch)
+      .def_readonly("rms_strain", &FlattenedSurface::rms_strain)
+      .def_readonly("area", &FlattenedSurface::area)
+      .def_readonly("pattern_area", &FlattenedSurface::pattern_area)
+      .def("__repr__", [](const FlattenedSurface& f) {
+        return "<FlattenedSurface stretch " + std::to_string(f.min_stretch) + " .. " +
+               std::to_string(f.max_stretch) + ">";
+      });
+  m.def(
+      "flatten",
+      [](const NurbsSurface& s, std::size_t samples_u, std::size_t samples_v,
+         std::size_t max_iterations, double convergence) {
+        py::gil_scoped_release release;
+        return flatten(s, FlattenOptions{samples_u, samples_v, max_iterations, convergence});
+      },
+      py::arg("surface"), py::arg("samples_u") = 33, py::arg("samples_v") = 33,
+      py::arg("max_iterations") = 3000, py::arg("convergence") = 1e-10,
+      "Flatten a doubly curved surface into the plane with as little stretching as possible "
+      "(use unroll for developable surfaces): a grid of samples_u x samples_v surface points "
+      "is laid out so that the distances between neighbours are kept in the least-squares "
+      "sense. Returns the pattern (same parameter domain) and the strains that remain: "
+      "principal stretches per grid cell (pattern length / surface length), their extremes, "
+      "the rms strain and both areas.");
+
   // ------------------------------------------------------------------ Coons / Gordon
   m.def("coons", &coons, py::call_guard<py::gil_scoped_release>(), py::arg("c0"), py::arg("c1"),
         py::arg("d0"), py::arg("d1"), py::arg("tolerance") = 1e-7,

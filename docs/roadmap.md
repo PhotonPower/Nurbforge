@@ -114,7 +114,7 @@
 - Flattening of doubly curved surfaces with the least stretching and a strain report ✅
 - Slab and wire cut as explicit functions ✅
 - Curvature-continuous (G2) edge blends for chains and loops ✅
-- Shrink wrap: a closed triangle mesh around overlapping, open or leaky input (`nurbforge.mesh`, approximate) ✅
+- Shrink wrap: a closed triangle mesh around overlapping, open or leaky input (`nf::shrink_wrap`, `nurbforge.mesh.shrink_wrap`; approximate) ✅
 - Later: G2 blends where blended chains meet at a vertex
 
 ## Infrastructure

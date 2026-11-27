@@ -138,7 +138,8 @@ linear mesh.
 leave gaps or are open – a fallback where an exact Boolean or sewing is not possible, a repair
 for imported geometry, and a way to get a simplified outer boundary. Unlike the rest of
 Nurbforge it is **approximate**: the result is a mesh accurate to about the `resolution`, not
-exact geometry. It needs numpy only (no gmsh).
+exact geometry. It does not need gmsh: the work is done by the C++ kernel (`nf::shrink_wrap` in
+`mesh/shrink_wrap.hpp`, see the [C++ overview](api/cpp.md)).
 
 ```python
 from nurbforge.mesh import shrink_wrap

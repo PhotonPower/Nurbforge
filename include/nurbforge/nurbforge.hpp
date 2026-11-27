@@ -21,6 +21,8 @@
 #include "nurbforge/geometry/primitives.hpp"
 #include "nurbforge/geometry/transform.hpp"
 #include "nurbforge/io/step.hpp"
+#include "nurbforge/mesh/shrink_wrap.hpp"
+#include "nurbforge/mesh/triangle_mesh.hpp"
 #include "nurbforge/modeling/blend.hpp"
 #include "nurbforge/modeling/construct.hpp"
 #include "nurbforge/modeling/extend.hpp"

@@ -50,7 +50,7 @@ import nurbforge as nf
 
 ## Sub-packages
 
-- `nurbforge.mesh` – `GmshSession` (`add_surface`, `add_shell`, `face_tags`, `refine`, `mesh(dim, size, order, heal, curvature)`, `surface_mesh(orient)`, `write`), `bem_mesh(shell, size, order, curvature, refine, path)` and `shrink_wrap(objects, resolution, offset, fill_holes, max_nodes, min_quality)` (approximate hull mesh, numpy only) and `remesh(mesh, size, angle)` (gmsh) → `SurfaceMesh` (`nodes`, `triangles`, `surfaces`, `node_tags`, `groups`, `order`, `normals()`, `areas()`, `centroids()`, `quality()`, `volume()`, `boundary_edges()`, `is_watertight()`, `is_consistently_oriented()`, `write(path)` for `.msh`/`.stl`), `MeshTopologyError`, `add_curve`, `add_surface`, `add_shell`, `export_step`, `mesh_surfaces` ([meshing.md](../meshing.md))
+- `nurbforge.mesh` – `GmshSession` (`add_surface`, `add_shell`, `face_tags`, `refine`, `mesh(dim, size, order, heal, curvature)`, `surface_mesh(orient)`, `write`), `bem_mesh(shell, size, order, curvature, refine, path)` and `shrink_wrap(objects, resolution, offset, fill_holes, max_nodes, min_quality)` (approximate hull mesh, computed by the kernel, no gmsh) and `remesh(mesh, size, angle)` (gmsh) → `SurfaceMesh` (`nodes`, `triangles`, `surfaces`, `node_tags`, `groups`, `order`, `normals()`, `areas()`, `centroids()`, `quality()`, `volume()`, `boundary_edges()`, `is_watertight()`, `is_consistently_oriented()`, `write(path)` for `.msh`/`.stl`), `MeshTopologyError`, `add_curve`, `add_surface`, `add_shell`, `export_step`, `mesh_surfaces` ([meshing.md](../meshing.md))
 - `nurbforge.llm` – `OllamaClient`, `GeometryAgent`, `Workspace`, CLI `nurbforge-llm` ([llm.md](../llm.md))
 
 ## Errors

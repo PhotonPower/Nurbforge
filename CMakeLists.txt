@@ -80,6 +80,8 @@ add_library(nurbforge_core STATIC
   src/topology/solids.cpp
   src/topology/solid_ops.cpp
   src/topology/region.cpp
+  src/mesh/triangle_mesh.cpp
+  src/mesh/shrink_wrap.cpp
   src/io/step.cpp
   src/io/step_read.cpp)
 add_library(Nurbforge::core ALIAS nurbforge_core)

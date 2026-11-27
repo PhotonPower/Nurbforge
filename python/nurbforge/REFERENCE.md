@@ -155,10 +155,11 @@ arguments after `*` are keyword-only; `(1) … (2) …` are overloads.
 - `chamfer_corners(curve: NurbsCurve, distance: float, tolerance: float = 1e-07) -> NurbsCurve` — Chamfer every corner of a curve (polyline, polygon, ...) with straight cuts at `distance` from the corner on both sides; one curve.
 - `chamfer_surfaces(s1: NurbsSurface, s2: NurbsSurface, distance1: float, distance2: float | None = None, side1: int = 1, side2: int = 1, tolerance: float = 1e-06, near: Vec3 | None = None) -> SurfaceChamfer` — Chamfer between two intersecting surfaces: the ruled surface between the curves at the distances distance1 on s1 and distance2 on s2 (default distance1) from their intersection curve, measured within the surfaces (geodesics normal to the curve). Sides as for fillet_surfaces: +1 puts the chamfer on the side of the normal S_u x S_v. Returns a SurfaceChamfer (surface, edge, contact curves, p-curves on s1 / s2).
 
-**Developable surfaces**
+**Developable surfaces and flattening**
 
 - `developability(surface: NurbsSurface, angular_tolerance: float = 1e-06) -> Developability` — Check whether a surface is developable: ruled along a parameter direction with the same normal all along every ruling. Reports the ruling direction, the largest turn of the normal along a ruling and the largest |Gaussian curvature|.
 - `unroll(surface: NurbsSurface, tolerance: float = 1e-07, angular_tolerance: float = 1e-06) -> UnrolledSurface` — Unroll a developable surface (cylinder, cone, any ruled surface with constant normals along its rulings) into the plane without stretching. The pattern keeps the parameter domain: pattern(u, v) is the image of S(u, v), so curves on the surface map through their parameters. Raises GeometryError if the surface is not developable.
+- `flatten(surface: NurbsSurface, samples_u: int = 33, samples_v: int = 33, max_iterations: int = 3000, convergence: float = 1e-10) -> FlattenedSurface` — Flatten a doubly curved surface into the plane with as little stretching as possible (use unroll for developable surfaces): a grid of samples_u x samples_v surface points is laid out so that the distances between neighbours are kept in the least-squares sense. Returns the pattern (same parameter domain) and the strains that remain: principal stretches per grid cell (pattern length / surface length), their extremes, the rms strain and both areas.
 
 **Fitting**
 
@@ -503,6 +504,21 @@ Result of fit_surface.
 - `.parameters: ndarray` — (n, 2) array: (u, v) of each point's foot point
 - `.rms_error: float` — rms of the point distances
 - `.surface: NurbsSurface` — the fitted surface
+
+### `FlattenedSurface`
+
+Result of flatten().
+
+- `.area: float` — Area of the surface.
+- `.max_stretch: float` — Largest principal stretch (pattern length / surface length).
+- `.min_stretch: float` — Smallest principal stretch.
+- `.pattern: NurbsSurface` — flat pattern in the plane z = 0; pattern(u, v) is the image of S(u, v)
+- `.pattern_area: float` — Area of the flat pattern.
+- `.rms_strain: float` — Root mean square of the principal strains (stretch - 1).
+- `.stretch_max: ndarray` — Larger principal stretch of every grid cell, array of shape (len(u), len(v)).
+- `.stretch_min: ndarray` — Smaller principal stretch of every grid cell.
+- `.u: list[float]` — Parameters u of the cell centres.
+- `.v: list[float]` — Parameters v of the cell centres.
 
 ### `GeometryError` (exception, subclass of ValueError)
 
@@ -1141,6 +1157,7 @@ JSON tools for an LLM agent working on a `Workspace` of named objects; call them
 - `make2d(name: string, sources: string[], direction?: number[3], eye?: number[3], hidden?: boolean)` — 2D drawing of solids for a view: their edges and silhouettes projected onto the drawing plane and split into visible and hidden lines. The plane curves (x to the right, y up, seen from the viewer) are stored as name_visible_1, ... and name_hidden_1, ...
 - `outline(name: string, sources: string[], direction?: number[3], eye?: number[3])` — Contour of solids seen in a view: the boundary of their projection as closed loops in the drawing plane. The curves of loop k are stored as name_k_1, name_k_2, ...; reports the enclosed area (holes subtracted).
 - `unroll(name: string, source: string)` — Unroll a developable surface (cylinder, cone, extrusion, ruled surface with constant normals along its lines) into the plane without stretching; the flat pattern is stored as name. Fails with the reason if the surface is not developable.
+- `flatten(name: string, source: string)` — Flatten a doubly curved surface into the plane with the least stretching (for developable surfaces use 'unroll', which is exact); the flat pattern is stored as name. Reports the strains that remain: a stretch above 1 means excess material in the flat sheet there, below 1 the sheet must stretch.
 - `analyze_curve(name: string, u?: number)` — Analysis of a curve: length, degree, direction (start, end, closed, clockwise / counter-clockwise), largest curvature and smallest radius, corners and tangent joints (knots where it is not curvature continuous). With u: curvature, radius and centre of the osculating circle there.
 - `analyze_surface(name: string, pull_direction?: number[3])` — Analysis of a surface: Gaussian and mean curvature ranges, smallest radius of curvature, normal direction, closed directions and poles, whether it is planar or developable. With pull_direction: the range of the draft angle in degrees (negative: undercut).
 - `continuity(a: string, b: string, side?: umin | umax | vmin | vmax)` — Continuity of two curves at their nearest ends, or of surface a along one of its sides with surface b: G0 (touching), G1 (tangent), G2 (curvature), with the gap, the angle and the curvatures.

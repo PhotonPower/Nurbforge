@@ -101,7 +101,6 @@
 - Variable surface offset (distance function or corner distances) ✅
 - Chamfer between two surfaces (geodesic distances from the intersection curve) ✅
 - Unrolling of developable surfaces with a developability check ✅
-- Later: flattening of doubly curved surfaces with a strain report
 - Silhouette curves of surfaces, trimmed surfaces and shells for parallel and perspective views, with cusps and creases ✅
 - Visibility of curves against shells (hidden-line removal) ✅
 - Make2D (visible and hidden lines in a drawing plane) and outline (contour loops) for parallel views ✅
@@ -110,6 +109,9 @@
 - Make2D and outline for perspective views (exact projective map) ✅
 - Visibility changes at the exact crossings of the projected curves with the occluders' outlines ✅
 - LLM tools for drawings, unrolling and analysis ✅
+
+## 0.18 – Flattening (#17)
+- Flattening of doubly curved surfaces with the least stretching and a strain report ✅
 
 ## Infrastructure
 - ✅ Wheels via cibuildwheel (manylinux_2_28 for AlmaLinux 10 compatibility, win_amd64, macOS arm64/x86_64)

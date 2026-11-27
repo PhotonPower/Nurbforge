@@ -180,3 +180,58 @@ TEST_CASE("chamfer between two planes and between a plane and a cylinder", "[fil
       chamfer_surfaces(floor, make_rectangle({-2, -2, 1}, {4, 0, 0}, {0, 4, 0}), 0.1, 0.1),
       GeometryError);  // parallel planes
 }
+
+TEST_CASE("flattening of developable and doubly curved surfaces", "[unroll]") {
+  // a plane is its own pattern, whatever its parametrisation
+  const NurbsSurface plane = make_bilinear({0, 0, 1}, {3, 0.5, 1}, {-0.5, 2, 1}, {3.5, 2.5, 1});
+  const FlattenedSurface p = flatten(plane);
+  CHECK(std::abs(p.max_stretch - 1.0) < 1e-7);
+  CHECK(std::abs(p.min_stretch - 1.0) < 1e-7);
+  CHECK(std::abs(p.pattern_area - p.area) < 1e-6);
+  const auto d = p.pattern.first_derivatives(0.3, 0.6);
+  CHECK(cross(d[1], d[2]).z > 0.0);
+  CHECK(norm(p.pattern.evaluate(0.5, 0.5)) < 1e-9);  // the middle at the origin
+
+  // a developable surface flattens without strain: the pattern agrees with unroll()
+  const NurbsSurface cyl =
+      extrude(make_arc({0, 0, 0}, {1, 0, 0}, {0, 1, 0}, 2.0, 0.0, 2.0), {0, 0, 3});
+  const FlattenedSurface c = flatten(cyl);
+  CHECK(c.max_stretch - 1.0 < 1e-5);
+  CHECK(1.0 - c.min_stretch < 1e-5);
+  CHECK(std::abs(c.pattern_area - 12.0) < 1e-4);  // arc length 4 x height 3
+  // the pattern is a rectangle: its points lie at the arc length and the height
+  for_grid(cyl, 8, [&](double u, double v) {
+    const Vec3 a = c.pattern.evaluate(u, v), b = c.pattern.evaluate(cyl.domain_u()[0], v);
+    const Vec3 p = cyl.evaluate(u, v);
+    CHECK(std::abs(distance(a, b) - 2.0 * std::atan2(p.y, p.x)) < 1e-4);
+  });
+
+  // a spherical cap (40 x 40 degrees about the equator of a sphere of radius 2): small but
+  // unavoidable strains, compression at the rim and tension in the middle
+  const NurbsSurface sphere = make_sphere({0, 0, 0}, 2.0).faces()[0].surface();
+  const auto du = sphere.domain_u(), dv = sphere.domain_v();
+  const double um = 0.5 * (du[0] + du[1]) + 0.07 * (du[1] - du[0]);
+  const double vm = 0.5 * (dv[0] + dv[1]);
+  const NurbsSurface cap =
+      sphere.sub_surface(um - 0.055 * (du[1] - du[0]), um + 0.055 * (du[1] - du[0]),
+                         vm - 0.11 * (dv[1] - dv[0]), vm + 0.11 * (dv[1] - dv[0]));
+  const FlattenedSurface f = flatten(cap);
+  CHECK(f.stretch_max.size() == f.u.size() * f.v.size());
+  CHECK(f.max_stretch > 1.002);
+  CHECK(f.max_stretch < 1.06);
+  CHECK(f.min_stretch < 0.998);
+  CHECK(f.min_stretch > 0.94);
+  CHECK(f.rms_strain > 1e-3);
+  CHECK(f.rms_strain < 0.03);
+  CHECK(std::abs(f.pattern_area / f.area - 1.0) < 0.02);
+  for_grid(cap, 6,
+           [&](double u, double v) { CHECK(std::abs(f.pattern.evaluate(u, v).z) < 1e-14); });
+  // less strain than the unrelaxed start would have, and a finer grid changes little
+  FlattenOptions fine;
+  fine.samples_u = fine.samples_v = 49;
+  const FlattenedSurface g = flatten(cap, fine);
+  CHECK(std::abs(g.rms_strain - f.rms_strain) < 0.1 * f.rms_strain);
+  FlattenOptions bad;
+  bad.samples_u = 2;
+  CHECK_THROWS_AS(flatten(cap, bad), GeometryError);
+}

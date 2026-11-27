@@ -184,3 +184,24 @@ def test_developability_and_unroll():
     assert not t.developable and t.rulings != nf.RulingDirection.None_ and t.max_twist > 0.1
     with pytest.raises(nf.GeometryError):
         nf.unroll(twisted)
+
+
+def test_flatten():
+    plane = nf.make_bilinear((0, 0, 1), (3, 0.5, 1), (-0.5, 2, 1), (3.5, 2.5, 1))
+    p = nf.flatten(plane)
+    assert p.max_stretch == pytest.approx(1.0, abs=1e-7)
+    assert p.min_stretch == pytest.approx(1.0, abs=1e-7)
+    assert p.pattern_area == pytest.approx(p.area, abs=1e-6)
+    sphere = nf.make_sphere((0, 0, 0), 2.0).faces[0].surface
+    du, dv = sphere.domain_u, sphere.domain_v
+    um, vm = du[0] + 0.57 * (du[1] - du[0]), 0.5 * (dv[0] + dv[1])
+    cap = sphere.sub_surface(um - 0.055 * (du[1] - du[0]), um + 0.055 * (du[1] - du[0]),
+                             vm - 0.11 * (dv[1] - dv[0]), vm + 0.11 * (dv[1] - dv[0]))
+    f = nf.flatten(cap, samples_u=25, samples_v=25)
+    assert f.stretch_max.shape == (len(f.u), len(f.v)) == f.stretch_min.shape
+    assert 1.002 < f.max_stretch < 1.06 and 0.94 < f.min_stretch < 0.998
+    assert 1e-3 < f.rms_strain < 0.03
+    assert f.stretch_max.max() == pytest.approx(f.max_stretch)
+    assert abs(f.pattern(0.5 * (cap.domain_u[0] + cap.domain_u[1]), cap.domain_v[0]).z) < 1e-14
+    with pytest.raises(nf.GeometryError):
+        nf.flatten(cap, samples_u=2)

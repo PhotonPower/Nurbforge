@@ -5,6 +5,14 @@ versioning: [SemVer](https://semver.org).
 
 ## [Unreleased]
 
+### Added
+- Flattening of doubly curved surfaces (#17): `flatten(surface, options)` lays a grid of surface
+  points out in the plane so that the geodesic distances between neighbours are kept as well
+  as possible (stress majorisation, then Gauss-Newton), and returns the flat pattern on the
+  parameter domain of the surface with the strains that remain: principal stretches per grid
+  cell, their extremes, the rms strain and both areas. Planes and developable surfaces come
+  out without strain; `unroll` remains the exact way for those. LLM tool `flatten`.
+
 ## [0.17.0] – 2026-11-27
 The remaining surface tools of #17 (two-rail sweeps with several profiles, variable offset,
 chamfers between surfaces, unrolling), silhouettes, hidden-line removal, Make2D and outlines

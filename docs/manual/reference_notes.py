@@ -56,7 +56,8 @@ GROUPS: list[tuple[str, list[str]]] = [
 ]
 
 SUBMODULES: dict[str, list[str]] = {
-    "nurbforge.mesh": ["GmshSession", "bem_mesh", "SurfaceMesh", "MeshTopologyError",
+    "nurbforge.mesh": ["GmshSession", "bem_mesh", "shrink_wrap", "SurfaceMesh",
+                       "MeshTopologyError",
                        "add_curve", "add_surface", "add_trimmed_surface", "add_shell",
                        "export_step", "mesh_surfaces"],
     "nurbforge.llm": ["GeometryAgent", "OllamaClient", "OllamaError", "Workspace",
@@ -445,6 +446,7 @@ NOTES: dict[str, str] = {
     # ------------------------------------------------------------------ mesh / llm
     "mesh.GmshSession.add_curve": r"Add a curve exactly (\code{add_curve}); returns the gmsh curve tag.",
     "mesh.GmshSession.add_surface": r"Add a surface or trimmed surface exactly; returns the gmsh surface tag.",
+    "mesh.SurfaceMesh.write": r"Write the mesh as \code{.msh} (MSH 2.2 ASCII) or binary \code{.stl}, without gmsh.",
     "mesh.SurfaceMesh.centroids": r"Centroids of the corner triangles, (M, 3).",
     "mesh.SurfaceMesh.order": r"Element order: 1 for 3-node, 2 for 6-node triangles.",
     "llm.GeometryAgent.ask": r"Send a request to the model, run the tool calls it makes (and the verification rounds) and return its final answer.",

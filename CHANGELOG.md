@@ -6,6 +6,13 @@ versioning: [SemVer](https://semver.org).
 ## [Unreleased]
 
 ### Added
+- Shrink wrap (#18): `nurbforge.mesh.shrink_wrap(objects, resolution, offset, fill_holes)`
+  builds one closed, outward-oriented triangle mesh around shells and loose surfaces, whether
+  they overlap, leave gaps or are open. It is a mesh-level tool and approximate (accurate to
+  about the resolution), and needs numpy only: sampled distance field on a grid, flood fill
+  from outside, marching tetrahedra, and a closing step that brings the hull back onto the
+  input. Gaps narrower than about 1.5 x resolution are closed. `SurfaceMesh.write` writes
+  `.msh` and `.stl` without gmsh.
 - Slab and wire cut (#18): `make_slab(curve, width, direction)` gives a planar curve a width
   and a height (a wall along an open curve, a ring along a closed one, corners mitred);
   `wire_cut(shell, curve, direction)` cuts a solid along a curve extruded in a direction and

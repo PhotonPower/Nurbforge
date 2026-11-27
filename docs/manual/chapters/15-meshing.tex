@@ -420,6 +420,59 @@ For quadratic BEM elements, check the node order your solver expects. gmsh's ord
 then edge midpoints 0--1, 1--2, 2--0) is the most common convention.
 \end{tip}
 
+\section{Shrink wrap: a closed hull around anything}\label{sec:mesh-shrinkwrap}
+
+\apiref{mesh.shrink_wrap} builds one closed triangle mesh around shells and loose surfaces that
+overlap, leave gaps or are open. It is a fallback where an exact Boolean or sewing is not
+possible, a repair for imported geometry, and a way to get a simplified outer boundary. Unlike
+everything else in Nurbforge it is \emph{approximate}: the result is a mesh accurate to about
+the resolution, not exact geometry. It needs numpy only, not gmsh.
+
+\begin{lstlisting}[style=python]
+from nurbforge.mesh import shrink_wrap
+
+hull = shrink_wrap([body_a, body_b, loose_surface],
+                   resolution=0.2,     # grid cell: about the edge length and the accuracy
+                   offset=0.5,         # distance of the hull from the input (default 0)
+                   fill_holes=True)
+hull.is_watertight(), hull.volume()    # a SurfaceMesh, normals pointing outwards
+hull.write("envelope.msh")             # or .stl
+\end{lstlisting}
+
+The objects are \code{Shell}, \code{TrimmedSurface} or \code{NurbsSurface} objects, one or a
+list. The result is a \apiref{mesh.SurfaceMesh} with linear triangles, watertight and oriented
+outwards; \apiref{mesh.SurfaceMesh.write} writes it as \code{.msh} (MSH 2.2 ASCII) or binary
+\code{.stl}.
+
+\begin{itemize}
+  \item Gaps and openings narrower than about $1.5\,\times$ \code{resolution} (plus twice the
+    \code{offset}) are closed. Wider ones are not, and the hull then follows the inside of an
+    open part as well. Parts further apart give separate closed components.
+  \item With \code{offset=0} the hull lies on the input: on a sphere the nodes are within about
+    $0.1\,\times$ \code{resolution} of the surface, sharp edges are bevelled at the size of the
+    grid, and concave corners are rounded with a radius of $0.75\,\times$ \code{resolution}.
+  \item Parts thinner than about $1.5\,\times$ \code{resolution} vanish at \code{offset=0}. A
+    loose surface has no thickness and needs an \code{offset} of at least $0.75\,\times$
+    \code{resolution}. If nothing is left, \code{ValueError} is raised.
+  \item \code{fill_holes=True} (default) fills everything that cannot be reached from outside,
+    so only the outer hull remains. With \code{False}, enclosed voids stay as inner components
+    with normals pointing into the void. This includes the inside of a closed shell, since the
+    input is treated as a set of surfaces: the result is then a wall of thickness
+    $2\,\times$ \code{offset}.
+  \item The grid covers the bounding box. \code{max_nodes} (default 20 million) limits its
+    size; the \code{ValueError} raised beyond it tells the size the grid would have had.
+\end{itemize}
+
+\paragraph{Method} The input is sampled into points a quarter of the resolution apart, and the
+distance to them is computed on the grid in a narrow band. The nodes that can be reached from
+the border of the grid without coming closer to the input than the hull distance are outside.
+The surface between them and the rest is extracted with marching tetrahedra, which always gives
+a closed, consistently oriented 2-manifold. That hull is watertight only at a distance of at
+least $0.75\,\times$ \code{resolution}; for a smaller \code{offset}, a second distance field
+measured from the hull gives the surface that lies the difference further in (a morphological
+closing). The triangles come straight from the grid and can be thin: remesh the hull if the
+solver needs well-shaped elements.
+
 \section{Convenience functions}
 
 \paragraph{\apiref{mesh.mesh_surfaces}\code{(surfaces, path, size=None, order=1)}} Adds

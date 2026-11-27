@@ -132,6 +132,52 @@ returns gmsh's mesh unchanged (still checked for watertightness); `m.is_watertig
 The volume of a quadratic mesh is computed from its corner triangles, so it converges like a
 linear mesh.
 
+## Shrink wrap: a closed hull around anything
+
+`shrink_wrap` builds one closed triangle mesh around shells and loose surfaces that overlap,
+leave gaps or are open – a fallback where an exact Boolean or sewing is not possible, a repair
+for imported geometry, and a way to get a simplified outer boundary. Unlike the rest of
+Nurbforge it is **approximate**: the result is a mesh accurate to about the `resolution`, not
+exact geometry. It needs numpy only (no gmsh).
+
+```python
+from nurbforge.mesh import shrink_wrap
+
+hull = shrink_wrap([body_a, body_b, *loose_surfaces],
+                   resolution=0.2,     # grid cell: about the edge length and the accuracy
+                   offset=0.5,         # distance of the hull from the input (default 0)
+                   fill_holes=True)
+hull.is_watertight(), hull.volume()    # a SurfaceMesh, normals pointing outwards
+hull.write("envelope.msh")             # or .stl
+```
+
+- `objects`: a `Shell`, `TrimmedSurface` or `NurbsSurface`, or a list of them.
+- Gaps and openings narrower than about 1.5 x `resolution` (plus twice the `offset`) are
+  closed; wider ones are not, and the hull then follows the inside of an open part as well.
+  Parts further apart give separate closed components.
+- With `offset=0` the hull lies on the input: on a sphere the nodes are within about
+  0.1 x `resolution` of the surface, sharp edges are bevelled at the size of the grid, and
+  concave corners are rounded with a radius of 0.75 x `resolution`.
+- Parts thinner than about 1.5 x `resolution` vanish at `offset=0`. A loose surface has no
+  thickness: give it an `offset` of at least 0.75 x `resolution`. If nothing is left,
+  `ValueError` is raised.
+- `fill_holes=True` (default) fills everything that cannot be reached from outside, so only
+  the outer hull remains. With `False`, enclosed voids stay as inner components with normals
+  pointing into the void – including the inside of a closed shell, since the input is treated
+  as a set of surfaces; the result is then a wall of thickness 2 x `offset`.
+- The grid covers the bounding box; `max_nodes` (default 20 million) limits its size, and
+  `ValueError` tells the size it would have had.
+
+Method: the input is sampled into points a quarter of the resolution apart; the distance to
+them is computed on the grid in a narrow band; the nodes reachable from the border without
+coming closer to the input than the hull distance are outside; the surface between them and
+the rest is extracted with marching tetrahedra, which always gives a closed, consistently
+oriented 2-manifold. That hull is watertight only at a distance of at least
+0.75 x `resolution`, so for a smaller `offset` a second distance field, measured from the
+hull, gives the surface that lies the difference further in (a morphological closing).
+The triangles come straight from the grid and can be thin; remesh the hull if the solver
+needs well-shaped elements.
+
 ## Implementation notes
 
 - Control-point indexing differs: Nurbforge is row-major with v fastest; gmsh expects u fastest.

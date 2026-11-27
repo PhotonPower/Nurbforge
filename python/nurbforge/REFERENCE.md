@@ -1006,7 +1006,7 @@ Freeform sag: base asphere plus \sum_j c_j Z_j(\rho, \theta) with \rho = r / r_n
 
 ## `nurbforge.mesh`
 
-Meshing via gmsh (optional dependency: `pip install nurbforge[mesh]`).
+Meshing via gmsh (optional dependency: `pip install nurbforge[mesh]`) and mesh-level tools that need numpy only (`shrink_wrap`, `SurfaceMesh`).
 
 ### `mesh.GmshSession`
 
@@ -1023,9 +1023,10 @@ Context manager around `gmsh.initialize()` / `gmsh.finalize()`. Shells added wit
 - `.write(path: str) -> None` — Write mesh/geometry; format from extension (.msh, .vtk, .stl, .step, .brep ...).
 
 - `nurbforge.mesh.bem_mesh(shell: Shell, size: float | None = None, order: int = 1, curvature: int | None = None, refine: dict | None = None, path: str | None = None) -> SurfaceMesh` — One-shot helper for boundary element solvers: mesh the closed `shell` with triangles and return a watertight, outward-oriented `SurfaceMesh` (see `GmshSession.surface_mesh`). `refine` maps face labels or surface tags to local sizes; `path` additionally writes the mesh (.msh, .stl, .vtk, ...) with physical groups per face label.
+- `nurbforge.mesh.shrink_wrap(objects, resolution: float, offset: float = 0.0, fill_holes: bool = True, max_nodes: int = 20000000) -> SurfaceMesh` — One closed triangle mesh around shells and surfaces (approximate). `objects`: a `Shell`, `TrimmedSurface` or `NurbsSurface`, or a list of them. They may overlap, leave gaps or be open. `resolution` is the cell size of the grid the envelope is built on, which is about the edge length of the mesh and the accuracy of the result: openings and gaps narrower than about 1.5 x `resolution` (plus twice the `offset`) are closed, smaller details are smoothed away. `offset` is the distance of the envelope from the input. The envelope is first built at a distance of at least 0.75 x `resolution`, which is what makes it watertight on the grid; for a smaller `offset` the surface that lies the difference further in is taken (a morphological closing). Parts thinner than about 1.5 x `resolution` do not survive this: an open surface needs an `offset` of at least 0.75 x `resolution`, a `ValueError` is raised if nothing is left. With `fill_holes` (default) everything that cannot be reached from outside is filled, and the mesh is the outer envelope only; without it, enclosed voids larger than the envelope distance are kept as inner components (normals pointing into the void). Note that the inside of a closed shell is such a void: the input is a set of surfaces. Returns a `SurfaceMesh` with linear triangles, watertight and with normals pointing out of the wrapped volume. Parts further apart than the gap size give separate closed components. Raises `ValueError` if the grid would exceed `max_nodes` nodes.
 ### `mesh.SurfaceMesh`
 
-A triangle surface mesh with 0-based connectivity. `nodes` (N, 3) coordinates; `triangles` (M, 3) for linear or (M, 6) for quadratic elements (gmsh node order: corners, then the midpoints of edges 0-1, 1-2, 2-0); `surfaces` (M,) the gmsh surface tag of every triangle; `node_tags` (N,) the gmsh node tags; `groups` triangle indices per face label (shells added with `add_shell`).
+A triangle surface mesh with 0-based connectivity. `nodes` (N, 3) coordinates; `triangles` (M, 3) for linear or (M, 6) for quadratic elements (gmsh node order: corners, then the midpoints of edges 0-1, 1-2, 2-0); `surfaces` (M,) the gmsh surface tag of every triangle; `node_tags` (N,) the gmsh node tags; `groups` triangle indices per face label (shells added with `add_shell`). Meshes not made by gmsh (`shrink_wrap`) have the surface tag 0 and node tags 1..N.
 
 - `SurfaceMesh(nodes: np.ndarray, triangles: np.ndarray, surfaces: np.ndarray, node_tags: np.ndarray, groups: dict[str, np.ndarray] = <factory>)` — Initialize self. See help(type(self)) for accurate signature.
 - `.areas() -> np.ndarray` — Areas of the (flat) corner triangles, (M,).
@@ -1036,6 +1037,7 @@ A triangle surface mesh with 0-based connectivity. `nodes` (N, 3) coordinates; `
 - `.normals() -> np.ndarray` — Unit normals of the (flat) corner triangles, (M, 3).
 - `.order` — Element order: 1 for 3-node, 2 for 6-node triangles.
 - `.volume() -> float` — Enclosed volume (divergence theorem over the corner triangles); positive for an outward-oriented closed mesh, cavities count negative.
+- `.write(path) -> None` — Write the mesh to a file without gmsh: `.msh` (MSH 2.2 ASCII, with the surface tags as physical and elementary tags) or `.stl` (binary, corner triangles). Write the mesh as `.msh` (MSH 2.2 ASCII) or binary `.stl`, without gmsh.
 - `__eq__(other)` — Comparison `a == b`.
 
 ### `mesh.MeshTopologyError` (exception, subclass of ValueError)

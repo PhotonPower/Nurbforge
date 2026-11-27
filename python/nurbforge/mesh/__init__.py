@@ -1,4 +1,5 @@
-"""Meshing via gmsh (optional dependency: ``pip install nurbforge[mesh]``)."""
+"""Meshing via gmsh (optional dependency: ``pip install nurbforge[mesh]``) and mesh-level tools
+that need numpy only (``shrink_wrap``, ``SurfaceMesh``)."""
 from .gmsh_export import (  # noqa: F401
     GmshSession,
     add_curve,
@@ -9,4 +10,5 @@ from .gmsh_export import (  # noqa: F401
     export_step,
     mesh_surfaces,
 )
+from .shrink_wrap import shrink_wrap  # noqa: F401
 from .surface_mesh import MeshTopologyError, SurfaceMesh  # noqa: F401

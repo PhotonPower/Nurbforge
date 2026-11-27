@@ -32,7 +32,8 @@ class SurfaceMesh:
     ``nodes`` (N, 3) coordinates; ``triangles`` (M, 3) for linear or (M, 6) for quadratic
     elements (gmsh node order: corners, then the midpoints of edges 0-1, 1-2, 2-0);
     ``surfaces`` (M,) the gmsh surface tag of every triangle; ``node_tags`` (N,) the gmsh node
-    tags; ``groups`` triangle indices per face label (shells added with ``add_shell``)."""
+    tags; ``groups`` triangle indices per face label (shells added with ``add_shell``).
+    Meshes not made by gmsh (``shrink_wrap``) have the surface tag 0 and node tags 1..N."""
 
     nodes: np.ndarray
     triangles: np.ndarray
@@ -84,6 +85,39 @@ class SurfaceMesh:
         directions."""
         directed = _directed_edges(self.triangles)
         return len(np.unique(directed, axis=0)) == len(directed)
+
+    def write(self, path) -> None:
+        """Write the mesh to a file without gmsh: ``.msh`` (MSH 2.2 ASCII, with the surface
+        tags as physical and elementary tags) or ``.stl`` (binary, corner triangles)."""
+        path = str(path)
+        ext = path.rsplit(".", 1)[-1].lower() if "." in path else ""
+        if ext == "msh":
+            etype = 2 if self.order == 1 else 9
+            with open(path, "w", encoding="ascii") as f:
+                f.write("$MeshFormat\n2.2 0 8\n$EndMeshFormat\n")
+                f.write(f"$Nodes\n{len(self.nodes)}\n")
+                f.writelines(f"{tag} {x!r} {y!r} {z!r}\n" for tag, (x, y, z)
+                             in zip(self.node_tags.tolist(), self.nodes.tolist()))
+                f.write(f"$EndNodes\n$Elements\n{len(self.triangles)}\n")
+                conn = self.node_tags[self.triangles].tolist()
+                f.writelines(
+                    f"{i} {etype} 2 {surface} {surface} {' '.join(map(str, nodes))}\n"
+                    for i, (surface, nodes) in enumerate(zip(self.surfaces.tolist(), conn), 1))
+                f.write("$EndElements\n")
+        elif ext == "stl":
+            a, b, c = self._corners()
+            normal = np.cross(b - a, c - a)
+            length = np.linalg.norm(normal, axis=1, keepdims=True)
+            normal = normal / np.where(length > 0.0, length, 1.0)
+            record = np.zeros(len(a), dtype=[("data", "<f4", (4, 3)), ("attribute", "<u2")])
+            record["data"] = np.stack([normal, a, b, c], axis=1)
+            with open(path, "wb") as f:
+                f.write(b"Nurbforge surface mesh".ljust(80, b" "))
+                f.write(np.uint32(len(a)).tobytes())
+                f.write(record.tobytes())
+        else:
+            raise ValueError(f"SurfaceMesh.write: unsupported file type '{path}' "
+                             "(use .msh or .stl)")
 
 
 def _directed_edges(triangles: np.ndarray) -> np.ndarray:

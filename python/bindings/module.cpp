@@ -1834,19 +1834,38 @@ PYBIND11_MODULE(_core, m) {
       "fillet_edges",
       [blend_options](const Shell& shell, const std::vector<std::size_t>& edges, double radius,
                       const std::string& label, double tolerance,
-                      const std::vector<std::pair<Vec3, double>>& sizes) {
-        return fillet_edges(shell, edges, radius, blend_options(label, tolerance, sizes));
+                      const std::vector<std::pair<Vec3, double>>& sizes,
+                      bool curvature_continuous) {
+        EdgeBlendOptions o = blend_options(label, tolerance, sizes);
+        o.curvature_continuous = curvature_continuous;
+        return fillet_edges(shell, edges, radius, o);
       },
       py::call_guard<py::gil_scoped_release>(), py::arg("shell"), py::arg("edges"),
       py::arg("radius"), py::arg("label") = "fillet", py::arg("tolerance") = 0.0,
       py::arg("sizes") = std::vector<std::pair<Vec3, double>>{},
+      py::arg("curvature_continuous") = false,
       "Round edges of a closed shell with a rolling-ball fillet (convex edges lose, concave "
       "edges gain material). Edges between the same two faces are filleted as one chain. Where "
       "chains meet at a vertex of three faces: tangent chains continue each other, two chains "
       "are mitred (trimmed by each other), three chains get a spherical corner patch; a chain "
       "ending alone is trimmed by the third face. Variable radius: `sizes` = [(point, radius), "
       "...] at points on the selected edges, smooth (C2) in between, constant beyond; chains "
-      "without points use `radius`. New faces are labelled `label`.");
+      "without points use `radius`. New faces are labelled `label`. curvature_continuous: G2 "
+      "blends between the same contact curves, with quintic cross-sections that leave the "
+      "faces with their tangent and normal curvature (chains and loops that meet no other "
+      "blended chain).");
+  m.def("make_slab", &make_slab, py::call_guard<py::gil_scoped_release>(), py::arg("curve"),
+        py::arg("width"), py::arg("direction"), py::arg("tolerance") = 1e-6,
+        "Slab: the strip between a planar curve and its offset by `width` (> 0: left of the "
+        "curve seen from the tip of `direction`) extruded along `direction` into a closed "
+        "solid; a wall along an open curve, a ring along a closed one. Faces 'side' and 'cap'.");
+  m.def("wire_cut", &wire_cut, py::call_guard<py::gil_scoped_release>(), py::arg("shell"),
+        py::arg("curve"), py::arg("direction"), py::arg("tolerance") = 1e-6,
+        py::arg("cut_label") = "cut",
+        "Wire cut: cut a closed shell along a curve extruded in `direction`. A closed curve "
+        "cuts out the prism over its interior; an open curve must run right across the solid "
+        "and divides it into the parts to its left and right. Returns the non-empty parts "
+        "(left / inner first); cut faces are labelled `cut_label`.");
   m.def(
       "chamfer_edges",
       [blend_options](const Shell& shell, const std::vector<std::size_t>& edges, double distance,

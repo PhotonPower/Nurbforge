@@ -71,4 +71,29 @@ namespace nf {
 /// as they are. The result is sewn and oriented like the input.
 [[nodiscard]] Shell merge_faces(const Shell& shell, double tolerance = 1e-6);
 
+/// Slab: a planar curve given a width and a height. The curve is offset in its plane (normal
+/// to `direction`) by `width` (> 0: to the left of the curve seen from the tip of `direction`,
+/// < 0: to the right), corners mitred as in ribbon(), and the strip between the curve and its
+/// offset is extruded along `direction` (its length is the height) into a closed solid: a
+/// wall along an open curve, a ring along a closed one. Faces are labelled "side" (the walls
+/// along the curve, its offset and the ends) and "cap" (bottom and top). Throws GeometryError
+/// if the curve is not planar normal to the direction or the offset fails (offset_curve).
+[[nodiscard]] Shell make_slab(const NurbsCurve& curve, double width, const Vec3& direction,
+                              double tolerance = 1e-6);
+
+/// Wire cut: cuts a closed shell along a curve extruded in `direction`, like a wire through
+/// foam. The curve is projected along the direction onto a plane; a closed curve cuts out the
+/// prism over its interior, an open curve must run right across the solid and divides it
+/// into the part to its left (seen from the tip of `direction`) and the part to its right.
+/// Returns the parts that are not empty, the left (or inner) one first; the cut faces get the
+/// label `cut_label`, all other faces keep theirs.
+///
+/// Implemented with Booleans against a prism: over the closed curve, or over the open curve
+/// closed far away on its left by three straight lines from its end points. For an open curve
+/// this loop must not cross itself, so the curve should not curl back across the lines from
+/// its ends (a line, an arc, a gentle spline are fine).
+[[nodiscard]] std::vector<Shell> wire_cut(const Shell& shell, const NurbsCurve& curve,
+                                          const Vec3& direction, double tolerance = 1e-6,
+                                          const std::string& cut_label = "cut");
+
 }  // namespace nf

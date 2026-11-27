@@ -1,8 +1,10 @@
+#include <algorithm>
 #include <catch2/catch_test_macros.hpp>
 #include <cmath>
 #include <numbers>
 #include <vector>
 
+#include "nurbforge/analysis/surface_analysis.hpp"
 #include "nurbforge/core/error.hpp"
 #include "nurbforge/geometry/primitives.hpp"
 #include "nurbforge/modeling/construct.hpp"
@@ -263,4 +265,49 @@ TEST_CASE("variable size", "[edge_blend]") {
     mix.sizes.push_back({{0, 0, 1.9}, 0.5});
     CHECK_THROWS_AS(fillet_edges(box, corner, 0.3, mix), GeometryError);
   }
+}
+
+TEST_CASE("curvature-continuous edge blend", "[edge_blend]") {
+  const Shell box = make_box({0, 0, 0}, {4, 2, 1});
+  const auto edge = edges_between(box, "top", "front");
+  REQUIRE(edge.size() == 1);
+  const double r = 0.3;
+  const Shell arc = fillet_edges(box, edge, r);
+  EdgeBlendOptions opt;
+  opt.curvature_continuous = true;
+  const Shell smooth = fillet_edges(box, edge, r, opt);
+  REQUIRE(smooth.is_closed());
+  CHECK(smooth.faces_labeled("fillet").size() == 1);
+  // the same contact curves, but the blend stays nearer to the corner than the arc
+  const double removed_arc = 8.0 - arc.volume(), removed = 8.0 - smooth.volume();
+  CHECK(std::abs(removed_arc - (1.0 - std::numbers::pi / 4) * r * r * 4.0) < 1e-6);
+  CHECK(removed > 0.3 * removed_arc);
+  CHECK(removed < removed_arc);
+  // continuity across the two borders of the blend: G1 for the arc, G2 for the smooth blend
+  const auto borders = [](const Shell& sh, int level) {
+    const auto k = edge_continuity(sh);
+    return std::count_if(k.begin(), k.end(), [&](const auto& c) { return c.geometric == level; });
+  };
+  CHECK(borders(arc, 1) == 2);
+  CHECK(borders(arc, 2) == 0);
+  CHECK(borders(smooth, 2) == 2);
+  CHECK(borders(smooth, 1) == 0);
+
+  // against a curved face: the rim of a cylinder, a closed loop
+  const Shell cyl = make_cylinder({0, 0, 0}, {0, 0, 1}, 1.0, 2.0);
+  const auto rim = edges_between(cyl, "top", "side");
+  REQUIRE(!rim.empty());
+  const Shell round = fillet_edges(cyl, rim, 0.25, opt);
+  REQUIRE(round.is_closed());
+  CHECK(round.volume() < cyl.volume());
+  CHECK(round.volume() > fillet_edges(cyl, rim, 0.25).volume());
+  // G2 at both borders of the blend and at the seam of the side face
+  const auto kc = edge_continuity(round);
+  CHECK(std::count_if(kc.begin(), kc.end(), [](const auto& c) { return c.geometric == 2; }) == 3);
+
+  // not at vertices where blended chains meet, and not for chamfers
+  auto corner = edges_between(box, "top", "front");
+  for (const std::size_t e : edges_between(box, "top", "right")) corner.push_back(e);
+  CHECK_THROWS_AS(fillet_edges(box, corner, r, opt), GeometryError);
+  CHECK_THROWS_AS(chamfer_edges(box, edge, r, opt), GeometryError);
 }

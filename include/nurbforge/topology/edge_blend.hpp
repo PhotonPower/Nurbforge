@@ -32,6 +32,13 @@ struct EdgeBlendOptions {
   /// last point it is constant (closed chains: periodic). A chain without points uses the
   /// size argument. Where blends meet at a corner of three edges their fillet radii must agree.
   std::vector<BlendSize> sizes{};
+  /// fillet_edges only: curvature-continuous (G2) blends instead of rolling-ball fillets. The
+  /// blend runs between the same contact curves as the fillet of the given radius, but its
+  /// cross-sections are quintic curves that leave the two faces with their tangent and with
+  /// their normal curvature in the cross direction, instead of circular arcs (which jump from
+  /// the curvature of the face to 1 / radius). Reflections run smoothly across such a blend.
+  /// Supported for chains and closed loops whose ends meet no other blended chain.
+  bool curvature_continuous{false};
 };
 
 /// Indices of the edges shared by a face labelled `label_a` and a face labelled `label_b`

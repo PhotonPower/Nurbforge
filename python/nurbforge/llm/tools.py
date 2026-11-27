@@ -694,9 +694,13 @@ def _build_tools() -> list[Tool]:
                     "edges, smooth in between",
                     "items": {"type": "object",
                               "properties": {"point": _VEC, "size": {"type": "number"}},
-                              "required": ["point", "size"]}}},
+                              "required": ["point", "size"]}},
+          "curvature_continuous": {"type": "boolean", "description": "fillets only: G2 blend "
+                                   "(smooth reflections) instead of a circular fillet; not "
+                                   "where selected edges meet at a corner"}},
          ["name", "solid", "label_a", "label_b", "size"])
-    def _(ws, name, solid, label_a, label_b, size, kind="fillet", sizes=()):
+    def _(ws, name, solid, label_a, label_b, size, kind="fillet", sizes=(),
+          curvature_continuous=False):
         s = ws.get(solid)
         edges = []
         for i, e in enumerate(s.edges):
@@ -708,9 +712,33 @@ def _build_tools() -> list[Tool]:
                 edges.append(i)
         if not edges:
             raise ValueError(f"no edge between faces labelled '{label_a}' and '{label_b}'")
-        op = nf.fillet_edges if kind == "fillet" else nf.chamfer_edges
         pts = [(tuple(p["point"]), p["size"]) for p in sizes]
-        return _report(ws, name, op(s, edges, size, sizes=pts))
+        if kind == "fillet":
+            return _report(ws, name, nf.fillet_edges(
+                s, edges, size, sizes=pts, curvature_continuous=bool(curvature_continuous)))
+        return _report(ws, name, nf.chamfer_edges(s, edges, size, sizes=pts))
+
+    @add("slab", "Solid wall along a planar curve: the curve is given a width (to the left of "
+         "the curve seen from the tip of the direction; negative: right) and extruded along "
+         "the direction vector (its length is the height). A closed curve gives a ring.",
+         {"name": _NAME, "curve": _NAME, "width": {"type": "number"}, "direction": _VEC},
+         ["name", "curve", "width", "direction"])
+    def _(ws, name, curve, width, direction):
+        return _report(ws, name, nf.make_slab(ws.get(curve), width, direction))
+
+    @add("wire_cut", "Cut a solid along a curve extruded in a direction, like a wire through "
+         "foam. A closed curve cuts out a plug; an open curve must run right across the solid. "
+         "The parts are stored as name_1, name_2 (left of the curve or inside first); cut "
+         "faces are labelled 'cut'.",
+         {"name": {"type": "string"}, "solid": _NAME, "curve": _NAME, "direction": _VEC},
+         ["name", "solid", "curve", "direction"])
+    def _(ws, name, solid, curve, direction):
+        parts = nf.wire_cut(ws.get(solid), ws.get(curve), direction)
+        out = []
+        for i, p in enumerate(parts, 1):
+            ws.put(f"{name}_{i}", p)
+            out.append(f"{name}_{i}: volume {p.volume(1e-8):.8g}")
+        return "; ".join(out)
 
     @add("remove_holes", "Defeaturing: fill the through and blind holes of a closed solid that "
          "are smaller than max_size across.",

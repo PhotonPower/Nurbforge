@@ -95,7 +95,8 @@ struct SurfaceContinuityTolerance {
   double position{1e-6};   ///< largest gap along the edge (model units)
   double angle{1e-6};      ///< largest angle between the tangent planes for G1 (radians)
   double curvature{1e-4};  ///< largest difference of the curvature tensors for G2, relative to
-                           ///< the largest principal curvature
+                           ///< the largest principal curvature (or to 1 / size of the
+                           ///< surfaces where both are nearly flat)
 };
 
 /// Continuity of two surfaces along a common edge, from samples along the edge.

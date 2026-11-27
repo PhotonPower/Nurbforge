@@ -56,7 +56,7 @@ GROUPS: list[tuple[str, list[str]]] = [
 ]
 
 SUBMODULES: dict[str, list[str]] = {
-    "nurbforge.mesh": ["GmshSession", "bem_mesh", "shrink_wrap", "SurfaceMesh",
+    "nurbforge.mesh": ["GmshSession", "bem_mesh", "shrink_wrap", "remesh", "SurfaceMesh",
                        "MeshTopologyError",
                        "add_curve", "add_surface", "add_trimmed_surface", "add_shell",
                        "export_step", "mesh_surfaces"],

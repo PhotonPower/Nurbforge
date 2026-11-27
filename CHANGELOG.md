@@ -11,8 +11,13 @@ versioning: [SemVer](https://semver.org).
   they overlap, leave gaps or are open. It is a mesh-level tool and approximate (accurate to
   about the resolution), and needs numpy only: sampled distance field on a grid, flood fill
   from outside, marching tetrahedra, and a closing step that brings the hull back onto the
-  input. Gaps narrower than about 1.5 x resolution are closed. `SurfaceMesh.write` writes
-  `.msh` and `.stl` without gmsh.
+  input. Gaps narrower than about 1.5 x resolution are closed. If the worst triangle is
+  below `min_quality` (default 0.3), the nodes are moved within the surface until it is
+  reached. `SurfaceMesh.write` writes `.msh` and `.stl` without gmsh.
+- Mesh quality and remeshing: `SurfaceMesh.quality()` gives the shape quality of every
+  triangle (1 equilateral, 0 degenerate); `nurbforge.mesh.remesh(mesh, size, angle)` remeshes
+  a closed triangle mesh through gmsh with well-shaped triangles of a given size, keeping
+  sharp edges.
 - Slab and wire cut (#18): `make_slab(curve, width, direction)` gives a planar curve a width
   and a height (a wall along an open curve, a ring along a closed one, corners mitred);
   `wire_cut(shell, curve, direction)` cuts a solid along a curve extruded in a direction and

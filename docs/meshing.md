@@ -175,8 +175,32 @@ the rest is extracted with marching tetrahedra, which always gives a closed, con
 oriented 2-manifold. That hull is watertight only at a distance of at least
 0.75 x `resolution`, so for a smaller `offset` a second distance field, measured from the
 hull, gives the surface that lies the difference further in (a morphological closing).
-The triangles come straight from the grid and can be thin; remesh the hull if the solver
-needs well-shaped elements.
+
+### Triangle quality and remeshing
+
+The triangles cut out of the grid can be arbitrarily thin. `m.quality()` gives the shape
+quality of every triangle of a `SurfaceMesh`: 4·√3·area / (sum of the squared sides), 1 for an
+equilateral triangle and 0 for a degenerate one. `shrink_wrap` checks it: if the worst triangle
+is below `min_quality` (default 0.3), the nodes are moved within the surface towards the
+centres of their neighbours until it is reached (at most 50 smoothing steps). The connectivity
+is kept, so the mesh stays closed, and since the nodes move in their tangent planes the shape
+and the volume change by fractions of a per cent of the resolution only. Typically 5 steps
+give a worst quality above 0.3 and a mean of 0.85. `min_quality=0` returns the mesh as cut out
+of the grid.
+
+For triangles of a different size, or of still better shape (mean quality above 0.95),
+`remesh` builds a new mesh through gmsh:
+
+```python
+from nurbforge.mesh import remesh
+
+coarse = remesh(hull, size=0.5)        # angle=40: edges sharper than 40 degrees are kept
+```
+
+gmsh splits the mesh into patches along its sharp edges, parametrises them and meshes them
+anew; the new nodes lie on the old triangles. The result is again a watertight,
+outward-oriented `SurfaceMesh`. `remesh` refuses meshes with nearly degenerate triangles
+(quality below 0.01, `ValueError`), on which gmsh's classification does not terminate.
 
 ## Implementation notes
 

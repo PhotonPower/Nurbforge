@@ -9,6 +9,7 @@ from .gmsh_export import (  # noqa: F401
     bem_mesh,
     export_step,
     mesh_surfaces,
+    remesh,
 )
 from .shrink_wrap import shrink_wrap  # noqa: F401
 from .surface_mesh import MeshTopologyError, SurfaceMesh  # noqa: F401

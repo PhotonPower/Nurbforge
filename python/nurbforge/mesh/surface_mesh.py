@@ -60,6 +60,15 @@ class SurfaceMesh:
         a, b, c = self._corners()
         return 0.5 * np.linalg.norm(np.cross(b - a, c - a), axis=1)
 
+    def quality(self) -> np.ndarray:
+        """Shape quality of the (flat) corner triangles, (M,): 4 sqrt(3) area / (sum of the
+        squared side lengths), which is 1 for an equilateral triangle and 0 for a degenerate
+        one."""
+        a, b, c = self._corners()
+        sides = ((b - a) ** 2).sum(axis=1) + ((c - b) ** 2).sum(axis=1) \
+            + ((a - c) ** 2).sum(axis=1)
+        return 4.0 * np.sqrt(3.0) * self.areas() / np.where(sides > 0.0, sides, 1.0)
+
     def centroids(self) -> np.ndarray:
         a, b, c = self._corners()
         return (a + b + c) / 3.0

@@ -331,6 +331,9 @@ groups per face label are written as well. The result is a \apiref{mesh.SurfaceM
 \code{normals()} & \code{(M, 3)} unit normals of the flat corner triangles. \\
 \code{areas()} & \code{(M,)} areas of the corner triangles. \\
 \code{centroids()} & \code{(M, 3)} centroids of the corner triangles. \\
+\code{quality()} & \code{(M,)} shape quality of the corner triangles: 1 equilateral, 0
+  degenerate (\cref{sec:mesh-shrinkwrap}). \\
+\code{write(path)} & Writes \code{.msh} (MSH 2.2 ASCII) or binary \code{.stl} without gmsh. \\
 \code{volume()} & Enclosed volume by the divergence theorem. It is positive for an
   outward-oriented mesh, and cavities count negative. For quadratic meshes it uses the corner
   triangles, so it converges like a linear mesh. \\
@@ -470,8 +473,34 @@ The surface between them and the rest is extracted with marching tetrahedra, whi
 a closed, consistently oriented 2-manifold. That hull is watertight only at a distance of at
 least $0.75\,\times$ \code{resolution}; for a smaller \code{offset}, a second distance field
 measured from the hull gives the surface that lies the difference further in (a morphological
-closing). The triangles come straight from the grid and can be thin: remesh the hull if the
-solver needs well-shaped elements.
+closing).
+
+\subsection{Triangle quality and remeshing}
+
+The triangles cut out of the grid can be arbitrarily thin. \apiref{mesh.SurfaceMesh.quality}
+gives the shape quality of every triangle, $4\sqrt{3}\,A / (a^2 + b^2 + c^2)$ with the area $A$
+and the sides $a$, $b$, $c$: 1 for an equilateral triangle and 0 for a degenerate one.
+\code{shrink_wrap} checks it. If the worst triangle is below \code{min_quality} (default 0.3),
+the nodes are moved within the surface towards the centres of their neighbours until it is
+reached, in at most 50 smoothing steps. The connectivity is kept, so the mesh stays closed, and
+since the nodes move in their tangent planes, the shape and the volume change by fractions of a
+per cent of the resolution only. Typically 5 steps give a worst quality above 0.3 and a mean of
+0.85. \code{min_quality=0} returns the mesh as cut out of the grid.
+
+For triangles of a different size, or of still better shape (mean quality above 0.95),
+\apiref{mesh.remesh} builds a new mesh through gmsh:
+
+\begin{lstlisting}[style=python]
+from nurbforge.mesh import remesh
+
+coarse = remesh(hull, size=0.5)        # angle=40: edges sharper than 40 degrees are kept
+\end{lstlisting}
+
+gmsh splits the mesh into patches along its sharp edges, parametrises them and meshes them
+anew; the new nodes lie on the old triangles. The result is again a watertight,
+outward-oriented \code{SurfaceMesh}. \code{remesh} refuses meshes with nearly degenerate
+triangles (quality below 0.01, \code{ValueError}), on which gmsh's classification does not
+terminate.
 
 \section{Convenience functions}
 

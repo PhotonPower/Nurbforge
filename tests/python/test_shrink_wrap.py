@@ -13,6 +13,7 @@ def _assert_closed(m, components=1, genus=0):
     assert m.is_watertight()
     assert m.is_consistently_oriented()
     assert np.all(m.areas() > 0)
+    assert m.quality().min() >= 0.3
     # Euler characteristic of closed orientable surfaces: V - E + F = 2 (components - genus)
     assert len(m.nodes) - len(m.triangles) // 2 == 2 * (components - genus)
 
@@ -107,6 +108,57 @@ def test_trimmed_faces():
     m = shrink_wrap(part, 0.05)
     _assert_closed(m, genus=1)
     assert m.volume() == pytest.approx(part.volume(), rel=0.015)
+
+
+def test_triangle_quality():
+    ball = nf.make_sphere((0, 0, 0), 1.0)
+    raw = shrink_wrap(ball, 0.1, min_quality=0.0)  # as cut out of the grid: slivers
+    assert raw.is_watertight() and raw.quality().min() < 0.01
+    m = shrink_wrap(ball, 0.1)
+    assert np.array_equal(m.triangles, raw.triangles)  # only the nodes move
+    assert m.quality().min() >= 0.3 and m.quality().mean() > 0.8
+    assert m.volume() == pytest.approx(raw.volume(), rel=1e-3)
+    r = np.linalg.norm(m.nodes, axis=1)
+    assert r.max() < 1.005 and r.min() > 0.985
+    better = shrink_wrap(ball, 0.1, min_quality=0.45)
+    assert better.quality().min() >= 0.45
+
+    # quality(): 1 for an equilateral triangle, 0 for a degenerate one
+    nodes = np.array([[0, 0, 0], [1, 0, 0], [0.5, math.sqrt(0.75), 0], [2, 0, 0]], dtype=float)
+    t = SurfaceMesh(nodes, np.array([[0, 1, 2], [0, 1, 3]]), np.zeros(2, int), np.arange(4))
+    assert t.quality() == pytest.approx([1.0, 0.0])
+
+
+def test_remesh_with_gmsh():
+    pytest.importorskip("gmsh")
+    from nurbforge.mesh import GmshSession, remesh
+
+    hull = shrink_wrap(nf.make_box((0, 0, 0), (2, 1, 1)), 0.05)
+    m = remesh(hull, 0.1)
+    assert m.is_watertight() and m.is_consistently_oriented()
+    assert len(m.triangles) < len(hull.triangles) / 3
+    assert m.quality().mean() > 0.9 and m.quality().min() > 0.2
+    assert m.volume() == pytest.approx(2.0, rel=0.015)
+    # the sharp edges are kept: nodes on the faces of the box only
+    assert np.allclose(m.nodes.min(axis=0), 0.0, atol=0.005)
+    assert np.allclose(m.nodes.max(axis=0), (2, 1, 1), atol=0.005)
+
+    # a hull without sharp edges, and from within a session, which is left as it was
+    with GmshSession() as g:
+        g.add_shell(nf.make_box((0, 0, 0), (1, 1, 1)))
+        g.mesh(dim=2, size=0.3)
+        before = len(g.gmsh.model.mesh.getNodes()[0])
+        ball = remesh(shrink_wrap(nf.make_sphere((0, 0, 0), 1.0), 0.1), 0.1)
+        assert g.gmsh.model.getCurrent() == "nurbforge"
+        assert len(g.gmsh.model.mesh.getNodes()[0]) == before
+        assert g.surface_mesh().volume() == pytest.approx(1.0)
+    assert ball.is_watertight() and ball.quality().mean() > 0.9
+    assert ball.volume() == pytest.approx(4.0 / 3.0 * math.pi, rel=0.02)
+
+    with pytest.raises(ValueError, match="degenerate"):
+        remesh(shrink_wrap(nf.make_sphere((0, 0, 0), 1.0), 0.2, min_quality=0.0), 0.2)
+    with pytest.raises(ValueError, match="size"):
+        remesh(hull, 0.0)
 
 
 def test_errors():

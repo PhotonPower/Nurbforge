@@ -20,6 +20,8 @@ import os
 import tempfile
 from collections.abc import Iterable
 
+import numpy as np
+
 from .._core import NurbsCurve, NurbsSurface, Shell, TrimmedSurface, unique_knots, write_step
 from .surface_mesh import SurfaceMesh, build_surface_mesh
 
@@ -344,6 +346,64 @@ def export_step(objects, path: str, solid: bool = True) -> None:
                 g.add_surface(o)
         g.gmsh.model.occ.synchronize()
         g.write(path)
+
+
+def remesh(mesh: SurfaceMesh, size: float, angle: float = 40.0) -> SurfaceMesh:
+    """Remesh a closed triangle mesh with well-shaped triangles of edge length ``size``.
+
+    gmsh splits the mesh into patches along edges where the normals of neighbouring triangles
+    differ by more than ``angle`` (degrees), parametrises the patches and meshes them anew; the
+    new nodes lie on the old triangles, so edges sharper than ``angle`` are kept and the shape
+    changes by the chord error of the new triangles only. Returns a watertight,
+    outward-oriented :class:`SurfaceMesh` with linear triangles (surface tags: the patches);
+    raises :class:`MeshTopologyError` if the result is not closed. Face groups are not kept.
+    Works inside an open :class:`GmshSession` as well, in a model of its own.
+
+    The mesh must not contain nearly degenerate triangles (``ValueError`` if the worst
+    :meth:`SurfaceMesh.quality` is below 0.01): their normals are noise, and gmsh's
+    classification does not terminate on them. ``shrink_wrap`` returns meshes that qualify
+    unless called with ``min_quality=0``."""
+    if not size > 0.0:
+        raise ValueError("remesh: size must be positive")
+    if mesh.quality().min() < 0.01:
+        raise ValueError("remesh: the mesh contains nearly degenerate triangles "
+                         "(quality below 0.01)")
+    gmsh = _gmsh()
+    options = ("Mesh.MeshSizeMin", "Mesh.MeshSizeMax", "Mesh.MeshSizeFromCurvature",
+               "Mesh.MeshSizeFromPoints", "Mesh.MeshSizeExtendFromBoundary",
+               "Mesh.ElementOrder", "Mesh.RecombineAll")
+    nested = bool(gmsh.isInitialized())
+    if nested:
+        previous = gmsh.model.getCurrent()
+        saved = {name: gmsh.option.getNumber(name) for name in options}
+    else:
+        gmsh.initialize()
+        gmsh.option.setNumber("General.Terminal", 0)
+    try:
+        gmsh.model.add("nurbforge-remesh")
+        corners = mesh.triangles[:, :3]
+        used = np.unique(corners)
+        tags = np.arange(1, len(used) + 1)
+        index = np.zeros(len(mesh.nodes), dtype=np.int64)
+        index[used] = tags
+        surface = gmsh.model.addDiscreteEntity(2)
+        gmsh.model.mesh.addNodes(2, surface, tags.tolist(), mesh.nodes[used].ravel().tolist())
+        gmsh.model.mesh.addElementsByType(surface, 2, [], index[corners].ravel().tolist())
+        gmsh.model.mesh.classifySurfaces(math.radians(angle), True, True, math.pi)
+        gmsh.model.mesh.createGeometry()
+        for name, value in zip(options, (size, size, 0, 0, 0, 1, 0)):
+            gmsh.option.setNumber(name, value)
+        gmsh.model.mesh.generate(2)
+        return build_surface_mesh(gmsh)
+    finally:
+        if nested:
+            gmsh.model.remove()
+            for name, value in saved.items():
+                gmsh.option.setNumber(name, value)
+            if previous:
+                gmsh.model.setCurrent(previous)
+        else:
+            gmsh.finalize()
 
 
 def bem_mesh(shell: Shell, size: float | None = None, order: int = 1,

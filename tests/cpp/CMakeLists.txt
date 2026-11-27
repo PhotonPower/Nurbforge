@@ -42,6 +42,7 @@ add_executable(nurbforge_tests
   test_boolean.cpp
   test_solids.cpp
   test_solid_ops.cpp
+  test_shrink_wrap.cpp
   test_region.cpp
   test_blend.cpp
   test_surface_blend.cpp

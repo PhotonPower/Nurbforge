@@ -9,7 +9,9 @@ versioning: [SemVer](https://semver.org).
 - Shrink wrap (#18): `nurbforge.mesh.shrink_wrap(objects, resolution, offset, fill_holes)`
   builds one closed, outward-oriented triangle mesh around shells and loose surfaces, whether
   they overlap, leave gaps or are open. It is a mesh-level tool and approximate (accurate to
-  about the resolution), and needs numpy only: sampled distance field on a grid, flood fill
+  about the resolution), implemented in the C++ kernel without dependencies
+  (`nf::shrink_wrap` → `nf::TriangleMesh`, with `improve_quality` and `write_stl`): sampled
+  distance field on a grid, flood fill
   from outside, marching tetrahedra, and a closing step that brings the hull back onto the
   input. Gaps narrower than about 1.5 x resolution are closed. If the worst triangle is
   below `min_quality` (default 0.3), the nodes are moved within the surface until it is

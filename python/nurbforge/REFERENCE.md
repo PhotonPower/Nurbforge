@@ -1006,7 +1006,7 @@ Freeform sag: base asphere plus \sum_j c_j Z_j(\rho, \theta) with \rho = r / r_n
 
 ## `nurbforge.mesh`
 
-Meshing via gmsh (optional dependency: `pip install nurbforge[mesh]`) and mesh-level tools that need numpy only (`shrink_wrap`, `SurfaceMesh`).
+Meshing via gmsh (optional dependency: `pip install nurbforge[mesh]`) and mesh-level tools that work without gmsh (`shrink_wrap`, `SurfaceMesh`).
 
 ### `mesh.GmshSession`
 

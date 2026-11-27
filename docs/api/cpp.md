@@ -117,6 +117,30 @@ lies more than the tolerance off the tangent plane of the face where the ray mee
 lying on a face are therefore not hidden by it. `make2d` and `outline` are for parallel views:
 the projection onto the drawing plane is then an exact affine map of the control points.
 
+## Shrink wrap (triangle meshes)
+
+`mesh/shrink_wrap.hpp` builds one closed triangle mesh around faces that overlap, leave gaps or
+are open. It is the only part of the kernel whose result is approximate (accurate to about the
+resolution) rather than exact geometry; it uses the standard library only.
+
+```cpp
+#include <nurbforge/mesh/shrink_wrap.hpp>
+
+nf::ShrinkWrapOptions opt;
+opt.offset = 0.5;                         // distance of the hull from the input (default 0)
+const nf::TriangleMesh hull = nf::shrink_wrap(std::vector<nf::Shell>{a, b}, 0.2, opt);
+hull.is_watertight(); hull.volume(); hull.min_quality();   // nodes, triangles: plain vectors
+nf::write_stl(hull, "envelope.stl");
+```
+
+There is an overload for loose faces (`std::vector<TrimmedSurface>`). `TriangleMesh`
+(`mesh/triangle_mesh.hpp`) holds `nodes` and `triangles` and measures itself (`area`, `volume`,
+`quality`, `is_watertight`, `is_consistently_oriented`); `improve_quality(mesh, min_quality)`
+is the smoothing `shrink_wrap` applies when the worst triangle is below
+`ShrinkWrapOptions::min_quality`. Behaviour and limits are described in
+[meshing.md](../meshing.md#shrink-wrap-a-closed-hull-around-anything); remeshing with gmsh is
+available from Python only.
+
 Reference documentation: `doxygen docs/Doxyfile` → `build/docs/html/index.html`.
 
 The same Doxygen output (XML) is rendered on the documentation site: [C++ API reference](cpp-reference.md).

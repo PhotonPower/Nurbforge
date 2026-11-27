@@ -34,6 +34,9 @@ grouped by area, and mirror the layers of \cref{sec:intro-architecture}:
 \code{topology/*.hpp} & \code{TrimmedSurface}, \code{Shell}, \code{solids} (primitives),
   \code{boolean}. \\
 \code{io/step.hpp} & STEP writer and reader. \\
+\code{mesh/shrink_wrap.hpp}, \code{triangle_mesh.hpp} & \code{shrink_wrap} (a closed hull mesh
+  around arbitrary faces, approximate, \cref{sec:mesh-shrinkwrap}), \code{TriangleMesh},
+  \code{improve_quality}, \code{write_stl}. \\
 \code{nurbforge/version.hpp} & Generated: \code{NURBFORGE_VERSION} (a string) and
   \code{NURBFORGE_VERSION_MAJOR}, \code{_MINOR}, \code{_PATCH}. \\
 \bottomrule

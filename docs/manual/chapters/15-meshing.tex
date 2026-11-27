@@ -429,7 +429,8 @@ then edge midpoints 0--1, 1--2, 2--0) is the most common convention.
 overlap, leave gaps or are open. It is a fallback where an exact Boolean or sewing is not
 possible, a repair for imported geometry, and a way to get a simplified outer boundary. Unlike
 everything else in Nurbforge it is \emph{approximate}: the result is a mesh accurate to about
-the resolution, not exact geometry. It needs numpy only, not gmsh.
+the resolution, not exact geometry. It does not need gmsh: the work is done by the C++ kernel
+(\code{nf::shrink_wrap} in \code{mesh/shrink_wrap.hpp}, which returns a \code{TriangleMesh}).
 
 \begin{lstlisting}[style=python]
 from nurbforge.mesh import shrink_wrap

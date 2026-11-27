@@ -1554,6 +1554,36 @@ PYBIND11_MODULE(_core, m) {
       "principal stretches per grid cell (pattern length / surface length), their extremes, "
       "the rms strain and both areas.");
 
+  // ------------------------------------------------------------------ mesh-level tools
+  // (private: the public interface is nurbforge.mesh.shrink_wrap, which returns a SurfaceMesh)
+  m.def(
+      "_shrink_wrap",
+      [](const std::vector<TrimmedSurface>& faces, double resolution, double offset,
+         bool fill_holes, std::size_t max_nodes, double min_quality) {
+        TriangleMesh mesh;
+        {
+          py::gil_scoped_release release;
+          ShrinkWrapOptions opt;
+          opt.offset = offset;
+          opt.fill_holes = fill_holes;
+          opt.max_nodes = max_nodes;
+          opt.min_quality = min_quality;
+          mesh = shrink_wrap(faces, resolution, opt);
+        }
+        py::array_t<std::int64_t> tri(
+            {static_cast<py::ssize_t>(mesh.triangles.size()), py::ssize_t{3}});
+        auto t = tri.mutable_unchecked<2>();
+        for (std::size_t i = 0; i < mesh.triangles.size(); ++i)
+          for (std::size_t k = 0; k < 3; ++k)
+            t(static_cast<py::ssize_t>(i), static_cast<py::ssize_t>(k)) =
+                static_cast<std::int64_t>(mesh.triangles[i][k]);
+        return py::make_tuple(to_numpy(mesh.nodes), tri);
+      },
+      py::arg("faces"), py::arg("resolution"), py::arg("offset") = 0.0,
+      py::arg("fill_holes") = true, py::arg("max_nodes") = 20'000'000, py::arg("min_quality") = 0.3,
+      "Shrink wrap of trimmed faces (C++ shrink_wrap): returns the nodes (N, 3) and the "
+      "triangles (M, 3) of the closed hull mesh.");
+
   // ------------------------------------------------------------------ Coons / Gordon
   m.def("coons", &coons, py::call_guard<py::gil_scoped_release>(), py::arg("c0"), py::arg("c1"),
         py::arg("d0"), py::arg("d1"), py::arg("tolerance") = 1e-7,

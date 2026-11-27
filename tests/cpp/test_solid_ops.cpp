@@ -250,3 +250,50 @@ TEST_CASE("constructive operations run concurrently on shared inputs", "[solid_o
   for (auto& t : th) t.join();
   for (const auto& g : got) CHECK(g == ref);
 }
+
+TEST_CASE("slab along an open and a closed curve", "[solid_ops]") {
+  // L-shaped wall, 0.5 wide and 1.5 high: strip area 1.25
+  const Shell wall = make_slab(make_polyline({{0, 0, 0}, {2, 0, 0}, {2, 1, 0}}), 0.5, {0, 0, 1.5});
+  CHECK(wall.is_closed());
+  CHECK(std::abs(wall.volume() - 1.25 * 1.5) < 1e-9);
+  CHECK(wall.faces_labeled("cap").size() == 2);
+  // to the right of the curve: the mirror image at the corner
+  const Shell right =
+      make_slab(make_polyline({{0, 0, 0}, {2, 0, 0}, {2, 1, 0}}), -0.5, {0, 0, 1.5});
+  CHECK(std::abs(right.volume() - 1.75 * 1.5) < 1e-9);
+  // ring inside a circle of radius 1 (left of a counter-clockwise curve), wall 0.2
+  const Shell ring = make_slab(make_circle({0, 0, 0}, {0, 0, 1}, 1.0), 0.2, {0, 0, 2});
+  CHECK(ring.is_closed());
+  CHECK(std::abs(ring.volume() - std::numbers::pi * (1.0 - 0.64) * 2.0) < 1e-5);
+  CHECK_THROWS_AS(make_slab(make_circle({0, 0, 0}, {0, 0, 1}, 1.0), 0.0, {0, 0, 1}), GeometryError);
+  CHECK_THROWS_AS(make_slab(make_circle({0, 0, 0}, {0, 0, 1}, 1.0), 0.2, {0, 0, 0}), GeometryError);
+}
+
+TEST_CASE("wire cut of a box", "[solid_ops]") {
+  const Shell box = make_box({0, 0, 0}, {4, 2, 1});
+  // a straight wire along y at x = 1.5, running in +y: the left part is x < 1.5
+  const auto halves = wire_cut(box, make_line({1.5, -1, 0}, {1.5, 3, 0}), {0, 0, 1});
+  REQUIRE(halves.size() == 2);
+  CHECK(halves[0].is_closed());
+  CHECK(std::abs(halves[0].volume() - 3.0) < 1e-9);
+  CHECK(std::abs(halves[1].volume() - 5.0) < 1e-9);
+  CHECK(halves[0].faces_labeled("cut").size() == 1);
+  CHECK(halves[1].faces_labeled("cut").size() == 1);
+  // a circular wire: the plug and the plate with the hole
+  const auto plug = wire_cut(box, make_circle({2, 1, 5}, {0, 0, 1}, 0.5), {0, 0, 1});
+  REQUIRE(plug.size() == 2);
+  CHECK(std::abs(plug[0].volume() - std::numbers::pi * 0.25) < 1e-6);
+  CHECK(std::abs(plug[1].volume() - (8.0 - std::numbers::pi * 0.25)) < 1e-6);
+  // a curved wire: an arc of radius 5 about (2, -4), bulging to +y; both parts together are
+  // the box
+  const auto bent = wire_cut(
+      box, make_arc({2, -4, 0}, {1, 0, 0}, {0, 1, 0}, 5.0, 0.5, std::numbers::pi - 0.5), {0, 0, 1});
+  REQUIRE(bent.size() == 2);
+  CHECK(std::abs(bent[0].volume() + bent[1].volume() - 8.0) < 1e-6);
+  CHECK(bent[0].volume() > 0.5);
+  CHECK(bent[1].volume() > 0.5);
+  // a wire beside the solid cuts nothing
+  const auto miss = wire_cut(box, make_line({-2, -1, 0}, {-2, 3, 0}), {0, 0, 1});
+  REQUIRE(miss.size() == 1);
+  CHECK(std::abs(miss[0].volume() - 8.0) < 1e-9);
+}

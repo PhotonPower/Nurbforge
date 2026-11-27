@@ -507,3 +507,19 @@ def test_drawing_and_analysis_tools():
                                                                           "angle 90 deg")
     assert call_tool(ws, "find_duplicates", {"names": ["l1", "l2", "l3"]}) == "l1 = l3"
     call_tool(ws, "solid", {"name": "ball", "kind": "sphere", "point": [0, 0, 0], "radius": 1})
+
+
+def test_slab_and_wire_cut_tools():
+    ws = Workspace()
+    call_tool(ws, "solid", {"name": "box", "kind": "box", "point": [0, 0, 0], "size": [4, 2, 1]})
+    call_tool(ws, "make_line", {"name": "wire", "p0": [1.5, -1, 0], "p1": [1.5, 3, 0]})
+    out = call_tool(ws, "wire_cut", {"name": "part", "solid": "box", "curve": "wire",
+                                     "direction": [0, 0, 1]})
+    assert out == "part_1: volume 3; part_2: volume 5"
+    out = call_tool(ws, "slab", {"name": "wall", "curve": "wire", "width": 0.5,
+                                 "direction": [0, 0, 2]})
+    assert "volume 4" in out
+    out = call_tool(ws, "round_edges", {"name": "r", "solid": "box", "label_a": "top",
+                                        "label_b": "front", "size": 0.3,
+                                        "curvature_continuous": True})
+    assert "closed shell" in out

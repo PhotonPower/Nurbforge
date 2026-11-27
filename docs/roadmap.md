@@ -110,8 +110,11 @@
 - Visibility changes at the exact crossings of the projected curves with the occluders' outlines ✅
 - LLM tools for drawings, unrolling and analysis ✅
 
-## 0.18 – Flattening (#17)
+## 0.18 – Flattening (#17), remaining solid tools (#18)
 - Flattening of doubly curved surfaces with the least stretching and a strain report ✅
+- Slab and wire cut as explicit functions ✅
+- Curvature-continuous (G2) edge blends for chains and loops ✅
+- Later: G2 blends where blended chains meet at a vertex
 
 ## Infrastructure
 - ✅ Wheels via cibuildwheel (manylinux_2_28 for AlmaLinux 10 compatibility, win_amd64, macOS arm64/x86_64)

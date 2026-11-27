@@ -33,6 +33,12 @@ std::vector<double> grid(const KnotVector& U, double a, double b, std::size_t pe
   return out;
 }
 
+double extent_of(const std::vector<Vec3>& points) {
+  double e = 0.0;
+  for (const auto& p : points) e = std::max(e, distance(p, points.front()));
+  return e;
+}
+
 struct RangeTracker {
   SurfaceMapRange r;
   bool any{false};
@@ -137,6 +143,7 @@ double tensor_norm(const std::array<double, 6>& a, const std::array<double, 6>& 
 // Accumulates the comparison of the two surfaces at a pair of corresponding points.
 struct Joint {
   SurfaceContinuity r;
+  double size{0.0};  // extent of the surfaces: curvatures far below 1 / size count as zero
   double kmax{0.0};
   bool curvature_ok{true};
 
@@ -163,7 +170,8 @@ struct Joint {
     r.geometric = 0;
     if (r.max_angle > tol.angle) return r;
     r.geometric = 1;
-    if (curvature_ok && (r.max_curvature_difference <= tol.curvature * kmax || kmax <= 1e-12))
+    const double flat = size > 0.0 ? 1.0 / size : 0.0;
+    if (curvature_ok && r.max_curvature_difference <= tol.curvature * std::max(kmax, flat))
       r.geometric = 2;
     return r;
   }
@@ -237,6 +245,7 @@ SurfaceContinuity continuity(const NurbsSurface& a, SurfaceSide side, const Nurb
   if (samples < 2) throw GeometryError("continuity: at least two samples are needed");
   const auto du = a.domain_u(), dv = a.domain_v();
   Joint joint;
+  joint.size = extent_of(a.control_points());
   for (std::size_t i = 0; i < samples; ++i) {
     // interior samples of the side (its ends are corners, where a third surface may meet)
     const double f = (static_cast<double>(i) + 0.5) / static_cast<double>(samples);
@@ -257,6 +266,9 @@ std::vector<SurfaceContinuity> edge_continuity(const Shell& shell,
   if (samples == 0) throw GeometryError("edge_continuity: at least one sample is needed");
   std::vector<SurfaceContinuity> out;
   out.reserve(shell.edges().size());
+  double size = 0.0;
+  for (const auto& f : shell.faces())
+    size = std::max(size, extent_of(f.surface().control_points()));
   for (const ShellEdge& e : shell.edges()) {
     if (e.uses.size() != 2) {
       out.push_back({});
@@ -264,6 +276,7 @@ std::vector<SurfaceContinuity> edge_continuity(const Shell& shell,
     }
     const double a = e.curve.domain_start(), b = e.curve.domain_end();
     Joint joint;
+    joint.size = size;
     for (std::size_t i = 0; i < samples; ++i) {
       const double fr = (static_cast<double>(i) + 0.5) / static_cast<double>(samples);
       const Vec3 P = e.curve.evaluate(a + fr * (b - a));

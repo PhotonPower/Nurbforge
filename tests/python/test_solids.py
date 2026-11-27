@@ -77,3 +77,19 @@ def test_fillet_and_chamfer_edges():
     cyl = nf.make_cylinder((0, 0, 0), (0, 0, 1), 2.0, 3.0)
     rim = nf.chamfer_edges(cyl, nf.edges_between(cyl, "top", "side"), 0.4)
     assert rim.volume() == pytest.approx(12 * math.pi - 2 * math.pi * (2 - 0.4 / 3) * 0.08, abs=1e-6)
+
+
+def test_slab_wire_cut_and_g2_blend():
+    wall = nf.make_slab(nf.make_polyline([(0, 0, 0), (2, 0, 0), (2, 1, 0)]), 0.5, (0, 0, 1.5))
+    assert wall.is_closed and wall.volume() == pytest.approx(1.25 * 1.5, abs=1e-9)
+    box = nf.make_box((0, 0, 0), (4, 2, 1))
+    left, right = nf.wire_cut(box, nf.make_line((1.5, -1, 0), (1.5, 3, 0)), (0, 0, 1))
+    assert left.volume() == pytest.approx(3.0, abs=1e-9)
+    assert right.volume() == pytest.approx(5.0, abs=1e-9)
+    assert "cut" in left.face_labels
+    edge = nf.edges_between(box, "top", "front")
+    arc = nf.fillet_edges(box, edge, 0.3)
+    smooth = nf.fillet_edges(box, edge, 0.3, curvature_continuous=True)
+    assert smooth.is_closed and arc.volume() < smooth.volume() < 8.0
+    assert sorted(k.geometric for k in nf.edge_continuity(smooth)).count(2) == 2
+    assert sorted(k.geometric for k in nf.edge_continuity(arc)).count(2) == 0

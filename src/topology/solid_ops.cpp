@@ -6,6 +6,7 @@
 #include <functional>
 #include <numeric>
 #include <optional>
+#include <string>
 #include <vector>
 
 #include "loops.hpp"
@@ -14,6 +15,9 @@
 #include "nurbforge/geometry/primitives.hpp"
 #include "nurbforge/modeling/construct.hpp"
 #include "nurbforge/modeling/offset.hpp"
+#include "nurbforge/modeling/project.hpp"
+#include "nurbforge/modeling/surface_tools.hpp"
+#include "nurbforge/topology/boolean.hpp"
 
 namespace nf {
 
@@ -584,6 +588,84 @@ Shell merge_faces(const Shell& shell, double tolerance) {
     for (auto& m : merged) out.push_back(std::move(m));
   }
   return Shell::sew(std::move(out), tolerance);
+}
+
+namespace {
+
+Vec3 unit_direction(const Vec3& d, const char* who) {
+  const double n = norm(d);
+  if (!(n > 0.0) || !std::isfinite(n))
+    throw GeometryError(std::string(who) + ": the direction must be a non-zero vector");
+  return d / n;
+}
+
+Shell labelled(const Shell& sh, const std::string& label) {
+  return sh.with_face_labels(std::vector<std::string>(sh.faces().size(), label));
+}
+
+}  // namespace
+
+Shell make_slab(const NurbsCurve& curve, double width, const Vec3& direction, double tolerance) {
+  const Vec3 n = unit_direction(direction, "make_slab");
+  if (width == 0.0) throw GeometryError("make_slab: width must be non-zero");
+  // strips between the pieces of the curve (v = 0) and of its offset (v = 1)
+  const std::vector<NurbsSurface> strips = ribbon(curve, width, n, 0.1 * tolerance);
+  const bool closed = distance(curve.evaluate(curve.domain_start()),
+                               curve.evaluate(curve.domain_end())) <= tolerance;
+  std::vector<TrimmedSurface> walls;
+  for (std::size_t i = 0; i < strips.size(); ++i) {
+    const NurbsSurface& s = strips[i];
+    const auto du = s.domain_u(), dv = s.domain_v();
+    walls.emplace_back(extrude(s.iso_curve_v(dv[0]), direction));
+    walls.emplace_back(extrude(s.iso_curve_v(dv[1]), direction));
+    if (!closed && i == 0) walls.emplace_back(extrude(s.iso_curve_u(du[0]), direction));
+    if (!closed && i + 1 == strips.size())
+      walls.emplace_back(extrude(s.iso_curve_u(du[1]), direction));
+  }
+  return cap(labelled(Shell::sew(std::move(walls), tolerance), "side"), tolerance);
+}
+
+std::vector<Shell> wire_cut(const Shell& shell, const NurbsCurve& curve, const Vec3& direction,
+                            double tolerance, const std::string& cut_label) {
+  const Vec3 n = unit_direction(direction, "wire_cut");
+  if (!shell.is_closed()) throw GeometryError("wire_cut: the shell must be closed");
+  // extent of the solid along the direction and overall
+  Vec3 lo{1e300, 1e300, 1e300}, hi{-1e300, -1e300, -1e300};
+  double h0 = 1e300, h1 = -1e300;
+  for (const auto& f : shell.faces())
+    for (const auto& p : f.surface().control_points()) {
+      lo = {std::min(lo.x, p.x), std::min(lo.y, p.y), std::min(lo.z, p.z)};
+      hi = {std::max(hi.x, p.x), std::max(hi.y, p.y), std::max(hi.z, p.z)};
+      h0 = std::min(h0, dot(p, n));
+      h1 = std::max(h1, dot(p, n));
+    }
+  const double size = distance(lo, hi);
+  const double margin = 0.25 * size + 10.0 * tolerance;
+  // the curve in the plane below the solid
+  const NurbsCurve base = project_to_plane(curve, Plane{(h0 - margin) * n, n}, n);
+  const Vec3 A = base.evaluate(base.domain_start()), B = base.evaluate(base.domain_end());
+  std::vector<NurbsCurve> loop{base};
+  if (distance(A, B) > tolerance) {
+    // closed on the left, beyond the solid and the curve
+    const Vec3 left = normalized(cross(n, B - A));
+    double reach = 0.0;
+    for (const auto& p : base.control_points()) reach = std::max(reach, std::abs(dot(p - A, left)));
+    const double w = 2.0 * (size + reach + distance(A, 0.5 * (lo + hi))) + margin;
+    loop.push_back(make_line(B, B + w * left));
+    loop.push_back(make_line(B + w * left, A + w * left));
+    loop.push_back(make_line(A + w * left, A));
+  }
+  const Vec3 height = (h1 - h0 + 2.0 * margin) * n;
+  std::vector<TrimmedSurface> walls;
+  for (const auto& c : loop) walls.emplace_back(extrude(c, height));
+  const Shell prism =
+      cap(labelled(Shell::sew(std::move(walls), tolerance), cut_label), tolerance, cut_label);
+  std::vector<Shell> out;
+  for (const BooleanOp op : {BooleanOp::Intersection, BooleanOp::Difference}) {
+    Shell part = boolean(shell, prism, op, tolerance);
+    if (!part.faces().empty()) out.push_back(std::move(part));
+  }
+  return out;
 }
 
 }  // namespace nf

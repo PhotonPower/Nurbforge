@@ -15,6 +15,7 @@
 #include <utility>
 #include <vector>
 
+#include "../modeling/fit_family.hpp"
 #include "../modeling/geodesic.hpp"
 #include "nurbforge/analysis/closest_point.hpp"
 #include "nurbforge/analysis/intersect.hpp"
@@ -198,6 +199,78 @@ bool is_convex(const Shell& sh, const ShellEdge& e) {
   const SurfacePoint q = closest_point(F2.surface(), D[0]);
   const Vec3 n2 = F2.surface().normal(q.u, q.v);
   return dot(into1, n2) < 0.0;
+}
+
+// Curvature vector of the normal section of S at (u, v) in the tangent direction T: the normal
+// curvature in that direction times the unit normal.
+Vec3 normal_curvature(const NurbsSurface& S, double u, double v, const Vec3& T) {
+  const auto D = S.derivatives(u, v, 2);
+  const Vec3& Su = D[1][0];
+  const Vec3& Sv = D[0][1];
+  const Vec3 N = S.normal(u, v);
+  const double E = dot(Su, Su), F = dot(Su, Sv), G = dot(Sv, Sv), det = E * G - F * F;
+  if (!(det > 0.0)) return {0, 0, 0};
+  const double tu = dot(T, Su), tv = dot(T, Sv);
+  const double a = (G * tu - F * tv) / det, b = (E * tv - F * tu) / det;  // T = a Su + b Sv
+  const double first = E * a * a + 2.0 * F * a * b + G * b * b;
+  if (!(first > 0.0)) return {0, 0, 0};
+  const double second =
+      dot(D[2][0], N) * a * a + 2.0 * dot(D[1][1], N) * a * b + dot(D[0][2], N) * b * b;
+  return (second / first) * N;
+}
+
+// Curvature-continuous blend between the contact curves of a rolling-ball fillet: at every
+// section the quintic Bezier curve from the contact on S1 to the contact on S2 that leaves the
+// faces with their tangents (those of the fillet's arc) and with their normal curvatures in
+// the cross direction. The six control curves are fitted along the edge; u runs across as in
+// the fillet, v along it.
+NurbsSurface curvature_continuous_blend(const NurbsSurface& S1, const NurbsSurface& S2,
+                                        const SurfaceFillet& f, double tol) {
+  const auto dv = f.surface.domain_v();
+  const auto exact = [&](double t) {
+    const auto a = f.surface.first_derivatives(0.0, t), b = f.surface.first_derivatives(1.0, t);
+    const Vec3 P1 = a[0], P2 = b[0];
+    const Vec3 T1 = normalized(a[1]), T2 = normalized(b[1]);  // in the direction of travel
+    const double chord = distance(P1, P2);
+    const double half = 0.5 * std::acos(std::clamp(dot(T1, T2), -1.0, 1.0));
+    // distance from the contacts to the corner of the two tangents; the end speed is 1.5 times
+    // that, which keeps the control points before the corner
+    const double speed = 1.5 * 0.5 * chord / std::max(std::cos(half), 0.2);
+    const Vec3 q1 = f.pcurve1.evaluate(t), q2 = f.pcurve2.evaluate(t);
+    const Vec3 K1 = normal_curvature(S1, q1.x, q1.y, T1), K2 = normal_curvature(S2, q2.x, q2.y, T2);
+    // quintic: C'(0) = 5 (Q1 - Q0), C''(0) = 20 (Q2 - 2 Q1 + Q0) = speed^2 K1; likewise at 1
+    const Vec3 Q1 = P1 + (speed / 5.0) * T1, Q4 = P2 - (speed / 5.0) * T2;
+    const Vec3 Q2 = 2.0 * Q1 - P1 + (speed * speed / 20.0) * K1;
+    const Vec3 Q3 = 2.0 * Q4 - P2 + (speed * speed / 20.0) * K2;
+    return std::vector<Vec3>{P1, Q1, Q2, Q3, Q4, P2};
+  };
+  const auto error = [](const std::vector<NurbsCurve>& c, double t, const std::vector<Vec3>& e) {
+    double err = 0.0;
+    for (std::size_t k = 0; k < c.size(); ++k)
+      err = std::max(err, distance(c[k].evaluate(t), e[k]));
+    return err;
+  };
+  std::vector<double> T;
+  for (const double k : unique_knots(f.surface.knots_v()).first)
+    if (k >= dv[0] && k <= dv[1] && (T.empty() || k - T.back() > 1e-9 * (dv[1] - dv[0])))
+      T.push_back(k);
+  while (T.size() < 5) {
+    std::vector<double> finer;
+    for (std::size_t i = 0; i + 1 < T.size(); ++i) {
+      finer.push_back(T[i]);
+      finer.push_back(0.5 * (T[i] + T[i + 1]));
+    }
+    finer.push_back(T.back());
+    T = std::move(finer);
+  }
+  const auto c = detail::fit_family(T, exact, error, tol, "fillet_edges");
+  const std::size_t nv = c[0].num_control_points();
+  std::vector<Vec3> P;
+  P.reserve(6 * nv);
+  for (std::size_t i = 0; i < 6; ++i)
+    P.insert(P.end(), c[i].control_points().begin(), c[i].control_points().end());
+  return {5,  c[0].degree(), KnotVector{0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1}, c[0].knots(), 6,
+          nv, std::move(P)};
 }
 
 // Geodesic chamfer curves: from the edge points, geodesics of length d into both faces.
@@ -1335,6 +1408,7 @@ Shell blend_edges(const Shell& sh, const std::vector<std::size_t>& edges, double
           fo.near = chain0.evaluate(0.5);
           if (!law->pts.empty()) fo.radius_at = size_at;
           SurfaceFillet f = fillet_surfaces(S1, S2, r0, fo);
+          if (opt.curvature_continuous) f.surface = curvature_continuous_blend(S1, S2, f, btol);
           Blend b{std::move(f.surface), std::move(f.contact1), std::move(f.contact2),
                   std::move(f.pcurve1), std::move(f.pcurve2)};
           gb.emplace(
@@ -1355,6 +1429,16 @@ Shell blend_edges(const Shell& sh, const std::vector<std::size_t>& edges, double
       }
     }
     G.push_back(std::move(*gb));
+  }
+
+  if (opt.curvature_continuous) {
+    if (kind != Kind::Fillet)
+      throw GeometryError(who + ": curvature_continuous applies to fillets only");
+    for (const auto& [v, gs] : at_vertex)
+      if (gs.size() > 1)
+        throw GeometryError(who +
+                            ": curvature-continuous blends that meet at a vertex are not "
+                            "supported (blend the chains separately or use rolling-ball fillets)");
   }
 
   // ends

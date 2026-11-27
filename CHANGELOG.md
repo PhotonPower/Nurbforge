@@ -6,12 +6,25 @@ versioning: [SemVer](https://semver.org).
 ## [Unreleased]
 
 ### Added
+- Slab and wire cut (#18): `make_slab(curve, width, direction)` gives a planar curve a width
+  and a height (a wall along an open curve, a ring along a closed one, corners mitred);
+  `wire_cut(shell, curve, direction)` cuts a solid along a curve extruded in a direction and
+  returns its parts with the cut faces labelled. LLM tools `slab`, `wire_cut`.
+- Curvature-continuous edge blends (#18): `fillet_edges` with
+  `EdgeBlendOptions::curvature_continuous` (Python `curvature_continuous=True`, LLM tool
+  `round_edges`) builds G2 blends between the contact curves of the rolling-ball fillet:
+  quintic cross-sections that leave the two faces with their tangent and their normal
+  curvature. For chains and closed loops that meet no other blended chain.
 - Flattening of doubly curved surfaces (#17): `flatten(surface, options)` lays a grid of surface
   points out in the plane so that the geodesic distances between neighbours are kept as well
   as possible (stress majorisation, then Gauss-Newton), and returns the flat pattern on the
   parameter domain of the surface with the strains that remain: principal stretches per grid
   cell, their extremes, the rms strain and both areas. Planes and developable surfaces come
   out without strain; `unroll` remains the exact way for those. LLM tool `flatten`.
+
+### Changed
+- `continuity` of surfaces and `edge_continuity`: two nearly flat surfaces are compared
+  relative to 1 / their size, so a plane meeting a blend with vanishing curvature is G2.
 
 ## [0.17.0] – 2026-11-27
 The remaining surface tools of #17 (two-rail sweeps with several profiles, variable offset,

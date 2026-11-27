@@ -5,6 +5,11 @@ versioning: [SemVer](https://semver.org).
 
 ## [Unreleased]
 
+## [0.18.0] – 2026-11-27
+Flattening of doubly curved surfaces (#17), the remaining solid tools of #18 (slab, wire cut,
+curvature-continuous edge blends) and shrink wrap: a closed hull mesh around arbitrary input,
+in the C++ kernel. The API is not yet stable (0.x).
+
 ### Added
 - Shrink wrap (#18): `nurbforge.mesh.shrink_wrap(objects, resolution, offset, fill_holes)`
   builds one closed, outward-oriented triangle mesh around shells and loose surfaces, whether

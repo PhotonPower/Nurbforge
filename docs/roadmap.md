@@ -110,7 +110,7 @@
 - Visibility changes at the exact crossings of the projected curves with the occluders' outlines ✅
 - LLM tools for drawings, unrolling and analysis ✅
 
-## 0.18 – Flattening (#17), remaining solid tools (#18)
+## 0.18 – Flattening (#17), remaining solid tools and shrink wrap (#18) ✅
 - Flattening of doubly curved surfaces with the least stretching and a strain report ✅
 - Slab and wire cut as explicit functions ✅
 - Curvature-continuous (G2) edge blends for chains and loops ✅

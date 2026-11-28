@@ -5,6 +5,13 @@ versioning: [SemVer](https://semver.org).
 
 ## [Unreleased]
 
+### Fixed
+- `intersect(curve, curve)` ran for minutes or hours on nearly coincident curves whose gap was
+  just above `tol.length` (#109): the axis-aligned boxes of curved, sloped pieces kept
+  overlapping until the pieces were about as small as the gap. A fat line test (separating
+  axis perpendicular to a piece's chord) now separates such pieces much earlier; the issue's
+  example (gap 3e-6) takes about 0.1 s instead of not finishing.
+
 ## [0.18.0] – 2026-11-27
 Flattening of doubly curved surfaces (#17), the remaining solid tools of #18 (slab, wire cut,
 curvature-continuous edge blends) and shrink wrap: a closed hull mesh around arbitrary input,

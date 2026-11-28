@@ -43,6 +43,39 @@ double diagonal(const std::vector<Vec3>& pts) {
   return distance(b.lo, b.hi);
 }
 
+// Fat line test (as in Bezier clipping): the axis perpendicular to the chord of P, in the
+// direction of the offset between the centroids of P and Q. If the control points of P and Q
+// project to intervals more than `gap` apart, their convex hulls (and so the pieces) are more
+// than `gap` apart. Unlike axis-aligned boxes this separates nearly coincident pieces of curved,
+// sloped curves once their deviation from the chord is below the gap, i.e. at a piece size of
+// about sqrt(gap / curvature) instead of about the gap itself.
+bool slab_separated(const std::vector<Vec3>& P, const std::vector<Vec3>& Q, double gap) {
+  const Vec3 chord = P.back() - P.front();
+  const double lc = norm(chord);
+  if (lc == 0.0) return false;
+  const Vec3 t = chord / lc;
+  Vec3 cp{}, cq{};
+  for (const auto& p : P) cp = cp + p;
+  for (const auto& q : Q) cq = cq + q;
+  const Vec3 d = cq / static_cast<double>(Q.size()) - cp / static_cast<double>(P.size());
+  const Vec3 n = d - dot(d, t) * t;
+  const double ln = norm(n);
+  if (ln == 0.0) return false;
+  const Vec3 axis = n / ln;
+  double p0 = std::numeric_limits<double>::infinity(), p1 = -p0, q0 = p0, q1 = -p0;
+  for (const auto& p : P) {
+    const double x = dot(p, axis);
+    p0 = std::min(p0, x);
+    p1 = std::max(p1, x);
+  }
+  for (const auto& q : Q) {
+    const double x = dot(q, axis);
+    q0 = std::min(q0, x);
+    q1 = std::max(q1, x);
+  }
+  return q0 - p1 > gap || p0 - q1 > gap;
+}
+
 // Cone containing all directions of the given edge vectors: axis and half angle (pi if none).
 struct Cone {
   Vec3 axis;
@@ -228,6 +261,7 @@ struct CurveCurveSearch {
     const auto& A = pa.control_points();
     const auto& B = pb.control_points();
     if (!overlap(box(A, tol.length), box(B, tol.length))) return;
+    if (slab_separated(A, B, tol.length) || slab_separated(B, A, tol.length)) return;
     const double da = diagonal(A), db = diagonal(B);
     const Cone ca = curve_cone(pa), cb = curve_cone(pb);
     const double th = angle(ca.axis, cb.axis), spread = ca.half + cb.half;

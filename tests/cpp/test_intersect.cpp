@@ -99,6 +99,25 @@ TEST_CASE("many intersections of a wavy curve with a line", "[intersect]") {
   }
 }
 
+TEST_CASE("curve / curve: nearly coincident, gap just above the tolerance (issue #109)",
+          "[intersect]") {
+  // the axis-aligned boxes of the sloped pieces keep overlapping until the pieces are about as
+  // small as the gap; without the fat line test this ran for hours
+  std::vector<Vec3> pa, pb, pc;
+  for (int i = 0; i <= 60; ++i) {
+    const double x = -20.0 + i * 40.0 / 60.0, y = 3.0 * std::sin(0.3 * x);
+    pa.push_back({x, y, 0});
+    pb.push_back({x, y + 3e-6, 0});
+    pc.push_back({x, y + 3e-6 * x / 20.0, 0});  // sheared: crosses a at x = 0 at a tiny angle
+  }
+  const auto a = NurbsCurve::from_points(3, pa);
+  CHECK(intersect(a, NurbsCurve::from_points(3, pb)).empty());
+  const auto r = intersect(a, NurbsCurve::from_points(3, pc));
+  REQUIRE(r.size() == 1);
+  CHECK(std::abs(r[0].point.x) < 1e-3);
+  CHECK(r[0].distance <= 1e-10);
+}
+
 TEST_CASE("line / sphere", "[intersect][surface]") {
   const auto meridian = make_arc({0, 0, 0}, {0, 0, -1}, {1, 0, 0}, 2.0, 0.0, pi);
   const auto sphere = revolve(meridian, {0, 0, 0}, {0, 0, 1}, 2 * pi);
